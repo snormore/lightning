@@ -52,7 +52,7 @@ async fn test_build_latency_matrix() {
     let node_consensus_public_key2 = node_consensus_secret_key2.to_pk();
 
     // Init application service and store node info in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.node_info = vec![
         GenesisNode::new(
             our_owner_public_key.into(),
@@ -151,6 +151,7 @@ async fn test_build_latency_matrix() {
     let mut node = Node::<TestBinding>::init_with_provider(fdi::Provider::default().with(
         JsonConfigProvider::default().with::<Application<TestBinding>>(AppConfig {
             genesis: Some(genesis),
+            genesis_path: None,
             mode: Mode::Test,
             testnet: false,
             storage: StorageConfig::InMemory,
@@ -202,6 +203,7 @@ async fn test_receive_connections() {
     let mut node = Node::<TestBinding>::init_with_provider(fdi::Provider::default().with(
         JsonConfigProvider::default().with::<Application<TestBinding>>(AppConfig {
             genesis: None,
+            genesis_path: None,
             mode: Mode::Test,
             testnet: false,
             storage: StorageConfig::InMemory,

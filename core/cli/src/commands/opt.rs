@@ -43,14 +43,19 @@ async fn opt_in<C: Collection>(config_path: ResolvedPathBuf) -> Result<()> {
     );
     get_user_confirmation();
 
-    let (public_key, secret_key) = load_secret_key::<C>(config_path).await?;
+    let (public_key, secret_key) = load_secret_key::<C>(config_path.clone()).await?;
 
     let rpc_client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .connect_timeout(Duration::from_secs(5))
         .build()?;
 
-    let genesis_committee = C::ApplicationInterface::get_genesis_committee()
+    let config_provider = TomlConfigProvider::<C>::load_or_write_config(config_path).await;
+    let provider = fdi::Provider::default().with(config_provider);
+    let app = provider.get::<C::ApplicationInterface>();
+
+    let genesis_committee = app
+        .get_genesis_committee()
         .context("Failed to load genesis committee info.")?;
 
     let node_info = query_node_info(public_key, &genesis_committee, &rpc_client)
@@ -74,8 +79,9 @@ async fn opt_in<C: Collection>(config_path: ResolvedPathBuf) -> Result<()> {
         return Ok(());
     }
 
-    let chain_id =
-        C::ApplicationInterface::get_chain_id().context("Failed to load Chain ID from genesis.")?;
+    let chain_id = app
+        .get_chain_id()
+        .context("Failed to load Chain ID from genesis.")?;
 
     let tx = create_update_request(
         UpdateMethod::OptIn {},
@@ -111,14 +117,19 @@ async fn opt_out<C: Collection>(config_path: ResolvedPathBuf) -> Result<()> {
     );
     get_user_confirmation();
 
-    let (public_key, secret_key) = load_secret_key::<C>(config_path).await?;
+    let (public_key, secret_key) = load_secret_key::<C>(config_path.clone()).await?;
 
     let rpc_client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .connect_timeout(Duration::from_secs(5))
         .build()?;
 
-    let genesis_committee = C::ApplicationInterface::get_genesis_committee()
+    let config_provider = TomlConfigProvider::<C>::load_or_write_config(config_path).await;
+    let provider = fdi::Provider::default().with(config_provider);
+    let app = provider.get::<C::ApplicationInterface>();
+
+    let genesis_committee = app
+        .get_genesis_committee()
         .context("Failed to load genesis committee info.")?;
 
     let node_info = query_node_info(public_key, &genesis_committee, &rpc_client)
@@ -132,8 +143,9 @@ async fn opt_out<C: Collection>(config_path: ResolvedPathBuf) -> Result<()> {
         return Ok(());
     }
 
-    let chain_id =
-        C::ApplicationInterface::get_chain_id().context("Failed to load Chain ID from genesis.")?;
+    let chain_id = app
+        .get_chain_id()
+        .context("Failed to load Chain ID from genesis.")?;
 
     let tx = create_update_request(
         UpdateMethod::OptOut {},
@@ -164,14 +176,19 @@ async fn opt_out<C: Collection>(config_path: ResolvedPathBuf) -> Result<()> {
 }
 
 async fn status<C: Collection>(config_path: ResolvedPathBuf) -> Result<()> {
-    let (public_key, _secret_key) = load_secret_key::<C>(config_path).await?;
+    let (public_key, _secret_key) = load_secret_key::<C>(config_path.clone()).await?;
 
     let rpc_client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .connect_timeout(Duration::from_secs(5))
         .build()?;
 
-    let genesis_committee = C::ApplicationInterface::get_genesis_committee()
+    let config_provider = TomlConfigProvider::<C>::load_or_write_config(config_path).await;
+    let provider = fdi::Provider::default().with(config_provider);
+    let app = provider.get::<C::ApplicationInterface>();
+
+    let genesis_committee = app
+        .get_genesis_committee()
         .context("Failed to load genesis committee info.")?;
 
     let node_info = query_node_info(public_key, &genesis_committee, &rpc_client)

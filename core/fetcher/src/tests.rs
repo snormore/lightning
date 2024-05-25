@@ -76,7 +76,7 @@ async fn get_fetchers(
         .collect::<Vec<_>>();
     let owner_secret_key = AccountOwnerSecretKey::generate();
     let owner_public_key = owner_secret_key.to_pk();
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.node_info = keystores
         .iter()
         .enumerate()
@@ -112,6 +112,7 @@ async fn get_fetchers(
                     JsonConfigProvider::default()
                         .with::<Application<TestBinding>>(AppConfig {
                             genesis: Some(genesis.clone()),
+                            genesis_path: None,
                             mode: Mode::Test,
                             testnet: false,
                             storage: StorageConfig::InMemory,

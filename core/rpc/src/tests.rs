@@ -98,6 +98,7 @@ async fn init_rpc(genesis: Option<Genesis>, rpc_port: u16) -> TestNode {
     let app_config = genesis
         .map(|gen| AppConfig {
             genesis: Some(gen),
+            genesis_path: None,
             mode: Mode::Test,
             testnet: false,
             storage: StorageConfig::InMemory,
@@ -203,7 +204,7 @@ async fn test_rpc_get_flk_balance() -> Result<()> {
     let eth_address: EthAddress = owner_public_key.into();
 
     // Init application service
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.account.push(GenesisAccount {
         public_key: owner_public_key.into(),
         flk_balance: 1000u64.into(),
@@ -245,7 +246,7 @@ async fn test_rpc_get_reputation() -> Result<()> {
     let consensus_secret_key = ConsensusSecretKey::generate();
     let consensus_public_key = consensus_secret_key.to_pk();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let mut genesis_node = GenesisNode::new(
         owner_public_key.into(),
         node_public_key,
@@ -308,7 +309,7 @@ async fn test_rpc_get_staked() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
 
     // Init application service and store node info in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let staking = Staking {
         staked: 1_000_u32.into(),
         stake_locked_until: 365,
@@ -369,7 +370,7 @@ async fn test_rpc_get_stables_balance() -> Result<()> {
     let eth_address: EthAddress = owner_public_key.into();
 
     // Init application service
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.account.push(GenesisAccount {
         public_key: owner_public_key.into(),
         flk_balance: 0u64.into(),
@@ -415,7 +416,7 @@ async fn test_rpc_get_stake_locked_until() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
 
     // Init application service and store node info in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let staking = Staking {
         staked: 1_000_u32.into(),
         stake_locked_until: 365,
@@ -482,7 +483,7 @@ async fn test_rpc_get_locked_time() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
 
     // Init application service and store node info in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let staking = Staking {
         staked: 1_000_u32.into(),
         stake_locked_until: 365,
@@ -548,7 +549,7 @@ async fn test_rpc_get_locked() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
 
     // Init application service and store node info in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let staking = Staking {
         staked: 1_000_u32.into(),
         stake_locked_until: 365,
@@ -599,7 +600,7 @@ async fn test_rpc_get_bandwidth_balance() -> Result<()> {
     let eth_address: EthAddress = owner_public_key.into();
 
     // Init application service
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.account.push(GenesisAccount {
         public_key: owner_public_key.into(),
         flk_balance: 0u64.into(),
@@ -645,7 +646,7 @@ async fn test_rpc_get_node_info() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
 
     // Init application service and store node info in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let staking = Staking {
         staked: 1_000_u32.into(),
         stake_locked_until: 365,
@@ -952,7 +953,7 @@ async fn test_rpc_get_protocol_params() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_rpc_get_total_served() -> Result<()> {
     // Init application service and store total served in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let total_served = TotalServed {
         served: vec![1000],
         reward_pool: 1_000_u32.into(),
@@ -995,7 +996,7 @@ async fn test_rpc_get_node_served() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
 
     // Init application service and store total served in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let mut genesis_node = GenesisNode::new(
         owner_public_key.into(),
         node_public_key,
@@ -1059,7 +1060,7 @@ async fn test_rpc_is_valid_node() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
 
     // Init application service and store node info in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let staking = Staking {
         staked: genesis.min_stake.into(),
         stake_locked_until: 0,
@@ -1124,7 +1125,7 @@ async fn test_rpc_get_node_registry() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
 
     // Init application service and store node info in application state.
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let staking = Staking {
         staked: genesis.min_stake.into(),
         stake_locked_until: 0,
@@ -1245,7 +1246,7 @@ async fn test_rpc_events() -> Result<()> {
     let owner_public_key = owner_secret_key.to_pk();
 
     // Init application service
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.account.push(GenesisAccount {
         public_key: owner_public_key.into(),
         flk_balance: 1000u64.into(),

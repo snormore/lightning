@@ -39,7 +39,7 @@ async fn test_start_shutdown() {
     let owner_secret_key = AccountOwnerSecretKey::generate();
     let owner_public_key = owner_secret_key.to_pk();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
 
     genesis.node_info.push(GenesisNode::new(
         owner_public_key.into(),
@@ -72,6 +72,7 @@ async fn test_start_shutdown() {
                 JsonConfigProvider::default()
                     .with::<Application<TestBinding>>(AppConfig {
                         genesis: Some(genesis),
+                        genesis_path: None,
                         mode: Mode::Test,
                         testnet: false,
                         storage: StorageConfig::InMemory,

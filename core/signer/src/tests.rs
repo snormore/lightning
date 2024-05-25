@@ -29,7 +29,7 @@ fn build_node(transactions_to_lose: &[u32]) -> Node<TestBinding> {
     let (consensus_secret_key, node_secret_key) =
         (keystore.get_bls_sk(), keystore.get_ed25519_sk());
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let node_public_key = node_secret_key.to_pk();
     let consensus_public_key = consensus_secret_key.to_pk();
     let owner_secret_key = AccountOwnerSecretKey::generate();
@@ -60,6 +60,7 @@ fn build_node(transactions_to_lose: &[u32]) -> Node<TestBinding> {
             JsonConfigProvider::default()
                 .with::<Application<TestBinding>>(AppConfig {
                     genesis: Some(genesis),
+                    genesis_path: None,
                     mode: Mode::Test,
                     testnet: false,
                     storage: StorageConfig::InMemory,

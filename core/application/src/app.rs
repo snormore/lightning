@@ -13,6 +13,7 @@ use crate::env::{Env, UpdateWorker};
 use crate::genesis::Genesis;
 use crate::query_runner::QueryRunner;
 pub struct Application<C: Collection> {
+    genesis: Genesis,
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
     query_runner: QueryRunner,
     collection: PhantomData<C>,
@@ -34,11 +35,14 @@ impl<C: Collection> Application<C> {
 
         let mut env = Env::new(&config, None).expect("Failed to initialize environment.");
 
-        if !env.genesis(&config) {
+        if !env.apply_genesis(&config) {
             info!("State already exists. Not loading genesis.");
         }
 
+        let genesis = Genesis::load(config.genesis_path).expect("Failed to load genesis file");
+
         Ok(Self {
+            genesis,
             query_runner: env.query_runner(),
             update_socket: Mutex::new(Some(TokioSpawn::spawn_async(UpdateWorker::<C>::new(
                 env,
@@ -122,16 +126,13 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         }
     }
 
-    fn get_chain_id() -> Result<ChainId> {
-        let genesis = Genesis::load()?;
-
-        Ok(genesis.chain_id)
+    fn get_chain_id(&self) -> Result<ChainId> {
+        Ok(self.genesis.chain_id)
     }
 
-    fn get_genesis_committee() -> Result<Vec<NodeInfo>> {
-        let genesis = Genesis::load()?;
-
-        Ok(genesis
+    fn get_genesis_committee(&self) -> Result<Vec<NodeInfo>> {
+        Ok(self
+            .genesis
             .node_info
             .iter()
             .filter(|node| node.genesis_committee)
