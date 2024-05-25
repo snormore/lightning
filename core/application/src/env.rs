@@ -252,14 +252,14 @@ impl Env<UpdatePerm> {
     /// This function will panic if the genesis file cannot be decoded into the correct types
     /// Will return true if database was empty and genesis needed to be loaded or false if there was
     /// already state loaded and it didn't load genesis
-    pub fn genesis(&mut self, config: &Config) -> bool {
+    pub fn apply_genesis(&mut self, config: &Config) -> bool {
         self.inner.run(|ctx| {
             let mut metadata_table = ctx.get_table::<Metadata, Value>("metadata");
 
             if metadata_table.get(Metadata::Epoch).is_some() {
                 return false;
             }
-            let mut genesis = Genesis::load().unwrap();
+            let mut genesis = Genesis::load(config.genesis_path.clone()).unwrap();
 
             match &config.mode {
                 Mode::Dev => {

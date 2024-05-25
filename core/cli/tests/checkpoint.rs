@@ -50,6 +50,7 @@ fn build_config(
 
     config.inject::<Application<FinalTypes>>(AppConfig {
         mode: Mode::Prod,
+        genesis_path: None,
         genesis: Some(genesis),
         testnet: false,
         storage: StorageConfig::RocksDb,
@@ -161,7 +162,7 @@ async fn node_checkpointing() -> Result<()> {
     let consensus_public_key = consensus_secret_key.to_pk();
     let owner_public_key = AccountOwnerSecretKey::generate().to_pk();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let node_ports = NodePorts {
         primary: 30100,
         worker: 30101,
@@ -193,6 +194,7 @@ async fn node_checkpointing() -> Result<()> {
     // We first have to build the app db in order to obtain a valid checkpoint.
     let app_config_temp = AppConfig {
         mode: Mode::Prod,
+        genesis_path: None,
         genesis: Some(genesis.clone()),
         testnet: false,
         storage: StorageConfig::RocksDb,
@@ -200,7 +202,7 @@ async fn node_checkpointing() -> Result<()> {
         db_options: None,
     };
     let mut env = Env::new(&app_config_temp, None)?;
-    env.genesis(&app_config_temp);
+    env.apply_genesis(&app_config_temp);
 
     let storage = env.inner.get_storage_backend_unsafe();
     let checkpoint = storage.serialize().unwrap();

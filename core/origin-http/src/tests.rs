@@ -66,7 +66,7 @@ async fn create_app_state(test_name: String) -> AppState {
     let peer_consensus_secret_key = ConsensusSecretKey::generate();
     let peer_consensus_public_key = peer_consensus_secret_key.to_pk();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
 
     genesis.node_info.push(GenesisNode::new(
         owner_public_key.into(),
@@ -126,6 +126,7 @@ async fn create_app_state(test_name: String) -> AppState {
                     })
                     .with::<Application<TestBinding>>(AppConfig {
                         genesis: Some(genesis),
+                        genesis_path: None,
                         mode: Mode::Test,
                         testnet: false,
                         storage: StorageConfig::InMemory,

@@ -14,6 +14,7 @@ use lightning_interfaces::types::{
     Staking,
     TotalServed,
 };
+use resolved_pathbuf::ResolvedPathBuf;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -90,15 +91,18 @@ pub struct GenesisLatency {
 
 impl Genesis {
     /// Load the genesis file.
-    pub fn load() -> Result<Genesis> {
-        let raw = include_str!("../genesis.toml");
-        toml::from_str(raw).context("Failed to parse genesis file")
+    pub fn load(path: Option<ResolvedPathBuf>) -> Result<Genesis> {
+        let raw = match path {
+            Some(path) => std::fs::read_to_string(path).context("Failed to read genesis file")?,
+            None => include_str!("../genesis.toml").to_string(),
+        };
+        toml::from_str(&raw).context("Failed to parse genesis file")
     }
 }
 
 #[test]
 fn test() {
-    Genesis::load().unwrap();
+    Genesis::load(None).unwrap();
 }
 
 impl From<&GenesisNode> for NodeInfo {

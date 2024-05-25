@@ -44,7 +44,7 @@ async fn test_submission() {
     let peer_consensus_secret_key = ConsensusSecretKey::generate();
     let peer_consensus_public_key = peer_consensus_secret_key.to_pk();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
 
     genesis.node_info.push(GenesisNode::new(
         owner_public_key.into(),
@@ -99,6 +99,7 @@ async fn test_submission() {
                 JsonConfigProvider::default()
                     .with::<Application<TestBinding>>(AppConfig {
                         genesis: Some(genesis),
+                        genesis_path: None,
                         mode: Mode::Test,
                         testnet: false,
                         storage: StorageConfig::InMemory,

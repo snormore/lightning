@@ -37,7 +37,7 @@ async fn init_aggregator(path: PathBuf) -> Node<TestBinding> {
     let owner_secret_key = AccountOwnerSecretKey::generate();
     let owner_public_key = owner_secret_key.to_pk();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.node_info = vec![GenesisNode::new(
         owner_public_key.into(),
         node_public_key,
@@ -71,6 +71,7 @@ async fn init_aggregator(path: PathBuf) -> Node<TestBinding> {
                 JsonConfigProvider::default()
                     .with::<Application<TestBinding>>(AppConfig {
                         genesis: Some(genesis),
+                        genesis_path: None,
                         mode: Mode::Test,
                         testnet: false,
                         storage: StorageConfig::InMemory,

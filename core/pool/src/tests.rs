@@ -77,7 +77,7 @@ async fn get_pools(
     state_server_address_port: Option<u16>,
 ) -> (Vec<Peer>, AppConfig, PathBuffWrapper) {
     let mut keystores = Vec::new();
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let path = std::env::temp_dir()
         .join("lightning-pool-test")
         .join(test_name);
@@ -120,6 +120,7 @@ async fn get_pools(
 
     let app_config = AppConfig {
         genesis: Some(genesis),
+        genesis_path: None,
         mode: Mode::Test,
         testnet: false,
         storage: StorageConfig::InMemory,

@@ -85,7 +85,7 @@ async fn test_query() {
     let owner_secret_key = AccountOwnerSecretKey::generate();
     let owner_public_key = owner_secret_key.to_pk();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
 
     genesis.node_info.push(GenesisNode::new(
         owner_public_key.into(),
@@ -113,6 +113,7 @@ async fn test_query() {
                 JsonConfigProvider::default()
                     .with::<Application<TestBinding>>(AppConfig {
                         genesis: Some(genesis),
+                        genesis_path: None,
                         mode: Mode::Test,
                         testnet: false,
                         storage: StorageConfig::InMemory,
@@ -190,7 +191,7 @@ async fn test_submit_measurements() {
     let peer_consensus_secret_key = ConsensusSecretKey::generate();
     let peer_consensus_public_key = peer_consensus_secret_key.to_pk();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
 
     genesis.node_info.push(GenesisNode::new(
         owner_public_key.into(),
@@ -245,6 +246,7 @@ async fn test_submit_measurements() {
                 JsonConfigProvider::default()
                     .with::<Application<TestBinding>>(AppConfig {
                         genesis: Some(genesis),
+                        genesis_path: None,
                         mode: Mode::Test,
                         testnet: false,
                         storage: StorageConfig::InMemory,
@@ -328,7 +330,7 @@ async fn test_reputation_calculation_and_query() {
         (keystore2.get_bls_sk(), keystore2.get_ed25519_sk());
 
     let (committee, mut keystores) = get_genesis_committee(4);
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let chain_id = genesis.chain_id;
 
     genesis.node_info = committee;
@@ -406,6 +408,7 @@ async fn test_reputation_calculation_and_query() {
                 JsonConfigProvider::default()
                     .with::<Application<TestBinding>>(AppConfig {
                         genesis: Some(genesis.clone()),
+                        genesis_path: None,
                         mode: Mode::Test,
                         testnet: false,
                         storage: StorageConfig::InMemory,
@@ -434,6 +437,7 @@ async fn test_reputation_calculation_and_query() {
                 JsonConfigProvider::default()
                     .with::<Application<TestBinding>>(AppConfig {
                         genesis: Some(genesis),
+                        genesis_path: None,
                         mode: Mode::Test,
                         testnet: false,
                         storage: StorageConfig::InMemory,

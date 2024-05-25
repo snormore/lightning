@@ -55,6 +55,7 @@ async fn init_service_executor(
                 })
                 .with::<Application<TestBinding>>(AppConfig {
                     genesis: Some(genesis),
+                    genesis_path: None,
                     mode: Mode::Test,
                     testnet: false,
                     storage: StorageConfig::InMemory,
@@ -94,7 +95,7 @@ async fn test_query_client_info() {
     let account_key = AccountOwnerSecretKey::generate();
     let address: EthAddress = account_key.to_pk().into();
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.client.insert(client_pk, address);
     genesis.account.push(GenesisAccount {
         public_key: address,
@@ -136,7 +137,7 @@ async fn test_query_missing_client_info() {
     let secret_key = ConsensusSecretKey::generate();
     let client_pk = ClientPublicKey(secret_key.to_pk().0);
 
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     genesis.node_info.clear();
 
     let mut node = init_service_executor(genesis, path.clone(), 1070).await;

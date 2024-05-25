@@ -51,7 +51,7 @@ async fn get_broadcasts(
     port_offset: u16,
     num_peers: usize,
 ) -> (Vec<Peer>, PathBuf) {
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let path = std::env::temp_dir()
         .join("lightning-broadcast-test")
         .join(test_name);
@@ -94,6 +94,7 @@ async fn get_broadcasts(
 
     let app_config = AppConfig {
         genesis: Some(genesis),
+        genesis_path: None,
         mode: Mode::Test,
         testnet: false,
         storage: StorageConfig::InMemory,

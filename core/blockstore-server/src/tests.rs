@@ -76,7 +76,7 @@ async fn get_peers(
     num_peers: usize,
 ) -> (Vec<Peer<TestBinding>>, PathBuf) {
     let mut keystores = Vec::new();
-    let mut genesis = Genesis::load().unwrap();
+    let mut genesis = Genesis::load(None).unwrap();
     let path = std::env::temp_dir()
         .join("blockstore-server-test")
         .join(test_name);
@@ -123,6 +123,7 @@ async fn get_peers(
                     JsonConfigProvider::default()
                         .with::<Application<TestBinding>>(AppConfig {
                             genesis: Some(genesis.clone()),
+                            genesis_path: None,
                             mode: Mode::Test,
                             testnet: false,
                             storage: StorageConfig::InMemory,

@@ -260,7 +260,7 @@ impl SwarmBuilder {
 
         // Load the default genesis. Clear the committee and node info and overwrite
         // the provided values from config.
-        let mut genesis = Genesis::load().unwrap();
+        let mut genesis = Genesis::load(None).unwrap();
 
         genesis.node_info = Vec::with_capacity(num_nodes);
         genesis.epoch_start = self.epoch_start.unwrap_or(genesis.epoch_start);
@@ -360,6 +360,7 @@ impl SwarmBuilder {
             };
             config.inject::<Application<FinalTypes>>(AppConfig {
                 mode: Mode::Test,
+                genesis_path: None,
                 genesis: Some(genesis.clone()),
                 testnet: false,
                 storage,
