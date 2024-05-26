@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::net::IpAddr;
 
 use anyhow::{Context, Result};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
@@ -65,8 +64,8 @@ pub struct GenesisNode {
     pub owner: EthAddress,
     pub primary_public_key: NodePublicKey,
     pub consensus_public_key: ConsensusPublicKey,
-    pub primary_domain: IpAddr,
-    pub worker_domain: IpAddr,
+    pub primary_domain: String,
+    pub worker_domain: String,
     pub worker_public_key: NodePublicKey,
     pub ports: NodePorts,
     pub stake: Staking,
@@ -107,8 +106,8 @@ impl From<&GenesisNode> for NodeInfo {
             owner: value.owner,
             public_key: value.primary_public_key,
             consensus_key: value.consensus_public_key,
-            domain: value.primary_domain,
-            worker_domain: value.worker_domain,
+            domain: value.primary_domain.to_string(),
+            worker_domain: value.worker_domain.to_string(),
             worker_public_key: value.worker_public_key,
             staked_since: 0,
             stake: value.stake.clone(),
@@ -143,9 +142,9 @@ impl GenesisNode {
     pub fn new(
         owner: EthAddress,
         primary_public_key: NodePublicKey,
-        primary_domain: IpAddr,
+        primary_domain: String,
         consensus_public_key: ConsensusPublicKey,
-        worker_domain: IpAddr,
+        worker_domain: String,
         worker_public_key: NodePublicKey,
         ports: NodePorts,
         stake: Option<Staking>,

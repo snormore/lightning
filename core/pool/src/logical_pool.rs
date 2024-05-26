@@ -2,7 +2,7 @@ use std::cell::OnceCell;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -194,7 +194,11 @@ where
         Some(NodeInfo {
             index: *peer,
             pk: info.public_key,
-            socket_address: SocketAddr::from((info.domain, info.ports.pool)),
+            socket_address: format!("{}:{}", info.domain, info.ports.pool)
+                .to_socket_addrs()
+                .expect("Failed to resolve domain")
+                .next()
+                .unwrap(),
         })
     }
 

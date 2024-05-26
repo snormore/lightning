@@ -1,5 +1,4 @@
 use std::future::Future;
-use std::net::IpAddr;
 
 use anyhow::{anyhow, Result};
 use fleek_crypto::NodePublicKey;
@@ -9,12 +8,12 @@ use tokio::runtime::Handle;
 
 pub async fn rpc_request<T: DeserializeOwned>(
     client: &reqwest::Client,
-    ip: IpAddr,
+    host: String,
     port: u16,
     req: String,
 ) -> Result<RpcResponse<T>> {
     let res = client
-        .post(format!("http://{ip}:{port}/rpc/v0"))
+        .post(format!("http://{host}:{port}/rpc/v0"))
         .header("Content-Type", "application/json")
         .body(req)
         .send()
@@ -41,7 +40,7 @@ pub async fn ask_nodes<T: DeserializeOwned>(
     for (_, node) in nodes {
         let req_clone = req.clone();
         let fut = async move {
-            rpc_request::<T>(rpc_client, node.domain, node.ports.rpc, req_clone)
+            rpc_request::<T>(rpc_client, node.domain.clone(), node.ports.rpc, req_clone)
                 .await
                 .ok()
         };

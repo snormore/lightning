@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::net::IpAddr;
 use std::ops::DerefMut;
 use std::time::Duration;
 
@@ -326,9 +325,6 @@ impl<B: Backend> State<B> {
                     worker_public_key,
                     worker_domain,
                 })) => {
-                    let Ok(node_domain) = domain.parse() else {
-                        return TransactionResponse::Revert(ExecutionError::InvalidInternetAddress);
-                    };
                     let consensus_key_bytes: [u8; 96] = match consensus_key.to_vec().try_into() {
                         Ok(bytes) => bytes,
                         Err(_) => {
@@ -345,9 +341,9 @@ impl<B: Backend> State<B> {
                         amount.into(),
                         node_public_key,
                         Some(consensus_key),
-                        Some(node_domain),
+                        Some(domain.clone()),
                         Some(node_public_key),
-                        Some(node_domain),
+                        Some(domain),
                         // TODO(matthias): allow senders to specify ports?
                         Some(NodePorts::default()),
                     )
@@ -528,9 +524,9 @@ impl<B: Backend> State<B> {
         amount: HpUfixed<18>,
         node_public_key: NodePublicKey,
         node_consensus_key: Option<ConsensusPublicKey>,
-        node_domain: Option<IpAddr>,
+        node_domain: Option<String>,
         worker_public_key: Option<NodePublicKey>,
-        worker_domain: Option<IpAddr>,
+        worker_domain: Option<String>,
         ports: Option<NodePorts>,
     ) -> TransactionResponse {
         // This transaction is only callable by AccountOwners and not nodes

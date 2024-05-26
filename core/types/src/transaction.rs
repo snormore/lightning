@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::net::IpAddr;
 
 use anyhow::Context;
 use ethers::types::Transaction as EthersTransaction;
@@ -346,11 +345,11 @@ pub enum UpdateMethod {
         /// Consensus Public Key
         consensus_key: Option<ConsensusPublicKey>,
         /// Nodes primary internet address
-        node_domain: Option<IpAddr>,
+        node_domain: Option<String>,
         /// Worker public Key
         worker_public_key: Option<NodePublicKey>,
         /// internet address for the worker
-        worker_domain: Option<IpAddr>,
+        worker_domain: Option<String>,
         /// internet address for workers mempool
         ports: Option<NodePorts>,
     },
@@ -509,12 +508,15 @@ impl ToDigest for UpdatePayload {
                         "node_network_key",
                         &consensus_key.map_or([0u8; 96], |key| key.0),
                     )
-                    .with("node_domain", &node_domain.map(|d| d.to_string()))
+                    .with("node_domain", &node_domain.clone().map(|d| d.to_string()))
                     .with(
                         "worker_public_key",
                         &worker_public_key.map_or([0u8; 32], |key| key.0),
                     )
-                    .with("worker_domain", &worker_domain.map(|d| d.to_string()))
+                    .with(
+                        "worker_domain",
+                        &worker_domain.clone().map(|d| d.to_string()),
+                    )
                     .with("primary_port", &ports.as_ref().map(|p| p.primary))
                     .with("worker_port", &ports.as_ref().map(|p| p.worker))
                     .with("mempool_port", &ports.as_ref().map(|p| p.mempool))

@@ -1,6 +1,4 @@
 //! The data types used in the application state
-use std::net::IpAddr;
-
 use anyhow::anyhow;
 use fleek_crypto::{ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -206,9 +204,9 @@ pub struct NodeInfo {
     /// The amount of stake by the node.
     pub stake: Staking,
     /// The nodes primary domain
-    pub domain: IpAddr,
+    pub domain: String,
     /// The node workers domain
-    pub worker_domain: IpAddr,
+    pub worker_domain: String,
     /// Open ports for this node
     pub ports: NodePorts,
     /// The public key of the nodes narwhal worker

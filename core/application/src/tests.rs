@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
-use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::SystemTime;
 
@@ -449,7 +448,7 @@ fn test_genesis_ports(index: u16) -> NodePorts {
 fn test_genesis() -> Genesis {
     let genesis_node_owner =
         EthAddress::from_str("0x959807B8D94B324A74117956731F09E2893aCd72").unwrap();
-    let domain = "127.0.0.1".parse().unwrap();
+    let domain = "127.0.0.1".to_string();
 
     let node_pub_key_1 =
         NodePublicKey::from_str("F5tV4PLSzx1Lt4mYBe13aYQ8hsLMTCfjgY2pLr82AumH").unwrap();
@@ -483,9 +482,9 @@ fn test_genesis() -> Genesis {
         GenesisNode::new(
             genesis_node_owner,
             *pub_key,
-            domain,
+            domain.clone(),
             *consensus_key,
-            domain,
+            domain.clone(),
             *pub_key,
             test_genesis_ports(pos as u16 + 1),
             Some(test_staking.clone()),
@@ -854,9 +853,9 @@ fn prepare_initial_stake_update(
     amount: &HpUfixed<18>,
     node_public_key: &NodePublicKey,
     consensus_key: ConsensusPublicKey,
-    node_domain: IpAddr,
+    node_domain: String,
     worker_pub_key: NodePublicKey,
-    worker_domain: IpAddr,
+    worker_domain: String,
     ports: NodePorts,
     secret_key: &AccountOwnerSecretKey,
     nonce: u64,
@@ -2928,9 +2927,9 @@ async fn test_stake_works() {
 
     let balance = get_flk_balance(&query_runner, &address);
     let consensus_key: ConsensusPublicKey = [0; 96].into();
-    let node_domain: IpAddr = "89.64.54.26".parse().unwrap();
+    let node_domain = "89.64.54.26".to_string();
     let worker_pub_key: NodePublicKey = [0; 32].into();
-    let worker_domain: IpAddr = "127.0.0.1".parse().unwrap();
+    let worker_domain = "127.0.0.1".to_string();
     let node_ports = NodePorts {
         primary: 4001,
         worker: 4002,
@@ -2949,9 +2948,9 @@ async fn test_stake_works() {
         &stake,
         &peer_pub_key,
         consensus_key,
-        node_domain,
+        node_domain.clone(),
         worker_pub_key,
-        worker_domain,
+        worker_domain.clone(),
         node_ports.clone(),
         &owner_secret_key,
         2,
@@ -4017,8 +4016,8 @@ fn quick_sort_mock_node_list() -> Vec<(NodeIndex, NodeInfo)> {
                     locked: HpUfixed::zero(),
                     locked_until: 0,
                 },
-                domain: [0, 0, 0, 0].into(),
-                worker_domain: [0, 0, 0, 0].into(),
+                domain: "0.0.0.0".to_string(),
+                worker_domain: "0.0.0.0".to_string(),
                 worker_public_key: [0; 32].into(),
                 participation: Participation::True,
                 nonce: 0,
