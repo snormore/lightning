@@ -1,0 +1,12 @@
+Dockerfile
+.dockerignore
+docker-compose.yml
+target/
+flake.*
+garnix.yaml
+.github
+.gitattributes
+.gitignore
+.vscode/
+devnet/
+tmp/

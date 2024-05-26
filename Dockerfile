@@ -1,70 +1,34 @@
-# syntax=docker/dockerfile:1.3-labs
-
-# The Fleek Network Lightning Docker container is hosted at:
-# https://github.com/fleek-network/lightning/pkgs/container/lightning
-FROM rust:latest as build
-WORKDIR /build
-
-RUN apt-get update
-RUN apt-get install -y \
-    build-essential \
-    cmake \
-    clang \
-    pkg-config \
-    libssl-dev \
-    gcc \
-    protobuf-compiler
-
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    cargo install cargo-strip
-
+ARG RUST_VERSION=1.78
+FROM --platform=$BUILDPLATFORM rust:$RUST_VERSION as builder
+RUN apt update -qq && \
+  apt install -y \
+  build-essential \
+  cmake \
+  clang \
+  pkg-config \
+  libssl-dev \
+  gcc \
+  protobuf-compiler
+RUN cargo install sccache
+ENV SCCACHE_CACHE_SIZE="150G"
+ENV SCCACHE_DIR=/root/cache/sccache
+ENV RUSTC_WRAPPER="/usr/local/cargo/bin/sccache"
+WORKDIR /app
 COPY . .
-ENV RUST_BACKTRACE=1
+RUN --mount=type=cache,target=/root/cache/sccache cargo build --release --all-features --bin lightning-node
 
-RUN mkdir -p /build/target/release
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/build/target \
-    rustup toolchain install stable && \
-    rustup default stable && \
-    cargo +stable install --locked --path core/cli --features services && \
-    cargo strip && \
-    cp /usr/local/cargo/bin/lightning-node /build
-
-FROM ubuntu:latest
-ARG LIGHTNING_PORTS="4200-4299 4300-4399"
-ARG USERNAME="lgtn"
-WORKDIR /home/$USERNAME
-SHELL ["/bin/bash", "-c"] 
-
-RUN apt-get update && \
-    apt-get install -y \
-    libssl-dev \
-    ca-certificates \
-    curl
-
-COPY --from=build /build/lightning-node /usr/local/bin/lgtn
-
-RUN useradd -Um $USERNAME
-
-COPY <<EOF /home/$USERNAME/init
-#!/usr/bin/bash
-
-if [[ ! -d /home/$USERNAME/.lightning/keystore ]]; then
-  lgtn keys generate
-fi
-
-if ! yes | lgtn opt ${OPT:-in}; then
-  echo "Oops! Failed to set network participation"
-fi
-
-lgtn -c /home/$USERNAME/.lightning/config.toml -vv run
-EOF
-
-RUN chown $USERNAME:$USERNAME /home/$USERNAME/init
-RUN chmod +x /home/$USERNAME/init
-
-EXPOSE $LIGHTNING_PORTS
-
-USER $USERNAME
-
-ENTRYPOINT ["/home/lgtn/init"]
+FROM debian:stable-slim
+RUN export DEBIAN_FRONTEND=noninteractive && \
+  apt update && \
+  apt install -y -q --no-install-recommends ca-certificates apt-transport-https && \
+  apt clean && \
+  rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/lightning-node /usr/local/bin/lightning-node
+ARG USER=fleek
+RUN groupadd -g 10001 $USER && \
+  useradd -u 10000 -g $USER $USER && \
+  mkdir -p /home/$USER && \
+  chown -R $USER:$USER /home/$USER
+USER $USER:$USER
+ENTRYPOINT [ "lightning-node" ]
+CMD ["--help"]
