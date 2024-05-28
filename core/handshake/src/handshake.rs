@@ -9,8 +9,10 @@ use fleek_crypto::NodePublicKey;
 use fn_sdk::header::{write_header, ConnectionHeader};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use lazy_static::lazy_static;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::schema::handshake::{HandshakeRequestFrame, TerminationReason};
+use prometheus::{self, register_int_gauge, IntGauge};
 use rand::RngCore;
 use tracing::warn;
 use triomphe::Arc;
@@ -24,6 +26,15 @@ use crate::transports::{
     TransportReceiver,
     TransportSender,
 };
+
+lazy_static! {
+    // TODO(snormore): This should include a label for the service.
+    static ref ACTIVE_CONNECTIONS_GAUGE: IntGauge = register_int_gauge!(
+        "handshake_active_connections",
+        "Gauge for number of active service connections"
+    )
+    .unwrap();
+}
 
 pub struct Handshake<C: Collection> {
     status: Option<Run<C>>,
@@ -224,6 +235,9 @@ impl<P: ExecutorProviderInterface> Context<P> {
                     },
                 );
 
+                // Emit gauge metric for number of active connections
+                ACTIVE_CONNECTIONS_GAUGE.set(self.connections.len() as i64);
+
                 Proxy::new(connection_id, socket, rx, self.clone(), self.timeout).spawn(Some(
                     State::OnlyPrimaryConnection((sender, receiver).into()),
                 ));
@@ -294,5 +308,8 @@ impl<P: ExecutorProviderInterface> Context<P> {
 
     pub fn cleanup_connection(&self, connection_id: u64) {
         self.connections.remove(&connection_id);
+
+        // Emit gauge metric for number of active connections
+        ACTIVE_CONNECTIONS_GAUGE.set(self.connections.len() as i64);
     }
 }
