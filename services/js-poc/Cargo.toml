@@ -32,6 +32,9 @@ deno_crypto = "0.160"
 deno_canvas = "0.15.0"
 deno_webgpu = "0.113"
 workspace-hack = { version = "0.1", path = "../../etc/workspace-hack" }
+prometheus_exporter = "0.8.5"
+prometheus = "0.13.4"
+lazy_static.workspace = true
 
 [dev-dependencies]
 lightning-schema = { path = "../../core/schema" }

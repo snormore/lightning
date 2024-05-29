@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use anyhow::{anyhow, bail, Context};
 use arrayref::array_ref;
 use cid::Cid;
@@ -7,6 +9,9 @@ use deno_core::{serde_v8, v8, JsRuntime};
 use fn_sdk::connection::Connection;
 use fn_sdk::header::TransportDetail;
 use fn_sdk::http_util::{respond, respond_with_error, respond_with_http_response};
+use lazy_static::lazy_static;
+use prometheus::{self, register_int_gauge, IntGauge};
+use prometheus_exporter::{self};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info};
 
@@ -16,6 +21,70 @@ use crate::stream::{Origin, Request};
 mod http;
 mod runtime;
 pub mod stream;
+
+lazy_static! {
+    static ref ACTIVE_CONNECTIONS_GAUGE: IntGauge = register_int_gauge!(
+        "services_js_active_connections",
+        "Gauge for number of active connections to the JS service"
+    )
+    .unwrap();
+    static ref ACTIVE_REQUESTS_GAUGE: IntGauge = register_int_gauge!(
+        "services_js_active_requests",
+        "Gauge for number of active requests to the JS service"
+    )
+    .unwrap();
+}
+
+/// Structure for tracking active connections.
+struct ActiveConnections {
+    count: i64,
+}
+
+impl ActiveConnections {
+    fn new() -> Self {
+        ACTIVE_CONNECTIONS_GAUGE.set(0);
+        Self { count: 0 }
+    }
+
+    fn inc(&mut self) {
+        self.count += 1;
+        ACTIVE_CONNECTIONS_GAUGE.set(self.count);
+    }
+
+    fn dec(&mut self) {
+        self.count -= 1;
+        ACTIVE_CONNECTIONS_GAUGE.set(self.count);
+    }
+}
+
+impl Drop for ActiveConnections {
+    fn drop(&mut self) {
+        self.count -= 1;
+        ACTIVE_CONNECTIONS_GAUGE.set(self.count);
+    }
+}
+
+/// Structure for tracking active requests
+struct ActiveRequests {
+    count: i64,
+}
+
+impl ActiveRequests {
+    fn new() -> Self {
+        ACTIVE_REQUESTS_GAUGE.set(0);
+        Self { count: 0 }
+    }
+
+    fn inc(&mut self) {
+        self.count += 1;
+        ACTIVE_REQUESTS_GAUGE.set(self.count);
+    }
+
+    fn dec(&mut self) {
+        self.count -= 1;
+        ACTIVE_REQUESTS_GAUGE.set(self.count);
+    }
+}
 
 pub(crate) mod params {
     use std::time::Duration;
@@ -31,6 +100,11 @@ pub async fn main() {
     fn_sdk::ipc::init_from_env();
 
     info!("Initialized POC JS service!");
+
+    // TODO(snormore): This is temporary for debugging purposes, and will not be merged into main
+    // as-is.
+    let metrics_binding = "127.0.0.1:19100".parse().unwrap();
+    prometheus_exporter::start(metrics_binding).unwrap();
 
     let mut listener = fn_sdk::ipc::conn_bind().await;
 
@@ -48,6 +122,9 @@ pub async fn main() {
         }
     });
 
+    let active_connections = Arc::new(Mutex::new(ActiveConnections::new()));
+    let active_requests = Arc::new(Mutex::new(ActiveRequests::new()));
+
     while let Ok(conn) = listener.accept().await {
         let tx = tx.clone();
 
@@ -55,12 +132,19 @@ pub async fn main() {
         // TODO: This is very hacky and not very scalable
         // Research using deno's JsRealms to provide the script sandboxing in a single or a
         // few shared multithreaded runtimes, or use a custom work scheduler.
+        let active_connections = active_connections.clone();
+        let active_requests = active_requests.clone();
         std::thread::spawn(move || {
             if let Err(e) = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("failed to create connection async runtime")
-                .block_on(handle_connection(tx, conn))
+                .block_on(handle_connection(
+                    tx,
+                    conn,
+                    active_connections,
+                    active_requests,
+                ))
             {
                 error!("session failed: {e:?}");
             }
@@ -68,10 +152,31 @@ pub async fn main() {
     }
 }
 
+struct ConnectionTracker {
+    tracker: Arc<Mutex<ActiveConnections>>,
+}
+
+impl ConnectionTracker {
+    fn new(tracker: Arc<Mutex<ActiveConnections>>) -> Self {
+        tracker.lock().unwrap().inc();
+        Self { tracker }
+    }
+}
+
+impl Drop for ConnectionTracker {
+    fn drop(&mut self) {
+        self.tracker.lock().unwrap().dec();
+    }
+}
+
 async fn handle_connection(
     tx: UnboundedSender<IsolateHandle>,
     mut connection: Connection,
+    active_connections: Arc<Mutex<ActiveConnections>>,
+    active_requests: Arc<Mutex<ActiveRequests>>,
 ) -> anyhow::Result<()> {
+    let _tracker = ConnectionTracker::new(active_connections);
+
     if connection.is_http_request() {
         let body = connection
             .read_payload()
@@ -87,21 +192,39 @@ async fn handle_connection(
         };
         let request = http::request::extract(url, header, method, body.to_vec())
             .context("failed to parse request")?;
-        handle_request(&mut connection, &tx, request).await?;
+        handle_request(&mut connection, &tx, request, active_requests.clone()).await?;
     } else {
         while let Some(payload) = connection.read_payload().await {
             let request: Request = serde_json::from_slice(&payload)?;
-            handle_request(&mut connection, &tx, request).await?;
+            handle_request(&mut connection, &tx, request, active_requests.clone()).await?;
         }
     }
 
     Ok(())
 }
 
+struct RequestTracker {
+    tracker: Arc<Mutex<ActiveRequests>>,
+}
+
+impl RequestTracker {
+    fn new(tracker: Arc<Mutex<ActiveRequests>>) -> Self {
+        tracker.lock().unwrap().inc();
+        Self { tracker }
+    }
+}
+
+impl Drop for RequestTracker {
+    fn drop(&mut self) {
+        self.tracker.lock().unwrap().dec();
+    }
+}
+
 async fn handle_request(
     connection: &mut Connection,
     tx: &UnboundedSender<IsolateHandle>,
     request: Request,
+    active_requests: Arc<Mutex<ActiveRequests>>,
 ) -> anyhow::Result<()> {
     let Request {
         origin,
@@ -109,6 +232,8 @@ async fn handle_request(
         path,
         param,
     } = request;
+
+    let _tracker = RequestTracker::new(active_requests);
 
     // Fetch content from origin
     let hash = match origin {
