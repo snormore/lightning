@@ -1,5 +1,5 @@
 chain_id = 59330
-epoch_start = 1716980292556
+epoch_start = 1716982194036
 epoch_time = 1800000
 committee_size = 12
 node_count = 100
@@ -129,9 +129,9 @@ genesis_committee = true
 
 [[node_info]]
 owner = "0x2a8cf657769c264b0c7f88e3a716afdeaec1c318"
-primary_public_key = "3Nbr5jecMnMzwjfhhtGuefu87vdGWYjfyDhRbZZo8gTu"
-consensus_public_key = "zzH3L95cvHooxbeoHGsacdVd6fJRtLKpirgdCMiPVeGfLsNvibKmDoqtPmQ96D5W93FZfYgkuXjp65myFcTkh6syWdmUjAWDRGUy8vsXo8Ho3zhcEPic2wbHvHkWd1rwaL6"
-worker_public_key = "3Nbr5jecMnMzwjfhhtGuefu87vdGWYjfyDhRbZZo8gTu"
+primary_public_key = "AwASeZBa58DPWDHqDcTTRe1ouMqGJBq1yC1Z8iV5KBUS"
+consensus_public_key = "qwVbY2RasR6Qvs9TkdqJ56pj3U8c57AkB4F5AR6onT2EEVNMYYkKuCw2qqZY7TUkytUxnPRz8mcTA9aXtAidLt84voqDEYuef18qh1zztimL1XaZjJxQCLNapkEr5Kr2vMN"
+worker_public_key = "AwASeZBa58DPWDHqDcTTRe1ouMqGJBq1yC1Z8iV5KBUS"
 primary_domain = "57.128.193.78"
 worker_domain = "57.128.193.78"
 ports.primary = 4310
