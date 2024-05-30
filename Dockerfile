@@ -9,6 +9,9 @@ RUN apt update -qq && \
   libssl-dev \
   gcc \
   protobuf-compiler
+RUN curl -sOL https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-amd64_linux.tar.xz && \
+  tar -xf upx-4.2.4-amd64_linux.tar.xz && \
+  mv upx-4.2.4-amd64_linux/upx /usr/local/bin
 RUN cargo install sccache
 ENV SCCACHE_CACHE_SIZE="150G"
 ENV SCCACHE_DIR=/root/cache/sccache
@@ -16,6 +19,7 @@ ENV RUSTC_WRAPPER="/usr/local/cargo/bin/sccache"
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,target=/root/cache/sccache cargo build --release --all-features --bin lightning-node
+RUN upx --best --lzma target/release/lightning-node
 
 FROM debian:stable-slim
 RUN export DEBIAN_FRONTEND=noninteractive && \
