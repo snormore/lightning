@@ -1,6 +1,7 @@
 Dockerfile
 .dockerignore
 docker-compose.yml
+docker-bake.hcl
 target/
 flake.*
 garnix.yaml
