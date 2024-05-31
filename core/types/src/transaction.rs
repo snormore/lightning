@@ -432,6 +432,8 @@ pub enum UpdateMethod {
     /// provided by the network and the corresponding nodes that
     /// are providing that content.
     UpdateContentRegistry { updates: Vec<ContentUpdate> },
+    /// Increment the node nonce.
+    IncrementNonce {},
 }
 
 impl ToDigest for UpdatePayload {
@@ -655,6 +657,9 @@ impl ToDigest for UpdatePayload {
                         .with("cid", &update.cid)
                         .with("remove", &(update.remove as u8));
                 }
+            },
+            UpdateMethod::IncrementNonce {} => {
+                transcript_builder = transcript_builder.with("transaction_name", &"inc_nonce");
             },
         }
 
