@@ -2,6 +2,7 @@
 name = "fleek-service-js-poc"
 version = "0.0.1"
 edition.workspace = true
+publish = false
 
 [dependencies]
 fn-sdk = { path = "../../lib/sdk" }
