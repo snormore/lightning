@@ -6,6 +6,7 @@ authors = ["Parsa Ghadimi <parsa@fleek.xyz>"]
 description = "reserved for atomic snapshots"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fleek-network/lightning"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -21,6 +22,6 @@ im = "15.1"
 once-ptr = "0.1"
 
 [features]
-default = [ "reliable-snapshot" ]
+default = ["reliable-snapshot"]
 reliable-snapshot = []
 fuzz = []
