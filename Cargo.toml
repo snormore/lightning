@@ -103,6 +103,8 @@ targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu"]
 pr-run-mode = "plan"
 # Whether to install an updater program
 install-updater = false
+# We override RUSTFLAGS, so we must permit changes from the default template.
+allow-dirty = ["ci"]
 
 # Since MystenLabs uses Hakari in the sui repository, and we bring narwhal in from there, this
 # results into all of their dependencies and packages to be listed in their workspace-hack crate.
