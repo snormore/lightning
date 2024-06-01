@@ -105,6 +105,8 @@ pr-run-mode = "plan"
 install-updater = false
 # We override RUSTFLAGS, so we must permit changes from the default template.
 allow-dirty = ["ci"]
+# Specifies that all features for a package should be enabled when building it.
+all-features = true
 
 # Since MystenLabs uses Hakari in the sui repository, and we bring narwhal in from there, this
 # results into all of their dependencies and packages to be listed in their workspace-hack crate.
