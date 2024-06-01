@@ -92,7 +92,12 @@ ci = "github"
 # The installers to generate for each app
 installers = ["shell"]
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu"]
+# https://doc.rust-lang.org/nightly/rustc/platform-support.html
+targets = [
+    # "aarch64-apple-darwin",
+    # "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+]
 # Publish jobs to run in CI
 pr-run-mode = "plan"
 # Whether to install an updater program
@@ -101,6 +106,15 @@ install-updater = false
 allow-dirty = ["ci"]
 # Specifies that all features for a package should be enabled when building it.
 all-features = true
+
+[workspace.metadata.dist.dependencies.apt]
+build-essential = '*'
+gcc = '*'
+cmake = '*'
+clang = '*'
+pkg-config = '*'
+libssl-dev = '*'
+protobuf-compiler = '*'
 
 # Since MystenLabs uses Hakari in the sui repository, and we bring narwhal in from there, this
 # results into all of their dependencies and packages to be listed in their workspace-hack crate.
