@@ -1,6 +1,6 @@
 [package]
 name = "lightning-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 default-run = "lightning-node"
 
@@ -62,7 +62,9 @@ services = ["lightning-final-bindings/services"]
 dev = ["lightning-tui/logger", "tui-logger"]
 
 [target.'cfg(linux)'.dependencies]
-aya = { git = "https://github.com/aya-rs/aya", rev = "e5d107d", features = ["async_tokio"], optional = true }
+aya = { git = "https://github.com/aya-rs/aya", rev = "e5d107d", features = [
+    "async_tokio",
+], optional = true }
 aya-log = { git = "https://github.com/aya-rs/aya", rev = "e5d107d", optional = true }
 
 [[bin]]
