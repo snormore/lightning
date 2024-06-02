@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Parsa Ghadimi <parsa@fleek.xyz>"]
 description = "Fleek Network SDK"
 license = "GPL-3.0"
-repository = "https://github.com/fleek-network/lightning"
+repository = "https://github.com/snormore/lightning"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,11 +14,18 @@ derive_more = "0.99"
 fleek-crypto = { path = "../fleek-crypto/" }
 hp-fixed = { path = "../hp-fixed/" }
 triomphe = "0.1.9"
-tokio = { version = "1.32", features = ["rt", "sync", "fs", "net", "time", "io-util"] }
+tokio = { version = "1.32", features = [
+    "rt",
+    "sync",
+    "fs",
+    "net",
+    "time",
+    "io-util",
+] }
 arrayvec = "0.7"
 ringbuf = "0.3"
 blake3-tree = { path = "../blake3-tree" }
-url = { version="2.5.0", features = ["serde"] }
+url = { version = "2.5.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11"
 thiserror = "1.0"

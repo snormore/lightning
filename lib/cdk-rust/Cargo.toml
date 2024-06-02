@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 authors = ["Miguel Meier G. <miguel@fleek.xyz>"]
 description = "Fleek Network Rust CDK"
-repository = "https://github.com/fleek-network/lightning"
+repository = "https://github.com/snormore/lightning"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,12 +16,17 @@ futures = "0.3"
 log = "0.4"
 ring = "0.16"
 rustls = "0.21"
-tokio = { version = "1.32", features = ["rt-multi-thread", "time", "sync", "io-util"] }
+tokio = { version = "1.32", features = [
+    "rt-multi-thread",
+    "time",
+    "sync",
+    "io-util",
+] }
 tokio-util = { version = "0.7", features = ["codec"] }
 wtransport = { version = "0.1", features = ["dangerous-configuration"] }
 lightning-schema = { path = "../../core/schema" }
 arrayref = "0.3"
-fleek-crypto = { path = "../fleek-crypto"}
+fleek-crypto = { path = "../fleek-crypto" }
 
 # Fork with wasm-bindgen unpinned.
 # https://github.com/cloudflare/workers-rs/issues/439
