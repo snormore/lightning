@@ -85,6 +85,8 @@ fleek-blake3 = "1.5"
 
 # Config for 'cargo dist'
 [workspace.metadata.dist]
+# Make sure the repo URL referenced everwhere is my fork for now while testing
+github-releases-repo = "snormore/lightning"
 # The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
 cargo-dist-version = "0.15.0"
 # CI backends to support
@@ -106,6 +108,8 @@ install-updater = false
 allow-dirty = ["ci"]
 # Specifies that all features for a package should be enabled when building it.
 all-features = true
+# The output path for installed binaries.
+install-path = ["$OUTPUT_DIR/", "~/.lightning/bin"]
 
 [workspace.metadata.dist.dependencies.apt]
 build-essential = '*'
