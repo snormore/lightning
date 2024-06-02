@@ -116,6 +116,9 @@ pkg-config = '*'
 libssl-dev = '*'
 protobuf-compiler = '*'
 
+[workspace.metadata.dist.github-custom-runners]
+x86_64-unknown-linux-gnu = "namespace-profile-default"
+
 # Since MystenLabs uses Hakari in the sui repository, and we bring narwhal in from there, this
 # results into all of their dependencies and packages to be listed in their workspace-hack crate.
 # That adds a huge amount of unwanted dependencies to our crate. The `empty-workspace-hack` is an
