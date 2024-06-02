@@ -3,7 +3,7 @@ name = "safetensors-ndarray"
 version = "0.0.0"
 edition = "2021"
 authors = ["M. Meier <miguel@fleek.xyz>"]
-repository = "https://github.com/fleek-network/lightning"
+repository = "https://github.com/snormore/lightning"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
