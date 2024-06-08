@@ -16,8 +16,8 @@ jobs:
     name: Check
     uses: ./.github/workflows/check.yml
 
-  release:
-    name: Release (${{ matrix.name }})
+  build:
+    name: Build (${{ matrix.name }})
     needs: check
     strategy:
       matrix:
@@ -46,4 +46,38 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: Cargo build
-        run: scripts/build --release --target ${{ matrix.target }}
+        run: cargo build --bin lightning-node --release --target ${{ matrix.target }}
+
+      - name: Create tarball
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          SHORT_SHA=$(git rev-parse --short=7 ${{ github.sha }})
+          RELEASE_NAME="${{ github.ref_name }}-${SHORT_SHA}"
+          TAR_NAME="${REPO_NAME}-${RELEASE_NAME}-${{ matrix.target }}.tar.gz"
+          tar -czvf $TAR_NAME -C target/${{ matrix.target }}/release lightning-node
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ github.workspace }}/*.tar.gz
+
+  release:
+    name: Release Artifacts
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./*.tar.gz
+          tag_name: ${{ github.ref_name }}-$(git rev-parse --short=7 ${{ github.sha }})
+          name: ${{ github.ref_name }}-$(git rev-parse --short=7 ${{ github.sha }})
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
