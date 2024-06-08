@@ -25,9 +25,9 @@ jobs:
           - name: Linux x86_64
             runner: namespace-profile-lightning-builder-ubuntu-amd64
             target: x86_64-unknown-linux-gnu
-          - name: Linux aarch64
-            runner: namespace-profile-lightning-builder-ubuntu-arm64
-            target: aarch64-unknown-linux-gnu
+          # - name: Linux aarch64
+          #   runner: namespace-profile-lightning-builder-ubuntu-arm64
+          #   target: aarch64-unknown-linux-gnu
           # - name: MacOS aarch64
           #   runner: macos-latest
           #   target: aarch64-apple-darwin
@@ -58,21 +58,21 @@ jobs:
         shell: bash
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: ${{ github.workspace }}/*.tar.gz
 
-  release:
-    name: Release Artifacts
+  release-binaries:
+    name: Release Binaries
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
       - name: Create release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./*.tar.gz
           tag_name: ${{ github.ref_name }}-$(git rev-parse --short=7 ${{ github.sha }})
