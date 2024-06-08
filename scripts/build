@@ -1,0 +1,39 @@
+#!/bin/bash
+set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Install dependencies and prepare environment
+. "${script_dir}"/prepare
+
+# Force rebuild ort-sys for onnxruntime so that it's always available even when using cached
+# depenedencies in CI and Docker.
+# This causes https://github.com/pykeio/ort/blob/main/ort-sys/build.rs to always re-run.
+cargo clean -p ort-sys
+cargo build -p ort-sys
+
+# Build the workspace
+echo "Running cargo build on workspace..."
+cargo build "$@"
+
+# Build any directories that are excluded from the workspace
+cat Cargo.toml | yj -t | jq -r '.workspace.exclude[]' | while IFS= read -r dir; do
+    # Skip directories that currently don't compile successfully.
+    # TODO(snormore): Fix these crates so they compile successfully.
+    if [ "$dir" = "etc/global-metrics" ] || [ "$dir" = "etc/ebpf/service" ] || [ "$dir" = "etc/tui" ]; then
+        echo "Skipping $dir"
+        continue
+    fi
+
+    echo "Building $dir..."
+    (
+        cd "$dir"
+
+        if [ -f scripts/build ]; then
+            scripts/build "$@"
+        elif [ -f Cargo.toml ]; then
+            cargo build "$@"
+        else
+            echo "No build script or Cargo.toml found in $dir, skipping it"
+        fi
+    )
+done

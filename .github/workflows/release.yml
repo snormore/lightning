@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+      - stable
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+jobs:
+  check:
+    name: Check
+    uses: ./.github/workflows/check.yml
+
+  release:
+    name: Release (${{ matrix.name }})
+    needs: check
+    strategy:
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: namespace-profile-lightning-builder-ubuntu-amd64
+            target: x86_64-unknown-linux-gnu
+          - name: MacOS aarch64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+      fail-fast: true
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Use mold linker
+        uses: rui314/setup-mold@v1
+
+      - name: Cargo build
+        run: scripts/build --release --target ${{ matrix.target }}

@@ -1,0 +1,9 @@
+#!/bin/bash
+set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Install dependencies and prepare build environment
+. "${script_dir}"/../../scripts/prepare
+
+# Build the rust code
+cargo build "$@"

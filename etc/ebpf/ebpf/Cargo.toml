@@ -14,7 +14,7 @@ memoffset = "0.9"
 network-types = "0.0.5"
 
 [build-dependencies]
-aya-tool = { git = "https://github.com/deepfence/aya-rs", rev = "e5d107d" }
+aya-tool = { git = "https://github.com/aya-rs/aya", rev = "e5d107d" }
 
 [profile.dev]
 opt-level = 3

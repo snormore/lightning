@@ -1,0 +1,12 @@
+#!/bin/bash
+set -eou pipefail
+
+# Check for bindgen-cli installation and install if not found
+if ! cargo install --list | grep -q 'bindgen-cli'; then
+  cargo install bindgen-cli
+fi
+
+# Check for bpf-linker installation and install if not found
+if ! cargo install --list | grep -q 'bpf-linker'; then
+  cargo install bpf-linker
+fi

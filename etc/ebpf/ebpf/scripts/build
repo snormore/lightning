@@ -1,0 +1,14 @@
+#!/bin/bash
+set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Install dependencies and prepare environment
+. "${script_dir}"/../../scripts/prepare
+
+# If the args contain a target, we remove it since .cargo/config.toml
+# explicitely builds for bpfel-unknown-none
+args="$(echo "$@" | sed 's/--target [^ ]*//')"
+
+# Build the rust code
+set -x
+cargo build ${args}

@@ -2,7 +2,7 @@ use aya_ebpf::macros::lsm;
 use aya_ebpf::programs::LsmContext;
 use aya_log_ebpf::info;
 
-use crate::vmlinux::cred;
+use crate::vmlinux::generated::cred;
 
 #[lsm(hook = "task_fix_setuid")]
 pub fn task_fix_setuid(ctx: LsmContext) -> i32 {

@@ -1,10 +1,12 @@
 /// The name of the file that contains the test cases (module)
+#[allow(dead_code)]
 const CASES: &str = "cases.ts";
 
 #[cfg(test)]
 mod tests {
-    use super::runtime::Runtime;
     use deno_core::v8;
+
+    use super::runtime::Runtime;
 
     #[tokio::test]
     async fn test_encodes_the_same() -> anyhow::Result<()> {
@@ -15,11 +17,11 @@ mod tests {
         let mut runtime = Runtime::new().await?;
         let res = runtime.try_run::<Output>(CASE).await?;
 
-        let comp = cdk_rust::schema::HandshakeRequestFrame::Handshake { 
-            retry: None, 
-            service: 1, 
-            pk: [1; 96].into(), 
-            pop: [2; 48].into() 
+        let comp = cdk_rust::schema::HandshakeRequestFrame::Handshake {
+            retry: None,
+            service: 1,
+            pk: [1; 96].into(),
+            pop: [2; 48].into(),
         };
 
         let encoded = comp.encode().to_vec();
@@ -35,11 +37,11 @@ mod tests {
         // whether or not it decoded correctly
         type Output = bool;
 
-        let comp = cdk_rust::schema::HandshakeRequestFrame::Handshake { 
-            retry: None, 
-            service: 1, 
-            pk: [1; 96].into(), 
-            pop: [2; 48].into() 
+        let comp = cdk_rust::schema::HandshakeRequestFrame::Handshake {
+            retry: None,
+            service: 1,
+            pk: [1; 96].into(),
+            pop: [2; 48].into(),
         };
 
         let encoded = comp.encode().to_vec();
@@ -111,9 +113,9 @@ pub mod runtime {
             &mut self,
             name: impl AsRef<str>,
         ) -> anyhow::Result<v8::Global<v8::Function>> {
-            let ns = self.runtime.get_module_namespace(
-                self.mod_id.get().cloned().expect("Module not loaded"),
-            )?;
+            let ns = self
+                .runtime
+                .get_module_namespace(self.mod_id.get().cloned().expect("Module not loaded"))?;
 
             let mut scope = self.runtime.handle_scope();
             let key = v8::String::new(&mut scope, name.as_ref())

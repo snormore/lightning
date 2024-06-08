@@ -1,0 +1,6 @@
+#!/bin/bash
+set -eou pipefail
+
+scripts/fmt
+scripts/build
+scripts/clippy

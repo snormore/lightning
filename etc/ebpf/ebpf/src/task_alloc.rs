@@ -3,7 +3,7 @@ use aya_ebpf::macros::lsm;
 use aya_ebpf::programs::LsmContext;
 use aya_log_ebpf::info;
 
-use crate::vmlinux::task_struct;
+use crate::vmlinux::generated::task_struct;
 
 #[lsm(hook = "task_alloc")]
 pub fn task_alloc(ctx: LsmContext) -> i32 {

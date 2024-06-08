@@ -1,0 +1,26 @@
+#!/bin/bash
+set -eou pipefail
+
+# Note: Since this script exports environment variables, it should be run with `source` or `.`
+
+# Check for LLVM installation and install if not found
+if ! brew list llvm &>/dev/null; then
+  brew install llvm
+fi
+
+# Check for bindgen-cli installation and install if not found
+if ! cargo install --list | grep -q 'bindgen-cli'; then
+  cargo install bindgen-cli
+fi
+
+# Update PATH environment variable to include llvm binaries.
+# This needs to be set before installing bpf-linker.
+export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+
+# Check for bpf-linker installation and install if not found
+if ! cargo install --list | grep -q 'bpf-linker'; then
+  cargo install bpf-linker --no-default-features
+fi
+
+# Update RUSTFLAGS environment variable to include llvm libraries.
+export RUSTFLAGS="-L/opt/homebrew/opt/llvm/lib"

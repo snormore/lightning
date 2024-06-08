@@ -1,0 +1,29 @@
+#!/bin/bash
+set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Install dependencies and prepare environment
+. "${script_dir}"/prepare
+
+# Define cargo fmt function
+function cargo_fmt() {
+    cargo fmt --all "$@"
+}
+
+# Run cargo fmt on workspace crates
+echo "Running cargo fmt on workspace..."
+cargo_fmt "$@"
+
+# Run cargo fmt on crates that are excluded from the workspace
+cat Cargo.toml | yj -t | jq -r '.workspace.exclude[]' | while IFS= read -r dir; do
+    echo "Running cargo fmt on $dir..."
+    (
+        cd "$dir"
+
+        if [ -f Cargo.toml ]; then
+            cargo_fmt "$@"
+        else
+            echo "Cargo.toml not found in $dir, skipping it"
+        fi
+    )
+done

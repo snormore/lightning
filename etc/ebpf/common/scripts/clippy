@@ -1,0 +1,5 @@
+#!/bin/bash
+set -eou pipefail
+
+# Clippy fails with --all-features in this crate, so we override here and run without it.
+cargo clippy --all-targets -- -Dclippy::all -Dwarnings

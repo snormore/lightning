@@ -1,7 +1,7 @@
 #![allow(unused)]
 use aya_ebpf::cty::{c_int, c_uint, c_ulong, c_ushort};
 
-use crate::vmlinux::{
+use crate::vmlinux::generated::{
     cred,
     dentry,
     file,

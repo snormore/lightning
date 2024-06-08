@@ -1,0 +1,38 @@
+#!/bin/bash
+set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Install dependencies and prepare environment
+. "${script_dir}"/prepare
+
+# Define cargo clippy function
+function cargo_clippy() {
+    cargo clippy --all-features --all-targets -- -Dclippy::all -Dwarnings
+}
+
+# Run cargo clippy on workspace crates
+echo "Running cargo clippy on workspace..."
+cargo_clippy
+
+# Run cargo clippy on crates that are excluded from the workspace
+cat Cargo.toml | yj -t | jq -r '.workspace.exclude[]' | while IFS= read -r dir; do
+    # Skip directories that currently don't compile successfully.
+    # TODO(snormore): Fix these crates so they compile successfully.
+    if [ "$dir" = "etc/global-metrics" ] || [ "$dir" = "etc/ebpf/service" ] || [ "$dir" = "etc/tui" ] || [ "$dir" = "lib/cdk-x-platform-test" ]; then
+        echo "Skipping $dir"
+        continue
+    fi
+
+    echo "Running cargo clippy on $dir..."
+    (
+        cd "$dir"
+
+        if [ -f scripts/clippy ]; then
+            scripts/clippy
+        elif [ -f Cargo.toml ]; then
+            cargo_clippy
+        else
+            echo "Cargo.toml not found in $dir, skipping it"
+        fi
+    )
+done

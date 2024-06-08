@@ -33,19 +33,19 @@ unsafe fn filter(ctx: XdpContext) -> Result<u32, ()> {
 
 fn process_ipv4(ctx: &XdpContext) -> Result<XdpAction, ()> {
     let ip =
-        u32::from_be_bytes(unsafe { *ptr_at(&ctx, EthHdr::LEN + offset_of!(Ipv4Hdr, src_addr))? });
+        u32::from_be_bytes(unsafe { *ptr_at(ctx, EthHdr::LEN + offset_of!(Ipv4Hdr, src_addr))? });
 
     if let Some(params) = try_match_only_ip(ip) {
         return Ok(params.action);
     }
 
-    let proto = unsafe { *ptr_at::<IpProto>(&ctx, EthHdr::LEN + offset_of!(Ipv4Hdr, proto))? };
+    let proto = unsafe { *ptr_at::<IpProto>(ctx, EthHdr::LEN + offset_of!(Ipv4Hdr, proto))? };
     let port = match proto {
         IpProto::Tcp => u16::from_be_bytes(unsafe {
-            *ptr_at(&ctx, EthHdr::LEN + Ipv4Hdr::LEN + offset_of!(TcpHdr, dest))?
+            *ptr_at(ctx, EthHdr::LEN + Ipv4Hdr::LEN + offset_of!(TcpHdr, dest))?
         }),
         IpProto::Udp => u16::from_be_bytes(unsafe {
-            *ptr_at(&ctx, EthHdr::LEN + Ipv4Hdr::LEN + offset_of!(UdpHdr, dest))?
+            *ptr_at(ctx, EthHdr::LEN + Ipv4Hdr::LEN + offset_of!(UdpHdr, dest))?
         }),
         _ => {
             return Ok(xdp_action::XDP_PASS);
@@ -131,8 +131,8 @@ fn try_match_subnet(ip: u32, port: u16, proto: u16) -> Option<SubnetFilterParams
         })
         .copied()?;
 
-    if (subnet_filter.port == port && subnet_filter.proto == proto)
-        || (subnet_filter.port == port && subnet_filter.proto == u16::MAX)
+    if (subnet_filter.port == port
+        && (subnet_filter.proto == proto || subnet_filter.proto == u16::MAX))
         || (subnet_filter.proto == proto && subnet_filter.port == 0)
     {
         Some(subnet_filter)

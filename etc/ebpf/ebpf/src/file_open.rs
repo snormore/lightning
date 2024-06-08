@@ -12,11 +12,11 @@ pub const MAX_PARENT_SEARCH_DEPTH: u8 = 2;
 
 #[lsm(hook = "file_open")]
 pub fn file_open(ctx: LsmContext) -> i32 {
-    unsafe { try_file_open(ctx).unwrap_or_else(|_| ALLOW) }
+    unsafe { try_file_open(ctx).unwrap_or(ALLOW) }
 }
 
 unsafe fn try_file_open(ctx: LsmContext) -> Result<i32, c_long> {
-    let target_file: *const vmlinux::file = ctx.arg(0);
+    let target_file: *const vmlinux::generated::file = ctx.arg(0);
 
     let target_inode = {
         let inode = aya_ebpf::helpers::bpf_probe_read_kernel(access::file_inode(target_file))?;
@@ -58,7 +58,7 @@ unsafe fn try_file_open(ctx: LsmContext) -> Result<i32, c_long> {
 /// Returns true if there is a matching rule for
 /// one of the target file's parents, and false otherwise.
 unsafe fn verify_parent(
-    file: *const vmlinux::file,
+    file: *const vmlinux::generated::file,
     rules: &[FileRule; MAX_FILE_RULES],
     mask: u32,
 ) -> Result<bool, c_long> {
@@ -96,7 +96,7 @@ unsafe fn verify_parent(
 
 /// Get the inode number of the current process's binary file.
 unsafe fn get_inode_from_current_task() -> Result<u64, c_long> {
-    let task = aya_ebpf::helpers::bpf_get_current_task() as *mut vmlinux::task_struct;
+    let task = aya_ebpf::helpers::bpf_get_current_task() as *mut vmlinux::generated::task_struct;
     let mm = aya_ebpf::helpers::bpf_probe_read_kernel(access::task_struct_mm(task))?;
     let file = aya_ebpf::helpers::bpf_probe_read_kernel(access::mm_exe_file(mm))?;
     let f_inode = aya_ebpf::helpers::bpf_probe_read_kernel(access::file_inode(file))?;

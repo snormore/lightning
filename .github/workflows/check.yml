@@ -1,0 +1,77 @@
+name: Check
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches:
+      - '**'
+      - '!dev'
+      - '!stable'
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cargo format --check
+        run: scripts/fmt-check
+
+  clippy:
+    name: Clippy (${{ matrix.name }})
+    strategy:
+      matrix:
+        include:
+          - name: Linux
+            runner: namespace-profile-lightning-builder-ubuntu-amd64
+          - name: MacOS
+            runner: macos-latest
+      fail-fast: false
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use mold linker
+        uses: rui314/setup-mold@v1
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Cargo clippy
+        run: scripts/clippy
+
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: namespace-profile-lightning-builder-ubuntu-amd64
+            target: x86_64-unknown-linux-gnu
+          - name: MacOS aarch64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+      fail-fast: false
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Use mold linker
+        uses: rui314/setup-mold@v1
+
+      - name: Cargo build
+        run: scripts/build

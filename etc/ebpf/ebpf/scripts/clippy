@@ -1,0 +1,10 @@
+#!/bin/bash
+set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Install dependencies and prepare environment
+. "${script_dir}"/../../scripts/prepare
+
+# Clippy fails with --all-targets in this crate, specifically with --tests or --benches, so we
+# override here and run without those.
+cargo clippy --all-features --bins --examples -- -Dclippy::all -Dwarnings

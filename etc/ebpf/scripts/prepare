@@ -1,0 +1,20 @@
+#!/bin/bash
+set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Note: Since this script sources scripts that export environment variables, it should be run with `source` or `.`
+
+OS="$(uname -s)"
+
+case "$OS" in
+    Darwin)
+        . "${script_dir}"/prepare-macos
+        ;;
+    Linux)
+        . "${script_dir}"/prepare-linux
+        ;;
+    *)
+        echo "Unsupported operating system. This script supports macOS and Linux."
+        exit 1
+        ;;
+esac
