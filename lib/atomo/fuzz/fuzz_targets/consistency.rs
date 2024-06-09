@@ -41,16 +41,14 @@ fn fuzz(input: Input) {
                         let mut table_1 = ctx.get_table::<u64, u64>("TABLE_1");
                         let mut table_2 = ctx.get_table::<u64, u64>("TABLE_2");
 
-                        let Some(run) = ctx.get_table::<(), u64>("RUN")
-                            .get(())
-                            else {
-                                for i in 0..100 {
-                                    assert!(table_1.get(i).is_none());
-                                    assert!(table_2.get(i).is_none());
-                                }
+                        let Some(run) = ctx.get_table::<(), u64>("RUN").get(()) else {
+                            for i in 0..100 {
+                                assert!(table_1.get(i).is_none());
+                                assert!(table_2.get(i).is_none());
+                            }
 
-                                return;
-                            };
+                            return;
+                        };
 
                         assert_eq!(table_1.get(run), Some(run + 12), "Run {run} failed");
                         assert_eq!(table_2.get(run), Some(run + 10), "Run {run} failed");

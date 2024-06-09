@@ -14,16 +14,22 @@ function cargo_fmt() {
 echo "Running cargo fmt on workspace..."
 cargo_fmt "$@"
 
-# Run cargo fmt on crates that are excluded from the workspace
-cat Cargo.toml | yj -t | jq -r '.workspace.exclude[]' | while IFS= read -r dir; do
-    echo "Running cargo fmt on $dir..."
+# Get list of workspace members
+workspace_members=($(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.source == null) | .manifest_path | rtrimstr("/Cargo.toml")'))
+
+# Look through all directories recursively and run clippy on them, not including the root
+# directory or known workspace members.
+eval find . -type d -mindepth 1 | while read dir; do
+    if [[ " ${workspace_members[@]} " =~ " $(realpath ${dir}) " ]]; then
+        continue
+    fi
+
     (
         cd "$dir"
 
         if [ -f Cargo.toml ]; then
-            cargo_fmt "$@"
-        else
-            echo "Cargo.toml not found in $dir, skipping it"
+            echo "Running cargo fmt on $dir..."
+            cargo_fmt
         fi
     )
 done

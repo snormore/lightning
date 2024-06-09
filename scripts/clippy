@@ -1,9 +1,5 @@
 #!/bin/bash
 set -eou pipefail
-script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-
-# Install dependencies and prepare environment
-. "${script_dir}"/prepare
 
 # Define cargo clippy function
 function cargo_clippy() {
@@ -14,25 +10,46 @@ function cargo_clippy() {
 echo "Running cargo clippy on workspace..."
 cargo_clippy
 
-# Run cargo clippy on crates that are excluded from the workspace
-cat Cargo.toml | yj -t | jq -r '.workspace.exclude[]' | while IFS= read -r dir; do
-    # Skip directories that currently don't compile successfully.
-    # TODO(snormore): Fix these crates so they compile successfully.
-    if [ "$dir" = "etc/global-metrics" ] || [ "$dir" = "etc/ebpf/service" ] || [ "$dir" = "etc/tui" ] || [ "$dir" = "lib/cdk-x-platform-test" ]; then
-        echo "Skipping $dir"
+# List of crates that are known to not compile successfully.
+# TODO(snormore): Fix these crates so they compile successfully.
+excluded_crates=(
+    "./etc/global-metrics"
+    "./etc/ebpf/service"
+    "./etc/tui"
+    "./lib/cdk-x-platform-test"
+)
+
+# Build find command to exclude some basenames
+excluded_basenames=("target" "scripts" ".git" ".github" ".config" "docs")
+find_command="find . -type d -mindepth 1"
+for basename in "${excluded_basenames[@]}"; do
+    find_command+=" -not -path '*/${basename}/*'"
+done
+
+# Get list of workspace members
+workspace_members=($(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.source == null) | .manifest_path | rtrimstr("/Cargo.toml")'))
+
+# Look through all directories recursively and run clippy on them, not including the root
+# directory or known workspace members.
+eval "$find_command" | while read dir; do
+    if [[ " ${excluded_crates[@]} " =~ " ${dir} " ]]; then
+        echo "Skipping excluded crate $dir"
         continue
     fi
 
-    echo "Running cargo clippy on $dir..."
+    if [[ " ${workspace_members[@]} " =~ " $(realpath ${dir}) " ]]; then
+        continue
+    fi
+
     (
         cd "$dir"
 
-        if [ -f scripts/clippy ]; then
+        if [ -f scripts/build ]; then
+            echo "Running cargo clippy on $dir with scripts/clippy..."
             scripts/clippy
         elif [ -f Cargo.toml ]; then
+            echo "Running cargo clippy on $dir..."
             cargo_clippy
-        else
-            echo "Cargo.toml not found in $dir, skipping it"
         fi
     )
 done

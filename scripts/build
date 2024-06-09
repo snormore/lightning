@@ -1,39 +1,57 @@
 #!/bin/bash
 set -eou pipefail
-script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-
-# Install dependencies and prepare environment
-. "${script_dir}"/prepare
 
 # Force rebuild ort-sys for onnxruntime so that it's always available even when using cached
 # depenedencies in CI and Docker.
 # This causes https://github.com/pykeio/ort/blob/main/ort-sys/build.rs to always re-run.
-cargo clean -p ort-sys
-cargo build -p ort-sys
+if [ -n "${CI:-}" ]; then
+    cargo clean -p ort-sys
+    cargo build -p ort-sys
+fi
 
 # Build the workspace
 echo "Running cargo build on workspace..."
 cargo build "$@"
 
-# Build any directories that are excluded from the workspace
-cat Cargo.toml | yj -t | jq -r '.workspace.exclude[]' | while IFS= read -r dir; do
-    # Skip directories that currently don't compile successfully.
-    # TODO(snormore): Fix these crates so they compile successfully.
-    if [ "$dir" = "etc/global-metrics" ] || [ "$dir" = "etc/ebpf/service" ] || [ "$dir" = "etc/tui" ]; then
-        echo "Skipping $dir"
+# List of crates that are known to not compile successfully.
+# TODO(snormore): Fix these crates so they compile successfully.
+excluded_crates=(
+    "./etc/global-metrics"
+    "./etc/ebpf/service"
+    "./etc/tui"
+)
+
+# Build find command to exclude some basenames
+excluded_basenames=("target" "scripts" ".git" ".github" ".config" "docs")
+find_command="find . -type d -mindepth 1"
+for basename in "${excluded_basenames[@]}"; do
+    find_command+=" -not -path '*/${basename}/*'"
+done
+
+# Get list of workspace members
+workspace_members=($(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.source == null) | .manifest_path | rtrimstr("/Cargo.toml")'))
+
+# Look through all directories recursively and build them if they have a build script or Cargo.
+# toml, not including the root or known workspace members.
+eval "$find_command" | while read dir; do
+    if [[ " ${excluded_crates[@]} " =~ " ${dir} " ]]; then
+        echo "Skipping excluded crate $dir"
         continue
     fi
 
-    echo "Building $dir..."
+    if [[ " ${workspace_members[@]} " =~ " $(realpath ${dir}) " ]]; then
+        continue
+    fi
+
     (
         cd "$dir"
 
         if [ -f scripts/build ]; then
+            echo "Building $dir with scripts/build..."
             scripts/build "$@"
         elif [ -f Cargo.toml ]; then
+            echo "Building $dir with cargo build..."
             cargo build "$@"
-        else
-            echo "No build script or Cargo.toml found in $dir, skipping it"
         fi
     )
 done

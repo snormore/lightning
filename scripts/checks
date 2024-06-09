@@ -1,6 +1,6 @@
 #!/bin/bash
 set -eou pipefail
 
-scripts/fmt
+scripts/fmt-check
 scripts/build
 scripts/clippy

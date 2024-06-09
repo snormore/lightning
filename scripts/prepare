@@ -1,39 +1,9 @@
 #!/bin/bash
 set -eou pipefail
 
-# Note: Since this script exports environment variables, it should be run with `source` or `.`
-
-OS="$(uname -s)"
-
-case "$OS" in
-    Darwin)
-        # Check if Homebrew is installed
-        if ! command -v brew &> /dev/null; then
-            echo "Homebrew could not be found, install it from https://brew.sh"
-            exit 1
-        fi
-
-        # Install yj if necessary
-        if ! command -v yj &> /dev/null; then
-            brew install yj
-        fi
-        ;;
-    Linux)
-        # Install yj if necessary
-        if ! command -v yj &> /dev/null; then
-            if command -v go &> /dev/null; then
-                go install github.com/sclevine/yj@latest
-                export PATH=$PATH:"$(go env GOPATH)/bin"
-            else
-                echo "yj could not be found, install it from https://github.com/sclevine/yj/releases"
-                exit 1
-            fi
-        fi
-        ;;
-    *)
-        echo "Unsupported OS: $OS"
-        echo "yj could not be found, install it from https://github.com/sclevine/yj/releases"
-        exit 1
-        ;;
-esac
-
+# Error if jq is not installed
+if ! command -v jq &> /dev/null
+then
+    echo "jq could not be found. Install jq to run this script."
+    exit
+fi

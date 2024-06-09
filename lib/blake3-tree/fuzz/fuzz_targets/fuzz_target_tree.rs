@@ -32,7 +32,7 @@ fuzz_target!(|data: FuzzInput| {
 
     verifier
         .feed_proof(ProofBuf::new(&output.tree, start).as_slice())
-        .expect(&format!("Invalid Proof: size={size} start={start}"));
+        .unwrap_or_else(|_| panic!("Invalid Proof: size={size}"));
 
     verifier
         .verify({
@@ -41,27 +41,24 @@ fuzz_target!(|data: FuzzInput| {
             block.update(&block_data(start));
             block
         })
-        .expect(&format!("Invalid Content: size={size} start={start}"));
+        .unwrap_or_else(|_| panic!("Invalid Content: size={size} start={start}"));
 
     for i in start + 1..size {
         let target_index = i * 2 - i.count_ones() as usize;
 
         verifier
             .feed_proof(ProofBuf::resume(&output.tree, i).as_slice())
-            .expect(&format!(
-                "Invalid Proof on Resume: size={size} start={start} i={i}"
-            ));
+            .unwrap_or_else(|_| panic!("Invalid Proof on Resume: size={size} start={start} i={i}"));
 
         verifier
             .verify_hash(&output.tree[target_index])
-            .expect(&format!(
-                "Invalid Content on Resume: size={size} start={start} i={i}"
-            ));
+            .unwrap_or_else(|_| {
+                panic!("Invalid Content on Resume: size={size} start={start} i={i}")
+            });
     }
 
-    assert_eq!(
+    assert!(
         verifier.is_done(),
-        true,
         "verifier not terminated: size={size} start={start}"
     );
 });

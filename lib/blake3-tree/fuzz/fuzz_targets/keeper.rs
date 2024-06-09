@@ -32,7 +32,7 @@ fuzz_target!(|data: FuzzInput| {
 
     verifier
         .feed_proof(ProofBuf::new(&output.tree, 0).as_slice())
-        .expect(&format!("Invalid Proof: size={size}"));
+        .unwrap_or_else(|_| panic!("Invalid Proof: size={size}"));
 
     verifier
         .verify({
@@ -41,25 +41,21 @@ fuzz_target!(|data: FuzzInput| {
             block.update(&block_data(start));
             block
         })
-        .expect(&format!("Invalid Content: size={size}"));
+        .unwrap_or_else(|_| panic!("Invalid Content: size={size}"));
 
     for i in start + 1..size {
         let target_index = i * 2 - i.count_ones() as usize;
 
         verifier
             .feed_proof(ProofBuf::resume(&output.tree, i).as_slice())
-            .expect(&format!("Invalid Proof on Resume: size={size} i={i}"));
+            .unwrap_or_else(|_| panic!("Invalid Proof on Resume: size={size} i={i}"));
 
         verifier
             .verify_hash(&output.tree[target_index])
-            .expect(&format!("Invalid Content on Resume: size={size} i={i}"));
+            .unwrap_or_else(|_| panic!("Invalid Content on Resume: size={size} i={i}"));
     }
 
-    assert_eq!(
-        verifier.is_done(),
-        true,
-        "verifier not terminated: size={size}"
-    );
+    assert!(verifier.is_done(), "verifier not terminated: size={size}");
 
     if verifier.take_tree() != output.tree {
         panic!("Captured tree does not match the initial tree.");
