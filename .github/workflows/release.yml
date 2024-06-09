@@ -71,12 +71,16 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
+      - name: Get short SHA
+        id: short-sha
+        run: echo "::set-output name=sha7::$(git rev-parse --short=7 ${{ github.sha }})"
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: ./*.tar.gz
-          tag_name: ${{ github.ref_name }}-$(git rev-parse --short=7 ${{ github.sha }})
-          name: ${{ github.ref_name }}-$(git rev-parse --short=7 ${{ github.sha }})
+          tag_name: ${{ github.ref_name }}-${{ steps.short-sha.outputs.sha7 }}
+          name: ${{ github.ref_name }}-${{ steps.short-sha.outputs.sha7 }}
           draft: false
           prerelease: false
         env:
