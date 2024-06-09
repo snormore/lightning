@@ -1,5 +1,9 @@
 #!/bin/bash
 set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Install dependencies and prepare environment
+. "${script_dir}"/prepare
 
 # Define cargo clippy function
 function cargo_clippy() {

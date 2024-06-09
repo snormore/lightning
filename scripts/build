@@ -1,5 +1,9 @@
 #!/bin/bash
 set -eou pipefail
+script_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Install dependencies and prepare environment
+. "${script_dir}"/prepare
 
 # Force rebuild ort-sys for onnxruntime so that it's always available even when using cached
 # depenedencies in CI and Docker.
