@@ -35,6 +35,7 @@
     flake-utils.lib.eachSystem
       [
         "x86_64-linux"
+        "aarch64-linux"
         "aarch64-darwin"
       ]
       (
@@ -62,6 +63,7 @@
               sha256 =
                 {
                   x86_64-linux = "XxX3x3LBiJK768gvzIsV7aKm6Yn5dLS3LINdDOUjDGU=";
+                  aarch64-linux = "dc21fbaec9a83a4121cda02c2f6c4b0747e29dfb578ca88e5f4f9711138ca22c";
                   aarch64-darwin = "5cdd8914bf11b3d8724eab95c7a6eb8d6d791f9e26855207ab391d132f6c9aa3";
                 }
                 ."${system}";
@@ -228,6 +230,18 @@
                 ];
               }
             );
+          };
+
+          # Docker image with the node and service binaries
+          dockerImages = pkgs.dockerTools.buildLayeredImage {
+            name = "lightning";
+            tag = "latest";
+
+            contents = [
+              pkgs.bash
+              pkgs.coreutils
+              self.packages.${system}.lightning-node
+            ];
           };
 
           # Allow using `nix run` on the project
