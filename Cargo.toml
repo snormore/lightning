@@ -93,8 +93,10 @@ sui-types = { git = "https://github.com/daltoncoder/narwhal-hack.git" }
 sui-keys = { git = "https://github.com/daltoncoder/narwhal-hack.git" }
 
 [profile.release]
+# Strip symbols from the binary
+strip = true
 # include some debug info, useful for backtraces
-debug = 1
+#debug = 1
 # perform "fat" link time optimization on the workspace and all dependencies
 lto = true
 # enables full optimization, disregarding binary size, with loop vectorization
