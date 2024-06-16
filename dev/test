@@ -11,7 +11,15 @@ fi
 
 # Install cargo-nextest using cargo binstall if necessary
 if ! cargo --list | grep -q nextest; then
-    cargo binstall cargo-nextest --no-confirm
+    cargo binstall cargo-nextest --force --no-confirm
+fi
+
+# Force rebuild ort-sys for onnxruntime so that it's always available even when using cached
+# depenedencies in CI and Docker.
+# This causes https://github.com/pykeio/ort/blob/main/ort-sys/build.rs to always re-run.
+if [ -n "${CI:-}" ]; then
+    cargo clean -p ort-sys
+    cargo build -p ort-sys
 fi
 
 # Run workspace tests
