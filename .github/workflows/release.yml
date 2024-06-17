@@ -47,7 +47,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: Cargo build
-        run: cargo build --bin lightning-node --all-features --release --target ${{ matrix.target }}
+        run: dev/build --bin lightning-node --all-features --release --target ${{ matrix.target }}
 
       # - name: Create tarball
       #   run: |
