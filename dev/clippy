@@ -1,4 +1,4 @@
 #!/bin/bash
 set -eou pipefail
 
-cargo clippy --all-features --all-targets -- -Dclippy::all -Dwarnings "$@"
+cargo clippy --all-features --all-targets --no-deps -- -Dclippy::all -Dwarnings "$@"
