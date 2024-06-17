@@ -5,7 +5,8 @@ on:
   workflow_call:
   push:
     branches:
-      - '**'
+      # - '**'
+      - none
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,11 +28,13 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Linux
-            runner: ubuntu-latest
-            # runner: namespace-profile-lightning-builder-ubuntu-amd64
-          - name: MacOS
-            runner: macos-latest
+          - name: Linux x86_64
+            # runner: ubuntu-latest
+            runner: namespace-profile-lightning-checks-ubuntu-amd64
+          # - name: Linux aarch64
+          #   runner: namespace-profile-lightning-builder-ubuntu-arm64
+          # - name: MacOS
+          #   runner: macos-latest
       fail-fast: false
     runs-on: ${{ matrix.runner }}
     steps:
@@ -55,12 +58,15 @@ jobs:
       matrix:
         include:
           - name: Linux x86_64
-            runner: ubuntu-latest
-            # runner: namespace-profile-lightning-builder-ubuntu-amd64
+            # runner: ubuntu-latest
+            runner: namespace-profile-lightning-checks-ubuntu-amd64
             target: x86_64-unknown-linux-gnu
-          - name: MacOS aarch64
-            runner: macos-latest
-            target: aarch64-apple-darwin
+          # - name: Linux aarch64
+          #   runner: namespace-profile-lightning-builder-ubuntu-arm64
+          #   target: aarch64-unknown-linux-gnu
+          # - name: MacOS aarch64
+          #   runner: macos-latest
+          #   target: aarch64-apple-darwin
       fail-fast: false
     runs-on: ${{ matrix.runner }}
     steps:
@@ -86,11 +92,14 @@ jobs:
         include:
           - name: Linux x86_64
             # runner: ubuntu-latest
-            runner: namespace-profile-lightning-builder-ubuntu-amd64
+            runner: namespace-profile-lightning-checks-ubuntu-amd64
             target: x86_64-unknown-linux-gnu
-          - name: MacOS aarch64
-            runner: macos-latest
-            target: aarch64-apple-darwin
+          # - name: Linux aarch64
+          #   runner: namespace-profile-lightning-builder-ubuntu-arm64
+          #   target: aarch64-unknown-linux-gnu
+          # - name: MacOS aarch64
+          #   runner: macos-latest
+          #   target: aarch64-apple-darwin
       fail-fast: false
     runs-on: ${{ matrix.runner }}
     steps:
