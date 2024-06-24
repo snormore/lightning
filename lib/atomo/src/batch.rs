@@ -2,15 +2,19 @@ use std::ops::{Deref, DerefMut};
 
 use fxhash::FxHashMap;
 
+use crate::TableId;
+
 pub type BoxedVec = Box<[u8]>;
 
 pub type BatchHashMap = FxHashMap<BoxedVec, Operation>;
 
+#[derive(Debug, Clone)]
 /// A vertical batch contains a list of slots for each different table. Putting
 /// the [`VerticalBatch`] into a [`SnapshotList`] will provide a valid snapshot
 /// list.
 pub struct VerticalBatch(Vec<BatchHashMap>);
 
+#[derive(Debug, Clone)]
 /// The change on a value.
 pub enum Operation {
     Remove,
@@ -21,7 +25,8 @@ impl VerticalBatch {
     /// Returns a new empty vertical batch with the given size. The
     /// size can be used for the number of tables.
     #[inline(always)]
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: u8) -> Self {
+        let size: usize = size.into();
         let mut vec = Vec::with_capacity(size);
         vec.resize_with(size, FxHashMap::default);
         VerticalBatch(vec)
@@ -34,15 +39,31 @@ impl VerticalBatch {
     }
 
     #[inline(always)]
-    pub fn get(&self, index: usize) -> &BatchHashMap {
+    pub fn get(&self, index: TableId) -> &BatchHashMap {
+        let index: usize = index.into();
         debug_assert!(index < self.0.len());
         &self.0[index]
     }
 
     #[inline(always)]
-    pub fn get_mut(&mut self, index: usize) -> &mut BatchHashMap {
+    pub fn get_mut(&mut self, index: TableId) -> &mut BatchHashMap {
+        let index: usize = index.into();
         debug_assert!(index < self.0.len());
         &mut self.0[index]
+    }
+
+    #[inline(always)]
+    pub fn insert(&mut self, index: TableId, key: BoxedVec, operation: Operation) {
+        let index: usize = index.into();
+        self.0[index].insert(key, operation);
+    }
+
+    #[inline(always)]
+    pub fn extend(&self, index: TableId, batch: BatchHashMap) -> VerticalBatch {
+        let index: usize = index.into();
+        let mut new_batch = self.clone();
+        new_batch.0.insert(index, batch);
+        new_batch
     }
 
     /// Return a reference to a single slot in the vertical batch.
@@ -83,5 +104,48 @@ impl DerefMut for BatchReference {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.0 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn insert() {
+        let mut batch = VerticalBatch::new(2);
+
+        batch.insert(0, [1].into(), Operation::Insert([1].into()));
+        assert_eq!(batch.0.len(), 2);
+        assert_eq!(batch.0[0].len(), 1);
+        assert_eq!(batch.0[1].len(), 0);
+
+        batch.insert(1, [2].into(), Operation::Remove);
+        assert_eq!(batch.0.len(), 2);
+        assert_eq!(batch.0[0].len(), 1);
+        assert_eq!(batch.0[1].len(), 1);
+
+        batch.insert(0, [3].into(), Operation::Remove);
+        assert_eq!(batch.0.len(), 2);
+        assert_eq!(batch.0[0].len(), 2);
+        assert_eq!(batch.0[1].len(), 1);
+    }
+
+    #[test]
+    fn extend() {
+        let mut batch = VerticalBatch::new(2);
+
+        batch.insert(0, [1].into(), Operation::Insert([1].into()));
+        batch.insert(1, [1].into(), Operation::Remove);
+
+        let mut extension = BatchHashMap::default();
+        extension.insert([3].into(), Operation::Insert([3].into()));
+        extension.insert([4].into(), Operation::Insert([4].into()));
+
+        let batch = batch.extend(0, extension);
+        assert_eq!(batch.0.len(), 3);
+        assert_eq!(batch.0[0].len(), 2);
+        assert_eq!(batch.0[1].len(), 1);
+        assert_eq!(batch.0[2].len(), 1);
     }
 }
