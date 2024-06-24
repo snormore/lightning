@@ -41,10 +41,12 @@ third-party = [
 [final-excludes]
 workspace-members = [
     # These workspace/lib crates intentionally do not depend on workspace-hack.
+    # NOTE: Add in alphabetical order.
     "affair",
     "atomo",
     "atomo-rocks",
     "better-shutdown",
+    "b3fs",
     "blake3-tree",
     "blake3-wasm",
     "cdk-rust",
@@ -60,5 +62,5 @@ workspace-members = [
     "resolved-pathbuf",
     "safetensors-ndarray",
     "simulon",
-    "b3fs",
+    "state-tree",
 ]

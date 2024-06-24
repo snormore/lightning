@@ -1,0 +1,15 @@
+[package]
+name = "state-tree"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+atomo = { path = "../atomo" }
+blake3 = { version = "1.5.3", features = ["std", "traits-preview"] }
+borsh = "1.5.1"
+jmt = "0.10.0"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+
+[dev-dependencies]
+hex = "0.4.3"
