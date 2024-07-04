@@ -8,11 +8,10 @@ if ! cargo --list | grep -q binstall; then
     cargo install cargo-binstall --version "<1.7.0"
 fi
 
-# Install cargo-nextest using cargo binstall if necessary
-if ! cargo --list | grep -q nextest; then
-    cargo binstall cargo-nextest --no-confirm --force
+# Install cargo-hakari using cargo binstall if necessary
+if ! cargo --list | grep -q hakari; then
+    cargo binstall cargo-hakari --no-confirm --force
 fi
 
-# Run workspace tests
 set -x
-cargo nextest run "$@"
+cargo hakari generate
