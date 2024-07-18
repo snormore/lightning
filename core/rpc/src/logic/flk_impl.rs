@@ -387,6 +387,11 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         Ok((sub_dag_index, self.data.query_runner.get_epoch_info().epoch))
     }
 
+    async fn get_proof(&self, _table: String, _key: Vec<u8>) -> RpcResult<Vec<u8>> {
+        // TODO(snormore): Implement this.
+        todo!()
+    }
+
     async fn send_txn(&self, tx: TransactionRequest) -> RpcResult<()> {
         Ok(self
             .data
