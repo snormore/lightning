@@ -185,6 +185,9 @@ pub trait FleekApi {
     #[method(name = "get_sub_dag_index")]
     async fn get_sub_dag_index(&self) -> RpcResult<(u64, Epoch)>;
 
+    #[method(name = "get_proof")]
+    async fn get_proof(&self, table: String, key: Vec<u8>) -> RpcResult<Vec<u8>>;
+
     #[method(name = "send_txn")]
     async fn send_txn(&self, tx: TransactionRequest) -> RpcResult<()>;
 
