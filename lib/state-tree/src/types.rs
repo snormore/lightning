@@ -1,4 +1,3 @@
-use atomo::TableId;
 use borsh::{to_vec, BorshDeserialize, BorshSerialize};
 use jmt::{KeyHash, SimpleHasher};
 
@@ -7,7 +6,7 @@ pub type SerializedNodeValue = Vec<u8>;
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct TableKey {
-    pub table: TableId,
+    pub table: String,
     pub key: Vec<u8>,
 }
 

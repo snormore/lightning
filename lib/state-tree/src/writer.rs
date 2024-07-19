@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use atomo::batch::{BatchHashMap, BoxedVec, Operation, VerticalBatch};
-use atomo::{StorageBackend, StorageBackendConstructor, TableId};
+use atomo::{StorageBackend, TableId};
 use borsh::to_vec;
 use jmt::SimpleHasher;
 
@@ -13,6 +14,8 @@ use crate::types::TableKey;
 pub struct StateTreeWriter<S: StorageBackend, KH: SimpleHasher, VH: SimpleHasher> {
     storage: Arc<S>,
     nodes_table_index: TableId,
+    table_id_by_name: HashMap<String, TableId>,
+    table_name_by_id: HashMap<TableId, String>,
     _kv_hashers: PhantomData<(KH, VH)>,
 }
 
@@ -20,26 +23,39 @@ impl<S: StorageBackend, KH: SimpleHasher, VH: SimpleHasher> StateTreeWriter<S, K
 where
     S: StorageBackend + Send + Sync,
 {
-    pub fn new(storage: Arc<S>, nodes_table_index: TableId) -> Self {
+    pub fn new(
+        storage: Arc<S>,
+        nodes_table_index: TableId,
+        table_id_by_name: HashMap<String, TableId>,
+    ) -> Self {
         Self {
             storage,
+            table_id_by_name: table_id_by_name.clone(),
+            table_name_by_id: table_id_by_name
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (v, k))
+                .collect::<HashMap<TableId, String>>(),
             nodes_table_index,
             _kv_hashers: PhantomData,
         }
     }
 
     fn extend_commit_batch(&self, batch: VerticalBatch) -> VerticalBatch {
-        let reader = JmtTreeReader::new(&*self.storage, self.nodes_table_index);
+        let reader = JmtTreeReader::new(
+            &*self.storage,
+            self.nodes_table_index,
+            &self.table_id_by_name,
+        );
         let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
 
         // Iterate over the changes and build the tree value set.
         let mut value_set: Vec<(jmt::KeyHash, Option<jmt::OwnedValue>)> = Default::default();
-        for (table, changes) in batch.clone().into_raw().iter().enumerate() {
-            let table: TableId = table.try_into().unwrap();
+        for (table_id, changes) in batch.clone().into_raw().iter().enumerate() {
+            let table_id: TableId = table_id.try_into().unwrap();
             for (key, operation) in changes.iter() {
                 let table_key = TableKey {
-                    // TODO(snormore): Use durable table names here instead of table indexes.
-                    table,
+                    table: self.table_name_by_id.get(&table_id).unwrap().to_string(),
                     key: key.to_vec(),
                 };
                 let key_hash = table_key.hash::<KH>();
@@ -107,66 +123,6 @@ where
         self.storage.contains(tid, key)
     }
 }
-
-pub struct StateTreeWriterConstructor<
-    C: StorageBackendConstructor,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-> {
-    constructor: C,
-    _kv_hashers: PhantomData<(KH, VH)>,
-}
-
-impl<C: StorageBackendConstructor, KH: SimpleHasher, VH: SimpleHasher>
-    StateTreeWriterConstructor<C, KH, VH>
-{
-    pub fn new(constructor: C) -> Self {
-        Self {
-            constructor,
-            _kv_hashers: PhantomData,
-        }
-    }
-}
-
-impl<C: StorageBackendConstructor, KH: SimpleHasher, VH: SimpleHasher> StorageBackendConstructor
-    for StateTreeWriterConstructor<C, KH, VH>
-where
-    C::Storage: StorageBackend + Send + Sync,
-    KH: SimpleHasher + Send + Sync + Clone,
-    VH: SimpleHasher + Send + Sync + Clone,
-{
-    type Storage = StateTreeWriter<C::Storage, KH, VH>;
-
-    type Error = C::Error;
-
-    fn open_table(&mut self, name: String) -> TableId {
-        self.constructor.open_table(name)
-    }
-
-    fn build(mut self) -> Result<Self::Storage, Self::Error> {
-        let nodes_table_index = self
-            .constructor
-            .open_table(String::from("%MerkleTreeState-Nodes"));
-
-        let storage = Arc::new(self.constructor.build()?);
-
-        Ok(StateTreeWriter::<_, KH, VH>::new(
-            storage,
-            nodes_table_index,
-        ))
-    }
-}
-
-impl<C: StorageBackendConstructor, KH: SimpleHasher, VH: SimpleHasher> Default
-    for StateTreeWriterConstructor<C, KH, VH>
-where
-    C: Default,
-{
-    fn default() -> Self {
-        Self::new(C::default())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use atomo::{InMemoryStorage, StorageBackendConstructor};
@@ -179,21 +135,29 @@ mod tests {
         type KeyHasher = blake3::Hasher;
         type ValueHasher = KeccakHasher;
 
-        let mut storage = StateTreeWriterConstructor::<_, KeyHasher, ValueHasher>::new(
-            InMemoryStorage::default(),
-        );
-        let table_index = storage.open_table("data".to_string());
-        let tree_table_index = storage.open_table("tree".to_string());
-        let storage = Arc::new(storage.build().unwrap());
+        let mut storage = InMemoryStorage::default();
+        let data_table_id = storage.open_table("data".to_string());
+        let tree_table_id = storage.open_table("tree".to_string());
+        let storage = Arc::new(storage);
 
-        let writer =
-            StateTreeWriter::<_, KeyHasher, ValueHasher>::new(storage.clone(), tree_table_index);
+        let table_id_by_name: HashMap<String, TableId> = vec![
+            ("data".to_string(), data_table_id),
+            ("tree".to_string(), tree_table_id),
+        ]
+        .into_iter()
+        .collect();
+
+        let writer = StateTreeWriter::<_, KeyHasher, ValueHasher>::new(
+            storage.clone(),
+            tree_table_id,
+            table_id_by_name,
+        );
 
         let mut batch = VerticalBatch::new(2);
         let insert_count = 10;
         for i in 1..=insert_count {
             batch.insert(
-                table_index,
+                data_table_id,
                 format!("key{i}").as_bytes().to_vec().into(),
                 Operation::Insert(format!("value{i}").as_bytes().to_vec().into()),
             );
@@ -201,10 +165,10 @@ mod tests {
 
         writer.commit(batch);
 
-        let keys = storage.keys(table_index);
+        let keys = storage.keys(data_table_id);
         assert_eq!(keys.len(), insert_count);
 
-        let keys = storage.keys(tree_table_index);
-        assert_eq!(keys.len(), 14);
+        let keys = storage.keys(tree_table_id);
+        assert_eq!(keys.len(), 12);
     }
 }
