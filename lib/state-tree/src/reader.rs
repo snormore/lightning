@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -12,6 +13,7 @@ use crate::types::{SerializedNodeValue, TableKey};
 pub struct StateTreeReader<S: StorageBackend, KH: SimpleHasher, VH: SimpleHasher> {
     storage: Arc<S>,
     nodes_table_index: TableId,
+    table_id_by_name: HashMap<String, TableId>,
     _kv_hashers: std::marker::PhantomData<(KH, VH)>,
 }
 
@@ -19,17 +21,26 @@ impl<S: StorageBackend, KH: SimpleHasher, VH: SimpleHasher> StateTreeReader<S, K
 where
     S: StorageBackend + Send + Sync,
 {
-    pub fn new(storage: Arc<S>, nodes_table_index: TableId) -> Self {
+    pub fn new(
+        storage: Arc<S>,
+        nodes_table_index: TableId,
+        table_id_by_name: HashMap<String, TableId>,
+    ) -> Self {
         Self {
             storage,
             nodes_table_index,
+            table_id_by_name,
             _kv_hashers: std::marker::PhantomData,
         }
     }
 
     // TODO(snormore): This is leaking `jmt::RootHash`.`
     pub fn get_root_hash(&self) -> Result<RootHash> {
-        let reader = JmtTreeReader::new(&*self.storage, self.nodes_table_index);
+        let reader = JmtTreeReader::new(
+            &*self.storage,
+            self.nodes_table_index,
+            &self.table_id_by_name,
+        );
         let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
 
         tree.get_root_hash(0)
@@ -42,7 +53,11 @@ where
         &self,
         key: TableKey,
     ) -> Result<(Option<SerializedNodeValue>, SparseMerkleProof<VH>)> {
-        let reader = JmtTreeReader::new(&*self.storage, self.nodes_table_index);
+        let reader = JmtTreeReader::new(
+            &*self.storage,
+            self.nodes_table_index,
+            &self.table_id_by_name,
+        );
         let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
 
         // Cache the key in the reader so it can be used when `get_with_proof` is called next, which
@@ -56,6 +71,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::vec;
+
     use atomo::batch::{Operation, VerticalBatch};
     use atomo::{InMemoryStorage, StorageBackendConstructor};
 
@@ -69,20 +87,33 @@ mod tests {
         type ValueHasher = KeccakHasher;
 
         let mut storage = InMemoryStorage::default();
-        let data_table_index = storage.open_table("data".to_string());
-        let tree_table_index = storage.open_table("tree".to_string());
+        let data_table_id = storage.open_table("data".to_string());
+        let tree_table_id = storage.open_table("tree".to_string());
         let storage = Arc::new(storage);
 
-        let writer =
-            StateTreeWriter::<_, KeyHasher, ValueHasher>::new(storage.clone(), tree_table_index);
-        let reader =
-            StateTreeReader::<_, KeyHasher, ValueHasher>::new(storage.clone(), tree_table_index);
+        let table_id_by_name: HashMap<String, TableId> = vec![
+            ("data".to_string(), data_table_id),
+            ("tree".to_string(), tree_table_id),
+        ]
+        .into_iter()
+        .collect();
+
+        let writer = StateTreeWriter::<_, KeyHasher, ValueHasher>::new(
+            storage.clone(),
+            tree_table_id,
+            table_id_by_name.clone(),
+        );
+        let reader = StateTreeReader::<_, KeyHasher, ValueHasher>::new(
+            storage.clone(),
+            tree_table_id,
+            table_id_by_name.clone(),
+        );
 
         let mut batch = VerticalBatch::new(2);
         let insert_count = 10;
         for i in 1..=insert_count {
             batch.insert(
-                data_table_index,
+                data_table_id,
                 format!("key{i}").as_bytes().to_vec().into(),
                 Operation::Insert(format!("value{i}").as_bytes().to_vec().into()),
             );
@@ -94,7 +125,7 @@ mod tests {
         assert_ne!(root_hash.as_ref(), [0; 32]);
         assert_eq!(
             hex::encode(root_hash.as_ref()),
-            "ee40aee485d93d445094c0a2221f7d6545ee104322942d1ffbe1fea4669b04b6"
+            "6111f6c29d8c8b704636573e6822c68d4271263a5fcf92ad17f88557a7d132ab"
         );
     }
 }

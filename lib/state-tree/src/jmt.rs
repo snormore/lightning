@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use atomo::{StorageBackend, TableId};
 use borsh::{from_slice, to_vec};
 use jmt::storage::{LeafNode, Node, NodeKey, TreeReader};
@@ -10,16 +10,22 @@ use jmt::{KeyHash, OwnedValue, Version};
 use crate::types::TableKey;
 
 pub struct JmtTreeReader<'a, S: StorageBackend> {
-    pub storage: &'a S,
-    pub nodes_table_index: TableId,
-    pub keys: Arc<RwLock<HashMap<KeyHash, TableKey>>>,
+    storage: &'a S,
+    nodes_table_index: TableId,
+    table_ids: &'a HashMap<String, TableId>,
+    keys: Arc<RwLock<HashMap<KeyHash, TableKey>>>,
 }
 
 impl<'a, S: StorageBackend> JmtTreeReader<'a, S> {
-    pub fn new(storage: &'a S, nodes_table_index: TableId) -> Self {
+    pub fn new(
+        storage: &'a S,
+        nodes_table_index: TableId,
+        table_ids: &'a HashMap<String, TableId>,
+    ) -> Self {
         Self {
             storage,
             nodes_table_index,
+            table_ids,
             keys: Default::default(),
         }
     }
@@ -56,10 +62,14 @@ where
     ) -> Result<Option<OwnedValue>> {
         let keys_cache = self.keys.read().unwrap();
         let table_key = keys_cache.get(&key_hash);
+
         match table_key {
-            Some(table_key) => {
-                let value = self.storage.get(table_key.table, &table_key.key);
-                Ok(value)
+            Some(table_key) => match self.table_ids.get(&table_key.table) {
+                Some(table_id) => {
+                    let value = self.storage.get(*table_id, &table_key.key);
+                    Ok(value)
+                },
+                None => Err(anyhow!("Table {} not found", table_key.table)),
             },
             None => Ok(None),
         }
