@@ -42,9 +42,7 @@ where
     }
 
     fn build(mut self) -> Result<Self::Storage, Self::Error> {
-        let nodes_table_index = self
-            .constructor
-            .open_table(String::from("%state_tree_nodes"));
+        let nodes_table_index = self.open_table(String::from("%state_tree_nodes"));
 
         let storage = Arc::new(self.constructor.build()?);
 
