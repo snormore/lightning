@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::iter::Extend;
 use std::sync::Arc;
 
+use fxhash::FxHashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -93,6 +94,11 @@ impl<B: StorageBackendConstructor, S: SerdeBackend> AtomoBuilder<B, S> {
         }
 
         panic!("Table {name} is not defined.");
+    }
+
+    // TODO(snormore): Figure out a better way to expose the table name to id mapping.
+    pub fn table_name_to_id(&self) -> FxHashMap<String, TableId> {
+        self.atomo.table_name_to_id.clone()
     }
 
     /// Finish the construction and returns an [`Atomo`] with [`UpdatePerm`] permission.

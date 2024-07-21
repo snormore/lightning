@@ -8,4 +8,5 @@ mod writer;
 pub use builder::StateTreeBuilder;
 pub use keccak::KeccakHasher;
 pub use reader::StateTreeReader;
-pub use writer::StateTreeWriter;
+pub use types::{SerializedNodeKey, SerializedNodeValue, TableKey};
+pub use writer::StateTreeAtomo;

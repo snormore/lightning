@@ -1,69 +1,68 @@
-use atomo::{AtomoBuilder, InMemoryStorage, StorageBackend};
-use state_tree::{KeccakHasher, StateTreeBuilder, StateTreeWriter};
+use atomo::{DefaultSerdeBackend, InMemoryStorage, StorageBackend};
+use state_tree::{KeccakHasher, SerializedNodeKey, SerializedNodeValue, StateTreeBuilder};
 
 #[test]
 fn test_atomo() {
-    type KeyHasher = blake3::Hasher;
-    type ValueHasher = KeccakHasher;
-
     let storage = InMemoryStorage::default();
-    let builder = StateTreeBuilder::<_, KeyHasher, ValueHasher>::new(storage);
-    // TODO(snormore): Return reader (along with writer) on build
-    let mut db = AtomoBuilder::new(builder)
-        .with_table::<u8, u8>("data")
-        .with_table::<Vec<u8>, Vec<u8>>("%state_tree_nodes")
-        .enable_iter("data")
-        .enable_iter("%state_tree_nodes")
-        .build()
-        .unwrap();
+    let mut db = StateTreeBuilder::<
+        InMemoryStorage,
+        DefaultSerdeBackend,
+        blake3::Hasher,
+        KeccakHasher,
+    >::new(storage)
+    .with_table::<String, String>("data")
+    .enable_iter("data")
+    .with_table::<u8, u8>("other")
+    .build()
+    .unwrap();
 
-    db.run(
-        |ctx: &mut atomo::TableSelector<
-            StateTreeWriter<InMemoryStorage, KeyHasher, ValueHasher>,
-            atomo::BincodeSerde,
-        >| {
-            let mut data_table = ctx.get_table::<u8, u8>("data");
+    let data_insert_count = 10;
 
-            data_table.insert(0, 17);
-            data_table.insert(1, 18);
-            data_table.insert(2, 19);
-        },
-    );
+    // Insert initial data.
+    db.run(|ctx: _| {
+        let mut data_table = ctx.get_table::<String, String>("data");
 
+        for i in 1..=data_insert_count {
+            data_table.insert(format!("key{i}"), format!("value{i}"));
+        }
+    });
+
+    // Verify data via storage directly.
     {
         let storage = db.get_storage_backend_unsafe();
 
         let data_table_id = 0;
-        let keys = storage.keys(data_table_id); // data table
-        assert_eq!(keys.len(), 3);
-        assert_eq!(storage.get(data_table_id, &[0]), Some(vec![17]));
-        assert_eq!(storage.get(data_table_id, &[1]), Some(vec![18]));
-        assert_eq!(storage.get(data_table_id, &[2]), Some(vec![19]));
+        let keys = storage.keys(data_table_id);
+        assert_eq!(keys.len(), data_insert_count);
 
-        let tree_table_id = 1;
-        let keys = storage.keys(tree_table_id); // tree table
-        assert_eq!(keys.len(), 4);
-
-        // This is specific to the JMT implementation.
-        assert!(storage.contains(tree_table_id, &[0; 20]))
+        // TODO(snormore): Can we get this table index via the table ref instead of indirectly
+        // inferring it?
+        let tree_table_id = 2;
+        let keys = storage.keys(tree_table_id);
+        assert_eq!(keys.len(), 11);
     }
 
+    // Verify data via state tree reader.
     db.query().run(|ctx: _| {
-        let data_table = ctx.get_table::<u8, u8>("data");
-        let tree_table = ctx.get_table::<Vec<u8>, Vec<u8>>("%state_tree_nodes");
+        let data_table = ctx.get_table::<String, String>("data");
 
         let keys = data_table.keys().collect::<Vec<_>>();
-        assert_eq!(keys.len(), 3);
-        assert_eq!(data_table.get(0), Some(17));
-        assert_eq!(data_table.get(1), Some(18));
-        assert_eq!(data_table.get(2), Some(19));
+        assert_eq!(keys.len(), data_insert_count);
 
-        // We expect keys to be empty for the tree data when accessed through the atomo table
-        // reference since keys are not populated in the atomo table reference for the tree table,
-        // which does not insert through the table reference insert method, and so does not update
-        // the atomo table reference keys on insert.
+        for i in 1..=data_insert_count {
+            assert_eq!(data_table.get(format!("key{i}")), Some(format!("value{i}")));
+        }
+
+        let root_hash = db.get_root_hash(ctx).unwrap();
+        assert_eq!(
+            hex::encode(root_hash),
+            "f99c316badabfe6c5a22f7697d2465dd81dfade2ca46464fa3f1000c850ff66f"
+        );
+
+        let tree_table =
+            ctx.get_table::<SerializedNodeKey, SerializedNodeValue>("%state_tree_nodes");
         let keys = tree_table.keys().collect::<Vec<_>>();
-        assert_eq!(keys.len(), 0);
+        assert_eq!(keys.len(), 11);
 
         // TODO(snormore): Test get_with_proof on reader
     });

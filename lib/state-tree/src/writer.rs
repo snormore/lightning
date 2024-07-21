@@ -1,64 +1,101 @@
-use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::sync::Arc;
 
-use atomo::batch::{BatchHashMap, BoxedVec, Operation, VerticalBatch};
-use atomo::{StorageBackend, TableId};
+use anyhow::Result;
+use atomo::batch::Operation;
+use atomo::{Atomo, QueryPerm, SerdeBackend, StorageBackend, TableId, TableSelector, UpdatePerm};
 use borsh::to_vec;
-use jmt::SimpleHasher;
+use fxhash::FxHashMap;
+use jmt::{RootHash, SimpleHasher};
 
 use crate::jmt::JmtTreeReader;
-use crate::types::TableKey;
+use crate::types::{SerializedNodeKey, SerializedNodeValue, TableKey};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
-pub struct StateTreeWriter<S: StorageBackend, KH: SimpleHasher, VH: SimpleHasher> {
-    storage: Arc<S>,
-    nodes_table_index: TableId,
-    table_id_by_name: HashMap<String, TableId>,
-    table_name_by_id: HashMap<TableId, String>,
-    _kv_hashers: PhantomData<(KH, VH)>,
+pub struct StateTreeAtomo<B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher> {
+    atomo: Atomo<UpdatePerm, B, S>,
+    tree_table_name: String,
+    table_name_by_id: FxHashMap<TableId, String>,
+    _phantom: PhantomData<(KH, VH)>,
 }
 
-impl<S: StorageBackend, KH: SimpleHasher, VH: SimpleHasher> StateTreeWriter<S, KH, VH>
+impl<B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
+    StateTreeAtomo<B, S, KH, VH>
 where
-    S: StorageBackend + Send + Sync,
+    B: StorageBackend + Send + Sync,
+    S: SerdeBackend + Send + Sync,
 {
     pub fn new(
-        storage: Arc<S>,
-        nodes_table_index: TableId,
-        table_id_by_name: HashMap<String, TableId>,
+        atomo: Atomo<UpdatePerm, B, S>,
+        tree_table_name: String,
+        table_id_by_name: FxHashMap<String, TableId>,
     ) -> Self {
+        let table_name_by_id = table_id_by_name
+            .clone()
+            .into_iter()
+            .map(|(k, v)| (v, k))
+            .collect::<FxHashMap<TableId, String>>();
         Self {
-            storage,
-            table_id_by_name: table_id_by_name.clone(),
-            table_name_by_id: table_id_by_name
-                .clone()
-                .into_iter()
-                .map(|(k, v)| (v, k))
-                .collect::<HashMap<TableId, String>>(),
-            nodes_table_index,
-            _kv_hashers: PhantomData,
+            atomo,
+            tree_table_name,
+            table_name_by_id,
+            _phantom: PhantomData,
         }
     }
 
-    fn compute_state_tree_changes(&self, batch: &VerticalBatch) -> BatchHashMap {
-        let reader = JmtTreeReader::new(
-            &*self.storage,
-            self.nodes_table_index,
-            &self.table_id_by_name,
-        );
+    pub fn run<F, R>(&mut self, mutation: F) -> R
+    where
+        F: FnOnce(&mut TableSelector<B, S>) -> R,
+    {
+        self.atomo.run(|ctx| {
+            let res = mutation(ctx);
+            Self::apply_state_tree_changes(
+                ctx,
+                self.tree_table_name.clone(),
+                self.table_name_by_id.clone(),
+            );
+            res
+        })
+    }
+
+    pub fn query(&self) -> Atomo<QueryPerm, B, S> {
+        self.atomo.query()
+    }
+
+    // TODO(snormore): This leaks `RootHash`.
+    pub fn get_root_hash(&self, ctx: &TableSelector<B, S>) -> Result<RootHash> {
+        let reader = JmtTreeReader::new(ctx, self.tree_table_name.clone());
+        let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
+
+        tree.get_root_hash(0)
+    }
+
+    pub fn get_storage_backend_unsafe(&mut self) -> &B {
+        self.atomo.get_storage_backend_unsafe()
+    }
+
+    fn apply_state_tree_changes(
+        // TODO(snormore): Make serde backend a type parameter and pass down to TableSelector here.
+        ctx: &mut TableSelector<B, S>,
+        tree_table_name: String,
+        table_name_by_id: FxHashMap<TableId, String>,
+    ) {
+        let reader = JmtTreeReader::new(ctx, tree_table_name.clone());
         let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
 
         // Iterate over the changes and build the tree value set.
         let mut value_set: Vec<(jmt::KeyHash, Option<jmt::OwnedValue>)> = Default::default();
-        for (table_id, changes) in batch.clone().into_raw().iter().enumerate() {
+        for (table_id, changes) in ctx.current_changes().into_raw().iter().enumerate() {
+            // println!("table {:?} changes {:?}", table_id, changes);
             let table_id: TableId = table_id.try_into().unwrap();
             for (key, operation) in changes.iter() {
                 let table_key = TableKey {
-                    table: self.table_name_by_id.get(&table_id).unwrap().to_string(),
+                    // TODO(snormore): Fix this unwrap.
+                    table: table_name_by_id.get(&table_id).unwrap().to_string(),
                     key: key.to_vec(),
                 };
                 let key_hash = table_key.hash::<KH>();
+
+                // println!("table key {:?} key_hash {:?}", table_key, key_hash);
 
                 match operation {
                     Operation::Remove => {
@@ -71,106 +108,65 @@ where
             }
         }
 
-        let mut tree_changes = BatchHashMap::default();
-
         // Apply the value set to the tree, and get the tree batch that we can convert to atomo
         // storage batches.
         let (_new_root_hash, _update_proof, tree_batch) =
             tree.put_value_set_with_proof(value_set.clone(), 0).unwrap();
 
+        let mut tree_table =
+            ctx.get_table::<SerializedNodeKey, SerializedNodeValue>(tree_table_name.clone());
+
         // Stale nodes are converted to remove operations.
         for stale_node in tree_batch.stale_node_index_batch {
-            tree_changes.insert(
-                to_vec(&stale_node.node_key).unwrap().into(),
-                Operation::Remove,
-            );
+            // println!("stale node {:?}", stale_node);
+            tree_table.remove(&to_vec(&stale_node.node_key).unwrap());
         }
 
         // New nodes are converted to insert operations.
         for (node_key, node) in tree_batch.node_batch.nodes() {
-            tree_changes.insert(
-                to_vec(node_key).unwrap().into(),
-                Operation::Insert(to_vec(node).unwrap().into()),
-            );
+            // println!("node key {:?} node {:?}", node_key, node);
+            tree_table.insert(to_vec(node_key).unwrap(), to_vec(node).unwrap());
         }
-
-        tree_changes
     }
 }
 
-impl<S: StorageBackend, KH: SimpleHasher, VH: SimpleHasher> atomo::StorageBackend
-    for StateTreeWriter<S, KH, VH>
-where
-    S: StorageBackend + Send + Sync,
-{
-    fn commit(&self, batch: VerticalBatch) {
-        let state_tree_changes = self.compute_state_tree_changes(&batch);
+// #[cfg(test)]
+// mod tests {
+//     use atomo::{InMemoryStorage, StorageBackendConstructor};
 
-        let mut batch = batch.clone();
-        batch.set(self.nodes_table_index, state_tree_changes);
+//     use super::*;
+//     use crate::keccak::KeccakHasher;
 
-        self.storage.commit(batch);
-    }
+//     #[test]
+//     fn test_commit() {
+//         type KeyHasher = blake3::Hasher;
+//         type ValueHasher = KeccakHasher;
 
-    fn keys(&self, tid: TableId) -> Vec<BoxedVec> {
-        self.storage.keys(tid)
-    }
+//         let mut storage = InMemoryStorage::default();
+//         let data_table_id = storage.open_table("data".to_string());
+//         let tree_table_id = storage.open_table("tree".to_string());
+//         let storage = Arc::new(storage);
 
-    fn get(&self, tid: TableId, key: &[u8]) -> Option<Vec<u8>> {
-        self.storage.get(tid, key)
-    }
+//         let writer =
+//             StateTreeWriter::<_, KeyHasher, ValueHasher>::new(storage.clone(),
+// "tree".to_string());
 
-    fn contains(&self, tid: TableId, key: &[u8]) -> bool {
-        self.storage.contains(tid, key)
-    }
-}
+//         let mut batch = VerticalBatch::new(2);
+//         let insert_count = 10;
+//         for i in 1..=insert_count {
+//             batch.insert(
+//                 data_table_id,
+//                 format!("key{i}").as_bytes().to_vec().into(),
+//                 Operation::Insert(format!("value{i}").as_bytes().to_vec().into()),
+//             );
+//         }
 
-#[cfg(test)]
-mod tests {
-    use atomo::{InMemoryStorage, StorageBackendConstructor};
+//         // writer.commit(batch);
 
-    use super::*;
-    use crate::keccak::KeccakHasher;
+//         let keys = storage.keys(data_table_id);
+//         assert_eq!(keys.len(), insert_count);
 
-    #[test]
-    fn test_commit() {
-        type KeyHasher = blake3::Hasher;
-        type ValueHasher = KeccakHasher;
-
-        let mut storage = InMemoryStorage::default();
-        let data_table_id = storage.open_table("data".to_string());
-        let tree_table_id = storage.open_table("tree".to_string());
-        let storage = Arc::new(storage);
-
-        let table_id_by_name: HashMap<String, TableId> = vec![
-            ("data".to_string(), data_table_id),
-            ("tree".to_string(), tree_table_id),
-        ]
-        .into_iter()
-        .collect();
-
-        let writer = StateTreeWriter::<_, KeyHasher, ValueHasher>::new(
-            storage.clone(),
-            tree_table_id,
-            table_id_by_name,
-        );
-
-        let mut batch = VerticalBatch::new(2);
-        let insert_count = 10;
-        for i in 1..=insert_count {
-            batch.insert(
-                data_table_id,
-                format!("key{i}").as_bytes().to_vec().into(),
-                Operation::Insert(format!("value{i}").as_bytes().to_vec().into()),
-            );
-        }
-
-        writer.commit(batch);
-
-        let keys = storage.keys(data_table_id);
-        assert_eq!(keys.len(), insert_count);
-
-        let keys = storage.keys(tree_table_id);
-        assert_eq!(keys.len(), 12);
-    }
-}
+//         let keys = storage.keys(tree_table_id);
+//         assert_eq!(keys.len(), 12);
+//     }
+// }
