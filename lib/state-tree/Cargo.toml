@@ -8,7 +8,9 @@ anyhow.workspace = true
 atomo = { path = "../atomo" }
 blake3 = { version = "1.5.3", features = ["std", "traits-preview"] }
 borsh = "1.5.1"
+fxhash = "0.2.1"
 jmt = "0.10.0"
+serde.workspace = true
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [dev-dependencies]

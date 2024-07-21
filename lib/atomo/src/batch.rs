@@ -53,23 +53,15 @@ impl VerticalBatch {
     }
 
     #[inline(always)]
-    pub fn set(&mut self, index: TableId, batch: BatchHashMap) {
-        let index: usize = index.into();
-        self.0[index] = batch;
-    }
-
-    #[inline(always)]
     pub fn insert(&mut self, index: TableId, key: BoxedVec, operation: Operation) {
         let index: usize = index.into();
         self.0[index].insert(key, operation);
     }
 
     #[inline(always)]
-    pub fn extend(&self, index: TableId, batch: BatchHashMap) -> VerticalBatch {
+    pub fn set(&mut self, index: TableId, batch: BatchHashMap) {
         let index: usize = index.into();
-        let mut new_batch = self.clone();
-        new_batch.0.insert(index, batch);
-        new_batch
+        self.0[index] = batch;
     }
 
     /// Return a reference to a single slot in the vertical batch.
@@ -152,23 +144,5 @@ mod tests {
         assert_eq!(batch.0.len(), 2);
         assert_eq!(batch.0[0].len(), 2);
         assert_eq!(batch.0[1].len(), 1);
-    }
-
-    #[test]
-    fn extend() {
-        let mut batch = VerticalBatch::new(2);
-
-        batch.insert(0, [1].into(), Operation::Insert([1].into()));
-        batch.insert(1, [1].into(), Operation::Remove);
-
-        let mut extension = BatchHashMap::default();
-        extension.insert([3].into(), Operation::Insert([3].into()));
-        extension.insert([4].into(), Operation::Insert([4].into()));
-
-        let batch = batch.extend(0, extension);
-        assert_eq!(batch.0.len(), 3);
-        assert_eq!(batch.0[0].len(), 2);
-        assert_eq!(batch.0[1].len(), 1);
-        assert_eq!(batch.0[2].len(), 1);
     }
 }

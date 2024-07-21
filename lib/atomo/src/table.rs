@@ -122,6 +122,11 @@ impl<B: StorageBackend, S: SerdeBackend> TableSelector<B, S> {
         (self.batch, self.keys.into_inner())
     }
 
+    #[inline]
+    pub fn current_changes(&self) -> VerticalBatch {
+        self.batch.clone()
+    }
+
     /// Return the table reference for the table with the provided name and K, V type.
     ///
     /// # Panics
