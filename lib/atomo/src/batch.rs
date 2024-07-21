@@ -53,6 +53,12 @@ impl VerticalBatch {
     }
 
     #[inline(always)]
+    pub fn set(&mut self, index: TableId, batch: BatchHashMap) {
+        let index: usize = index.into();
+        self.0[index] = batch;
+    }
+
+    #[inline(always)]
     pub fn insert(&mut self, index: TableId, key: BoxedVec, operation: Operation) {
         let index: usize = index.into();
         self.0[index].insert(key, operation);
@@ -110,6 +116,23 @@ impl DerefMut for BatchReference {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn set() {
+        let mut batch = VerticalBatch::new(2);
+
+        batch.insert(0, [1].into(), Operation::Insert([1].into()));
+        batch.insert(1, [1].into(), Operation::Remove);
+
+        let mut new_batch = BatchHashMap::default();
+        new_batch.insert([3].into(), Operation::Insert([3].into()));
+        new_batch.insert([4].into(), Operation::Insert([4].into()));
+
+        batch.set(0, new_batch);
+        assert_eq!(batch.0.len(), 2);
+        assert_eq!(batch.0[0].len(), 2);
+        assert_eq!(batch.0[1].len(), 1);
+    }
 
     #[test]
     fn insert() {

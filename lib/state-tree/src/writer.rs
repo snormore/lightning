@@ -41,7 +41,7 @@ where
         }
     }
 
-    fn extend_commit_batch(&self, batch: VerticalBatch) -> VerticalBatch {
+    fn compute_state_tree_changes(&self, batch: &VerticalBatch) -> BatchHashMap {
         let reader = JmtTreeReader::new(
             &*self.storage,
             self.nodes_table_index,
@@ -71,7 +71,7 @@ where
             }
         }
 
-        let mut nodes_storage_batch = BatchHashMap::default();
+        let mut tree_changes = BatchHashMap::default();
 
         // Apply the value set to the tree, and get the tree batch that we can convert to atomo
         // storage batches.
@@ -80,7 +80,7 @@ where
 
         // Stale nodes are converted to remove operations.
         for stale_node in tree_batch.stale_node_index_batch {
-            nodes_storage_batch.insert(
+            tree_changes.insert(
                 to_vec(&stale_node.node_key).unwrap().into(),
                 Operation::Remove,
             );
@@ -88,13 +88,13 @@ where
 
         // New nodes are converted to insert operations.
         for (node_key, node) in tree_batch.node_batch.nodes() {
-            nodes_storage_batch.insert(
+            tree_changes.insert(
                 to_vec(node_key).unwrap().into(),
                 Operation::Insert(to_vec(node).unwrap().into()),
             );
         }
 
-        batch.extend(self.nodes_table_index, nodes_storage_batch)
+        tree_changes
     }
 }
 
@@ -104,10 +104,11 @@ where
     S: StorageBackend + Send + Sync,
 {
     fn commit(&self, batch: VerticalBatch) {
-        // TODO(snormore): Assumption: The tree table is always the last table opened.
-        // TODO(snormore): Assumption: The given batch does not include any changes to the tree
-        // table.
-        let batch = self.extend_commit_batch(batch);
+        let state_tree_changes = self.compute_state_tree_changes(&batch);
+
+        let mut batch = batch.clone();
+        batch.set(self.nodes_table_index, state_tree_changes);
+
         self.storage.commit(batch);
     }
 
@@ -123,6 +124,7 @@ where
         self.storage.contains(tid, key)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use atomo::{InMemoryStorage, StorageBackendConstructor};
