@@ -2,44 +2,39 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
-use atomo::{SerdeBackend, StorageBackend, TableSelector};
+use atomo::{SerdeBackend, StorageBackend, TableRef};
 use borsh::{from_slice, to_vec};
 use jmt::storage::{LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
 
-use crate::types::{SerializedNodeKey, SerializedNodeValue, TableKey};
+use crate::types::{SerializedNodeKey, SerializedNodeValue};
 
 pub struct JmtTreeReader<'a, B: StorageBackend, S: SerdeBackend> {
-    ctx: &'a TableSelector<B, S>,
-    tree_table_name: String,
-    keys: Arc<RwLock<HashMap<KeyHash, TableKey>>>,
+    tree_table: &'a TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
+    values: Arc<RwLock<HashMap<KeyHash, OwnedValue>>>,
 }
 
 impl<'a, B: StorageBackend, S: SerdeBackend> JmtTreeReader<'a, B, S> {
-    pub fn new(ctx: &'a TableSelector<B, S>, tree_table_name: String) -> Self {
+    pub fn new(tree_table: &'a TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>) -> Self {
         Self {
-            ctx,
-            tree_table_name,
-            keys: Default::default(),
+            tree_table,
+            values: Default::default(),
         }
     }
 
-    pub fn cache_key(&self, key_hash: KeyHash, table_key: TableKey) {
-        let mut keys = self.keys.write().unwrap();
-        keys.insert(key_hash, table_key);
+    pub fn cache(&self, key_hash: KeyHash, value: OwnedValue) {
+        let mut values = self.values.write().unwrap();
+        values.insert(key_hash, value);
     }
 }
 
 impl<'a, B: StorageBackend, S: SerdeBackend> TreeReader for JmtTreeReader<'a, B, S>
 where
-    B: StorageBackend + Send + Sync,
-    S: SerdeBackend + Send + Sync,
+    B: StorageBackend,
+    S: SerdeBackend,
 {
     fn get_node_option(&self, node_key: &NodeKey) -> Result<Option<Node>> {
-        let tree_table = self
-            .ctx
-            .get_table::<SerializedNodeKey, SerializedNodeValue>(self.tree_table_name.clone());
-        let value = tree_table.get(to_vec(node_key).unwrap());
+        let value = self.tree_table.get(to_vec(node_key).unwrap());
         match value {
             Some(value) => Ok(Some(from_slice(&value).unwrap())),
             None => Ok(None),
@@ -56,19 +51,9 @@ where
         _max_version: Version,
         key_hash: KeyHash,
     ) -> Result<Option<OwnedValue>> {
-        let keys_cache = self.keys.read().unwrap();
-        let table_key = keys_cache.get(&key_hash);
+        let cache = self.values.read().unwrap();
+        let value = cache.get(&key_hash);
 
-        match table_key {
-            Some(table_key) => {
-                let table = self
-                    .ctx
-                    // TODO(snormore): Fix the types being passed to get_table here; it should be
-                    // based on which table is being accessed.
-                    .get_table::<SerializedNodeKey, SerializedNodeValue>(table_key.table.clone());
-                Ok(table.get(table_key.key.clone()))
-            },
-            None => Ok(None),
-        }
+        Ok(value.cloned())
     }
 }

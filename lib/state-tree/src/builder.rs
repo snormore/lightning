@@ -8,9 +8,9 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::types::{SerializedNodeKey, SerializedNodeValue};
-use crate::StateTreeAtomo;
+use crate::StateTreeWriter;
 
-const TREE_TABLE_NAME: &str = "%state_tree_nodes";
+const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
 
 pub struct StateTreeBuilder<
     C: StorageBackendConstructor,
@@ -18,7 +18,8 @@ pub struct StateTreeBuilder<
     KH: SimpleHasher,
     VH: SimpleHasher,
 > {
-    atomo: AtomoBuilder<C, S>,
+    inner: AtomoBuilder<C, S>,
+    tree_table_name: String,
     _phantom: PhantomData<(KH, VH)>,
 }
 
@@ -30,42 +31,51 @@ where
 {
     pub fn new(constructor: C) -> Self {
         Self {
-            atomo: AtomoBuilder::new(constructor),
+            inner: AtomoBuilder::new(constructor),
+            tree_table_name: DEFAULT_STATE_TREE_TABLE_NAME.to_string(),
             _phantom: PhantomData,
         }
     }
 
-    #[inline(always)]
     pub fn with_table<K, V>(self, name: impl ToString) -> Self
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,
     {
         Self {
-            atomo: self.atomo.with_table::<K, V>(name),
+            inner: self.inner.with_table::<K, V>(name),
             ..self
         }
     }
 
-    pub fn enable_iter(self, name: &str) -> Self {
+    pub fn enable_iter(self, name: impl ToString) -> Self {
         Self {
-            atomo: self.atomo.enable_iter(name),
+            inner: self.inner.enable_iter(name.to_string().as_str()),
             ..self
         }
     }
 
-    pub fn build(self) -> Result<StateTreeAtomo<C::Storage, S, KH, VH>, C::Error> {
+    /// Set the name of the table that will store the state tree, and return a new, updated builder.
+    pub fn with_tree_table_name(self, name: impl ToString) -> Self {
+        Self {
+            tree_table_name: name.to_string(),
+            ..self
+        }
+    }
+
+    /// Build and return a writer for the state tree.
+    pub fn build(self) -> Result<StateTreeWriter<C::Storage, S, KH, VH>, C::Error> {
         // TODO(snormore): Figure out a better way to get the table id by name.
-        let table_id_by_name = self.atomo.table_name_to_id();
+        let table_id_by_name = self.inner.table_name_to_id();
         let atomo = self
-            .atomo
-            .with_table::<SerializedNodeKey, SerializedNodeValue>(TREE_TABLE_NAME)
+            .inner
+            .with_table::<SerializedNodeKey, SerializedNodeValue>(&self.tree_table_name)
             // TODO(snormore): No need to enable_iter on this table by default
-            .enable_iter(TREE_TABLE_NAME)
+            .enable_iter(&self.tree_table_name)
             .build()?;
-        Ok(StateTreeAtomo::new(
+        Ok(StateTreeWriter::new(
             atomo,
-            TREE_TABLE_NAME.to_string(),
+            self.tree_table_name,
             table_id_by_name,
         ))
     }

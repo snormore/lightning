@@ -1,5 +1,5 @@
-use atomo::{DefaultSerdeBackend, InMemoryStorage, StorageBackend};
-use state_tree::{KeccakHasher, SerializedNodeKey, SerializedNodeValue, StateTreeBuilder};
+use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackend};
+use state_tree::{KeccakHasher, StateTreeBuilder, TableKey};
 
 #[test]
 fn test_atomo() {
@@ -15,6 +15,7 @@ fn test_atomo() {
     .with_table::<u8, u8>("other")
     .build()
     .unwrap();
+    let reader = db.query();
 
     let data_insert_count = 10;
 
@@ -42,28 +43,52 @@ fn test_atomo() {
         assert_eq!(keys.len(), 11);
     }
 
+    // Check state root.
+    let root_hash = reader.get_state_root().unwrap();
+    assert_eq!(
+        hex::encode(root_hash),
+        "f99c316badabfe6c5a22f7697d2465dd81dfade2ca46464fa3f1000c850ff66f"
+    );
+
     // Verify data via state tree reader.
-    db.query().run(|ctx: _| {
+    reader.run(|ctx| {
         let data_table = ctx.get_table::<String, String>("data");
 
+        // Check data key count.
         let keys = data_table.keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), data_insert_count);
 
+        // Check data values for each key.
         for i in 1..=data_insert_count {
             assert_eq!(data_table.get(format!("key{i}")), Some(format!("value{i}")));
         }
 
-        let root_hash = db.get_root_hash(ctx).unwrap();
+        // Check state root.
+        let root_hash = ctx.get_state_root().unwrap();
         assert_eq!(
             hex::encode(root_hash),
             "f99c316badabfe6c5a22f7697d2465dd81dfade2ca46464fa3f1000c850ff66f"
         );
 
-        let tree_table =
-            ctx.get_table::<SerializedNodeKey, SerializedNodeValue>("%state_tree_nodes");
+        // Check tree table key count.
+        let tree_table = ctx.state_tree_table();
         let keys = tree_table.keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 11);
 
-        // TODO(snormore): Test get_with_proof on reader
+        // Check existence proofs.
+        for i in 1..=data_insert_count {
+            let (value, proof) = data_table.get_with_proof(format!("key{i}"));
+            assert_eq!(value, Some(format!("value{i}")));
+
+            // TODO(snormore): Make our own proof type and avoid constructing a keyhash out here.
+            let key = TableKey {
+                table: "data".to_string(),
+                key: DefaultSerdeBackend::serialize(&format!("key{i}").as_bytes().to_vec()),
+            };
+            let key_hash = key.hash::<blake3::Hasher>();
+            let value: Vec<u8> =
+                DefaultSerdeBackend::serialize(&format!("value{i}").as_bytes().to_vec());
+            proof.verify_existence(root_hash, key_hash, value).unwrap();
+        }
     });
 }

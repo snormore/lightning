@@ -1,15 +1,14 @@
 use std::marker::PhantomData;
 
 use anyhow::Result;
-use atomo::{SerdeBackend, StorageBackend, TableSelector};
-use jmt::proof::SparseMerkleProof;
+use atomo::{Atomo, QueryPerm, SerdeBackend, StorageBackend};
 use jmt::{RootHash, SimpleHasher};
 
-use crate::jmt::JmtTreeReader;
-use crate::types::{SerializedNodeValue, TableKey};
+use crate::{SerializedNodeKey, SerializedNodeValue, StateTreeTableSelector};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.`
 pub struct StateTreeReader<B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher> {
+    inner: Atomo<QueryPerm, B, S>,
     tree_table_name: String,
     _phantom: PhantomData<(B, S, KH, VH)>,
 }
@@ -20,38 +19,31 @@ where
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
 {
-    pub fn new(tree_table_name: String) -> Self {
+    pub fn new(inner: Atomo<QueryPerm, B, S>, tree_table_name: String) -> Self {
         Self {
+            inner,
             tree_table_name,
             _phantom: PhantomData,
         }
     }
 
-    // TODO(snormore): This is leaking `jmt::RootHash`.`
-    pub fn get_root_hash(&self, ctx: &TableSelector<B, S>) -> Result<RootHash> {
-        let reader = JmtTreeReader::new(ctx, self.tree_table_name.clone());
-        let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
-
-        tree.get_root_hash(0)
+    /// Run a query on the database.
+    pub fn run<F, R>(&self, query: F) -> R
+    where
+        F: FnOnce(&mut StateTreeTableSelector<B, S, KH, VH>) -> R,
+    {
+        self.inner.run(|ctx| {
+            let tree_table = ctx
+                .get_table::<SerializedNodeKey, SerializedNodeValue>(self.tree_table_name.clone());
+            let mut ctx = StateTreeTableSelector::new(ctx, &tree_table);
+            query(&mut ctx)
+        })
     }
 
-    /// Get the value of a key in the state tree, along with a merkle proof that can be used to
-    /// verify existence.
-    // TODO(snormore): This is leaking `jmt::SparseMerkleProof`.
-    pub fn get_with_proof(
-        &self,
-        ctx: &TableSelector<B, S>,
-        key: TableKey,
-    ) -> Result<(Option<SerializedNodeValue>, SparseMerkleProof<VH>)> {
-        let reader = JmtTreeReader::new(ctx, self.tree_table_name.clone());
-        let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
-
-        // Cache the key in the reader so it can be used when `get_with_proof` is called next, which
-        // calls `get_value_option`.`
-        let key_hash = key.hash::<KH>();
-        reader.cache_key(key_hash, key);
-
-        tree.get_with_proof(key_hash, 0)
+    /// Return the state root hash of the state tree.
+    // TODO(snormore): This is leaking `jmt::RootHash`.`
+    pub fn get_state_root(&self) -> Result<RootHash> {
+        self.run(|ctx| ctx.get_state_root())
     }
 }
 
