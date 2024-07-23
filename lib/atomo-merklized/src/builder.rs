@@ -23,7 +23,7 @@ pub struct MerklizedAtomoBuilder<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: MerklizedAtomoStrategy<C::Storage, S, KH, VH>,
+    // X: MerklizedStrategy<C::Storage, S, KH, VH>,
 > {
     inner: AtomoBuilder<C, S>,
     tree_table_name: String,
@@ -35,7 +35,7 @@ impl<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: MerklizedAtomoStrategy<C::Storage, S, KH, VH>,
+    // X: MerklizedStrategy<C::Storage, S, KH, VH>,
 > MerklizedAtomoBuilder<C, S, KH, VH>
 where
     C::Storage: StorageBackend + Send + Sync,

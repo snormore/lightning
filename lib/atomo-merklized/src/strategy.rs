@@ -8,12 +8,7 @@ use crate::{SerializedNodeKey, SerializedNodeValue};
 
 /// A strategy for a merklized atomo describing the configuration and architecture of the
 /// database-backed merkle state tree.
-pub trait MerklizedAtomoStrategy<
-    B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
->
+pub trait MerklizedStrategy<B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
 {
     // fn build(tree_table: TableRef<SerializedNodeKey, SerializedNodeValue, B, S>) -> &Self;
 
