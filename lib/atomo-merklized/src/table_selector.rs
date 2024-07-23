@@ -10,20 +10,15 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::jmt::JmtTreeReader;
-use crate::{
-    MerklizedAtomoStrategy,
-    MerklizedAtomoTableRef,
-    SerializedNodeKey,
-    SerializedNodeValue,
-};
+use crate::{MerklizedStrategy, MerklizedTableRef, SerializedNodeKey, SerializedNodeValue};
 
-pub struct MerklizedAtomoTableSelector<
+pub struct MerklizedTableSelector<
     'a,
     B: StorageBackend,
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    X: MerklizedAtomoStrategy<B, S, KH, VH>,
+    X: MerklizedStrategy<B, S, KH, VH>,
 > {
     inner: &'a atomo::TableSelector<B, S>,
     strategy: &'a X,
@@ -36,8 +31,8 @@ impl<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    X: MerklizedAtomoStrategy<B, S, KH, VH>,
-> MerklizedAtomoTableSelector<'a, B, S, KH, VH, X>
+    X: MerklizedStrategy<B, S, KH, VH>,
+> MerklizedTableSelector<'a, B, S, KH, VH, X>
 where
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
@@ -68,12 +63,12 @@ where
     pub fn get_table<K, V>(
         &self,
         name: impl AsRef<str> + Clone,
-    ) -> MerklizedAtomoTableRef<K, V, B, S, KH, VH, X>
+    ) -> MerklizedTableRef<K, V, B, S, KH, VH, X>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,
     {
-        MerklizedAtomoTableRef::new(
+        MerklizedTableRef::new(
             self.inner.get_table(name.clone()),
             self.strategy,
             name.as_ref().to_string(),

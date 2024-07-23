@@ -5,8 +5,8 @@ use atomo::{Atomo, QueryPerm, SerdeBackend, StorageBackend, TableId};
 use fxhash::FxHashMap;
 use jmt::{RootHash, SimpleHasher};
 
-use crate::jmt::JmtMerklizedAtomoStrategy;
-use crate::{MerklizedAtomoTableSelector, SerializedNodeKey, SerializedNodeValue};
+use crate::jmt::JmtMerklizedStrategy;
+use crate::{MerklizedTableSelector, SerializedNodeKey, SerializedNodeValue};
 
 /// An atomo reader that can be used to also query the merklized state tree. It is a wrapper of
 /// `[atomo::Atomo<QueryPerm>]`.
@@ -16,7 +16,7 @@ pub struct MerklizedAtomoReader<
     // TODO(snormore): This is leaking `jmt::SimpleHasher`.`
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
+    // X: MerklizedStrategy<B, S, KH, VH>,
 > {
     inner: Atomo<QueryPerm, B, S>,
     tree_table_name: String,
@@ -29,7 +29,7 @@ impl<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
+    // X: MerklizedStrategy<B, S, KH, VH>,
 > MerklizedAtomoReader<B, S, KH, VH>
 where
     B: StorageBackend + Send + Sync,
@@ -53,16 +53,15 @@ where
     pub fn run<F, R>(&self, query: F) -> R
     where
         F: FnOnce(
-            &mut MerklizedAtomoTableSelector<B, S, KH, VH, JmtMerklizedAtomoStrategy<B, S, KH, VH>>,
+            &mut MerklizedTableSelector<B, S, KH, VH, JmtMerklizedStrategy<B, S, KH, VH>>,
         ) -> R,
     {
         self.inner.run(|ctx| {
             let tree_table = ctx
                 .get_table::<SerializedNodeKey, SerializedNodeValue>(self.tree_table_name.clone());
             // let strategy = X::build(tree_table);
-            let strategy =
-                JmtMerklizedAtomoStrategy::new(tree_table, self.table_name_by_id.clone());
-            let mut ctx = MerklizedAtomoTableSelector::new(ctx, &strategy);
+            let strategy = JmtMerklizedStrategy::new(tree_table, self.table_name_by_id.clone());
+            let mut ctx = MerklizedTableSelector::new(ctx, &strategy);
             query(&mut ctx)
         })
     }

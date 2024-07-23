@@ -4,9 +4,9 @@ use atomo::{Atomo, SerdeBackend, StorageBackend, TableId, UpdatePerm};
 use fxhash::FxHashMap;
 use jmt::SimpleHasher;
 
-use crate::jmt::JmtMerklizedAtomoStrategy;
+use crate::jmt::JmtMerklizedStrategy;
 use crate::types::{SerializedNodeKey, SerializedNodeValue};
-use crate::{MerklizedAtomoReader, MerklizedAtomoStrategy, MerklizedAtomoTableSelector};
+use crate::{MerklizedAtomoReader, MerklizedStrategy, MerklizedTableSelector};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
 pub struct MerklizedAtomoWriter<
@@ -55,7 +55,7 @@ where
     pub fn run<F, R>(&mut self, mutation: F) -> R
     where
         F: FnOnce(
-            &mut MerklizedAtomoTableSelector<B, S, KH, VH, JmtMerklizedAtomoStrategy<B, S, KH, VH>>,
+            &mut MerklizedTableSelector<B, S, KH, VH, JmtMerklizedStrategy<B, S, KH, VH>>,
         ) -> R,
     {
         let tree_table_name = self.tree_table_name.clone();
@@ -65,9 +65,8 @@ where
             // TODO(snormore): Strategy builder should be passed in here instead of the
             // implementation being hard coded.
             // let strategy = X::build(tree_table);
-            let mut strategy =
-                JmtMerklizedAtomoStrategy::new(tree_table, self.table_name_by_id.clone());
-            let mut ctx = MerklizedAtomoTableSelector::new(ctx, &strategy);
+            let mut strategy = JmtMerklizedStrategy::new(tree_table, self.table_name_by_id.clone());
+            let mut ctx = MerklizedTableSelector::new(ctx, &strategy);
             let res = mutation(&mut ctx);
 
             // TODO(snormore): Fix this unwrap.
