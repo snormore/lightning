@@ -8,10 +8,12 @@ use jmt::{RootHash, SimpleHasher};
 use crate::jmt::JmtMerklizedAtomoStrategy;
 use crate::{MerklizedAtomoTableSelector, SerializedNodeKey, SerializedNodeValue};
 
-// TODO(snormore): This is leaking `jmt::SimpleHasher`.`
+/// An atomo reader that can be used to also query the merklized state tree. It is a wrapper of
+/// `[atomo::Atomo<QueryPerm>]`.
 pub struct MerklizedAtomoReader<
     B: StorageBackend,
     S: SerdeBackend,
+    // TODO(snormore): This is leaking `jmt::SimpleHasher`.`
     KH: SimpleHasher,
     VH: SimpleHasher,
     // X: MerklizedAtomoStrategy<B, S, KH, VH>,
@@ -33,6 +35,7 @@ where
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
 {
+    /// Create and return a new reader.
     pub fn new(
         inner: Atomo<QueryPerm, B, S>,
         tree_table_name: String,
