@@ -5,16 +5,16 @@ use atomo::{Atomo, QueryPerm, SerdeBackend, StorageBackend, TableId};
 use fxhash::FxHashMap;
 use jmt::{RootHash, SimpleHasher};
 
-use crate::jmt::JmtStateTreeStrategy;
-use crate::{SerializedNodeKey, SerializedNodeValue, StateTreeTableSelector};
+use crate::jmt::JmtMerklizedAtomoStrategy;
+use crate::{MerklizedAtomoTableSelector, SerializedNodeKey, SerializedNodeValue};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.`
-pub struct StateTreeReader<
+pub struct MerklizedAtomoReader<
     B: StorageBackend,
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: StateTreeStrategy<B, S, KH, VH>,
+    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
 > {
     inner: Atomo<QueryPerm, B, S>,
     tree_table_name: String,
@@ -27,8 +27,8 @@ impl<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: StateTreeStrategy<B, S, KH, VH>,
-> StateTreeReader<B, S, KH, VH>
+    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
+> MerklizedAtomoReader<B, S, KH, VH>
 where
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
@@ -50,15 +50,16 @@ where
     pub fn run<F, R>(&self, query: F) -> R
     where
         F: FnOnce(
-            &mut StateTreeTableSelector<B, S, KH, VH, JmtStateTreeStrategy<B, S, KH, VH>>,
+            &mut MerklizedAtomoTableSelector<B, S, KH, VH, JmtMerklizedAtomoStrategy<B, S, KH, VH>>,
         ) -> R,
     {
         self.inner.run(|ctx| {
             let tree_table = ctx
                 .get_table::<SerializedNodeKey, SerializedNodeValue>(self.tree_table_name.clone());
             // let strategy = X::build(tree_table);
-            let strategy = JmtStateTreeStrategy::new(tree_table, self.table_name_by_id.clone());
-            let mut ctx = StateTreeTableSelector::new(ctx, &strategy);
+            let strategy =
+                JmtMerklizedAtomoStrategy::new(tree_table, self.table_name_by_id.clone());
+            let mut ctx = MerklizedAtomoTableSelector::new(ctx, &strategy);
             query(&mut ctx)
         })
     }
@@ -80,7 +81,7 @@ where
 
 //     use super::*;
 //     use crate::keccak::KeccakHasher;
-//     use crate::StateTreeWriter;
+//     use crate::MerklizedAtomoWriter;
 
 //     #[test]
 //     fn test_get_root_hash() {
@@ -93,9 +94,9 @@ where
 //         let storage = Arc::new(storage);
 
 //         let writer =
-//             StateTreeWriter::<_, KeyHasher, ValueHasher>::new(storage.clone(),
+//             MerklizedAtomoWriter::<_, KeyHasher, ValueHasher>::new(storage.clone(),
 // "tree".to_string());         let reader =
-//             StateTreeReader::<_, KeyHasher, ValueHasher>::new(storage.clone(),
+//             MerklizedAtomoReader::<_, KeyHasher, ValueHasher>::new(storage.clone(),
 // "tree".to_string());
 
 //         let mut batch = VerticalBatch::new(2);

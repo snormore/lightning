@@ -1,10 +1,10 @@
 use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackend};
-use state_tree::{KeccakHasher, StateTreeBuilder, TableKey};
+use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, TableKey};
 
 #[test]
 fn test_atomo() {
     let storage = InMemoryStorage::default();
-    let mut db = StateTreeBuilder::<
+    let mut db = MerklizedAtomoBuilder::<
         InMemoryStorage,
         DefaultSerdeBackend,
         blake3::Hasher,

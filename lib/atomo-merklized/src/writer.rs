@@ -4,17 +4,17 @@ use atomo::{Atomo, SerdeBackend, StorageBackend, TableId, UpdatePerm};
 use fxhash::FxHashMap;
 use jmt::SimpleHasher;
 
-use crate::jmt::JmtStateTreeStrategy;
+use crate::jmt::JmtMerklizedAtomoStrategy;
 use crate::types::{SerializedNodeKey, SerializedNodeValue};
-use crate::{StateTreeReader, StateTreeStrategy, StateTreeTableSelector};
+use crate::{MerklizedAtomoReader, MerklizedAtomoStrategy, MerklizedAtomoTableSelector};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
-pub struct StateTreeWriter<
+pub struct MerklizedAtomoWriter<
     B: StorageBackend,
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: StateTreeStrategy<B, S, KH, VH>,
+    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
 > {
     inner: Atomo<UpdatePerm, B, S>,
     tree_table_name: String,
@@ -27,8 +27,8 @@ impl<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: StateTreeStrategy<B, S, KH, VH>,
-> StateTreeWriter<B, S, KH, VH>
+    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
+> MerklizedAtomoWriter<B, S, KH, VH>
 where
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
@@ -55,7 +55,7 @@ where
     pub fn run<F, R>(&mut self, mutation: F) -> R
     where
         F: FnOnce(
-            &mut StateTreeTableSelector<B, S, KH, VH, JmtStateTreeStrategy<B, S, KH, VH>>,
+            &mut MerklizedAtomoTableSelector<B, S, KH, VH, JmtMerklizedAtomoStrategy<B, S, KH, VH>>,
         ) -> R,
     {
         let tree_table_name = self.tree_table_name.clone();
@@ -65,8 +65,9 @@ where
             // TODO(snormore): Strategy builder should be passed in here instead of the
             // implementation being hard coded.
             // let strategy = X::build(tree_table);
-            let mut strategy = JmtStateTreeStrategy::new(tree_table, self.table_name_by_id.clone());
-            let mut ctx = StateTreeTableSelector::new(ctx, &strategy);
+            let mut strategy =
+                JmtMerklizedAtomoStrategy::new(tree_table, self.table_name_by_id.clone());
+            let mut ctx = MerklizedAtomoTableSelector::new(ctx, &strategy);
             let res = mutation(&mut ctx);
 
             // TODO(snormore): Fix this unwrap.
@@ -77,8 +78,8 @@ where
     }
 
     /// Build and return a query reader for the data.
-    pub fn query(&self) -> StateTreeReader<B, S, KH, VH> {
-        StateTreeReader::new(
+    pub fn query(&self) -> MerklizedAtomoReader<B, S, KH, VH> {
+        MerklizedAtomoReader::new(
             self.inner.query(),
             self.tree_table_name.clone(),
             self.table_name_by_id.clone(),
@@ -109,7 +110,7 @@ where
 //         let storage = Arc::new(storage);
 
 //         let writer =
-//             StateTreeWriter::<_, KeyHasher, ValueHasher>::new(storage.clone(),
+//             MerklizedAtomoWriter::<_, KeyHasher, ValueHasher>::new(storage.clone(),
 // "tree".to_string());
 
 //         let mut batch = VerticalBatch::new(2);

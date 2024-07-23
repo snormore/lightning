@@ -8,9 +8,9 @@ use jmt::proof::SparseMerkleProof;
 use jmt::{RootHash, SimpleHasher};
 
 use super::JmtTreeReader;
-use crate::{SerializedNodeKey, SerializedNodeValue, StateTreeStrategy, TableKey};
+use crate::{SerializedNodeKey, SerializedNodeValue, MerklizedAtomoStrategy, TableKey};
 
-pub struct JmtStateTreeStrategy<
+pub struct JmtMerklizedAtomoStrategy<
     'a,
     B: StorageBackend,
     S: SerdeBackend,
@@ -23,7 +23,7 @@ pub struct JmtStateTreeStrategy<
 }
 
 impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
-    JmtStateTreeStrategy<'a, B, S, KH, VH>
+    JmtMerklizedAtomoStrategy<'a, B, S, KH, VH>
 {
     pub fn new(
         tree_table: TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
@@ -38,13 +38,13 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
 }
 
 impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
-    StateTreeStrategy<B, S, KH, VH> for JmtStateTreeStrategy<'a, B, S, KH, VH>
+    MerklizedAtomoStrategy<B, S, KH, VH> for JmtMerklizedAtomoStrategy<'a, B, S, KH, VH>
 where
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
 {
     // fn build(tree_table: TableRef<SerializedNodeKey, SerializedNodeValue, B, S>) -> &Self {
-    //     &JmtStateTreeStrategy::<'a, B, S, KH, VH>::new(tree_table)
+    //     &JmtMerklizedAtomoStrategy::<'a, B, S, KH, VH>::new(tree_table)
     // }
 
     fn tree_table(&self) -> &TableRef<SerializedNodeKey, SerializedNodeValue, B, S> {

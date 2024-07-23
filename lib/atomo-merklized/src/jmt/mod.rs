@@ -2,4 +2,4 @@ mod reader;
 mod strategy;
 
 pub use reader::JmtTreeReader;
-pub use strategy::JmtStateTreeStrategy;
+pub use strategy::JmtMerklizedAtomoStrategy;
