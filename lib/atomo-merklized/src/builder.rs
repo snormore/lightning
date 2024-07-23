@@ -12,6 +12,12 @@ use crate::MerklizedAtomoWriter;
 
 const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
 
+/// This is a builder of `[crate::MerklizedAtomoWriter]` and `[crate::MerklizedAtomoReader]`
+/// instances, that is used to initialize which tables are used and how they are configured.
+///
+/// It wraps the `[atomo::AtomoBuilder]` for building a `[crate::MerklizedAtomoWriter]`(a wrapper
+/// of `[atomo::Atomo<UpdatePerm>]`), and can be used to build a `[crate::MerklizedAtomoReader]` (a
+/// wrapper of `[atomo::Atomo<QueryPerm>]`).
 pub struct MerklizedAtomoBuilder<
     C: StorageBackendConstructor,
     S: SerdeBackend,
@@ -35,6 +41,7 @@ where
     C::Storage: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
 {
+    /// Create a new builder with the given storage backend constructor.
     pub fn new(constructor: C) -> Self {
         Self {
             inner: AtomoBuilder::new(constructor),
@@ -43,6 +50,8 @@ where
         }
     }
 
+    /// Open a new table with the given name and key-value type.
+    /// This is a pass-through to `[atomo::AtomoBuilder::with_table]`.
     pub fn with_table<K, V>(self, name: impl ToString) -> Self
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
@@ -54,6 +63,8 @@ where
         }
     }
 
+    /// Enable key iteration on the table with the given name.
+    /// This is a pass-through to `[atomo::AtomoBuilder::enable_iter]`.
     pub fn enable_iter(self, name: impl ToString) -> Self {
         Self {
             inner: self.inner.enable_iter(name.to_string().as_str()),
@@ -62,6 +73,7 @@ where
     }
 
     /// Set the name of the table that will store the state tree, and return a new, updated builder.
+    /// This is a pass-through to `[crate::MerklizedAtomoWriter::with_tree_table_name]`.
     pub fn with_tree_table_name(self, name: impl ToString) -> Self {
         Self {
             tree_table_name: name.to_string(),

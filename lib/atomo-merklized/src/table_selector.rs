@@ -10,7 +10,12 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::jmt::JmtTreeReader;
-use crate::{SerializedNodeKey, SerializedNodeValue, MerklizedAtomoStrategy, MerklizedAtomoTableRef};
+use crate::{
+    MerklizedAtomoStrategy,
+    MerklizedAtomoTableRef,
+    SerializedNodeKey,
+    SerializedNodeValue,
+};
 
 pub struct MerklizedAtomoTableSelector<
     'a,

@@ -1,6 +1,7 @@
 use jmt::SimpleHasher;
 use tiny_keccak::{Hasher, Keccak};
 
+/// A `[jmt::SimpleHasher]` hasher implementation that uses the keccak-256 algorithm.
 #[derive(Clone)]
 pub struct KeccakHasher(Keccak);
 
