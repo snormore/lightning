@@ -6,7 +6,7 @@ use jmt::{RootHash, SimpleHasher};
 
 use crate::{SerializedNodeKey, SerializedNodeValue};
 
-pub trait StateTreeStrategy<B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
+pub trait MerklizedAtomoStrategy<B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
 {
     // fn build(tree_table: TableRef<SerializedNodeKey, SerializedNodeValue, B, S>) -> &Self;
 

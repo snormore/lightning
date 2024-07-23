@@ -44,9 +44,10 @@ workspace-members = [
     # NOTE: Add in alphabetical order.
     "affair",
     "atomo",
+    "atomo-merklized",
     "atomo-rocks",
-    "better-shutdown",
     "b3fs",
+    "better-shutdown",
     "blake3-tree",
     "blake3-wasm",
     "cdk-rust",
@@ -62,5 +63,4 @@ workspace-members = [
     "resolved-pathbuf",
     "safetensors-ndarray",
     "simulon",
-    "state-tree",
 ]

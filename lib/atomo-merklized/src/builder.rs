@@ -8,16 +8,16 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::types::{SerializedNodeKey, SerializedNodeValue};
-use crate::StateTreeWriter;
+use crate::MerklizedAtomoWriter;
 
 const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
 
-pub struct StateTreeBuilder<
+pub struct MerklizedAtomoBuilder<
     C: StorageBackendConstructor,
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: StateTreeStrategy<C::Storage, S, KH, VH>,
+    // X: MerklizedAtomoStrategy<C::Storage, S, KH, VH>,
 > {
     inner: AtomoBuilder<C, S>,
     tree_table_name: String,
@@ -29,8 +29,8 @@ impl<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    // X: StateTreeStrategy<C::Storage, S, KH, VH>,
-> StateTreeBuilder<C, S, KH, VH>
+    // X: MerklizedAtomoStrategy<C::Storage, S, KH, VH>,
+> MerklizedAtomoBuilder<C, S, KH, VH>
 where
     C::Storage: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
@@ -70,7 +70,7 @@ where
     }
 
     /// Build and return a writer for the state tree.
-    pub fn build(self) -> Result<StateTreeWriter<C::Storage, S, KH, VH>, C::Error> {
+    pub fn build(self) -> Result<MerklizedAtomoWriter<C::Storage, S, KH, VH>, C::Error> {
         // TODO(snormore): Figure out a better way to get the table id by name.
         let table_id_by_name = self.inner.table_name_to_id();
         let atomo = self
@@ -79,7 +79,7 @@ where
             // TODO(snormore): No need to enable_iter on this table by default
             .enable_iter(&self.tree_table_name)
             .build()?;
-        Ok(StateTreeWriter::<C::Storage, S, KH, VH>::new(
+        Ok(MerklizedAtomoWriter::<C::Storage, S, KH, VH>::new(
             atomo,
             self.tree_table_name,
             table_id_by_name,

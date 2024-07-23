@@ -9,9 +9,9 @@ use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::StateTreeStrategy;
+use crate::MerklizedAtomoStrategy;
 
-pub struct StateTreeTableRef<
+pub struct MerklizedAtomoTableRef<
     'a,
     K: Hash + Eq + Serialize + DeserializeOwned + Any,
     V: Serialize + DeserializeOwned + Any,
@@ -19,7 +19,7 @@ pub struct StateTreeTableRef<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    X: StateTreeStrategy<B, S, KH, VH>,
+    X: MerklizedAtomoStrategy<B, S, KH, VH>,
 > {
     inner: atomo::TableRef<'a, K, V, B, S>,
     strategy: &'a X,
@@ -35,14 +35,14 @@ impl<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
-    X: StateTreeStrategy<B, S, KH, VH>,
-> StateTreeTableRef<'a, K, V, B, S, KH, VH, X>
+    X: MerklizedAtomoStrategy<B, S, KH, VH>,
+> MerklizedAtomoTableRef<'a, K, V, B, S, KH, VH, X>
 where
     K: Hash + Eq + Serialize + DeserializeOwned + Any,
     V: Serialize + DeserializeOwned + Any,
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
-    X: StateTreeStrategy<B, S, KH, VH>,
+    X: MerklizedAtomoStrategy<B, S, KH, VH>,
 {
     /// Create a new table reference.
     pub fn new(
