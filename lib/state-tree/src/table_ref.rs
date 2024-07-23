@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::borrow::Borrow;
-use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -32,7 +31,7 @@ impl<'a, K, V, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleH
     StateTreeTableRef<'a, K, V, B, S, KH, VH>
 where
     K: Hash + Eq + Serialize + DeserializeOwned + Any,
-    V: Serialize + DeserializeOwned + Any + Debug,
+    V: Serialize + DeserializeOwned + Any,
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
 {
@@ -80,7 +79,7 @@ where
             table: self.table_name.clone(),
             key: S::serialize(key.borrow()),
         };
-        let key_hash = key.hash::<KH>();
+        let key_hash = key.hash::<S, KH>();
         if let Some(value) = value {
             reader.cache(key_hash, S::serialize(&value));
         }

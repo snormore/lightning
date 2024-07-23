@@ -11896,7 +11896,6 @@ dependencies = [
  "anyhow",
  "atomo",
  "blake3",
- "borsh",
  "fxhash",
  "hex",
  "jmt",
