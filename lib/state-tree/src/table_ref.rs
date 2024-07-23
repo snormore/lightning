@@ -3,14 +3,13 @@ use std::borrow::Borrow;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use atomo::{KeyIterator, SerdeBackend, StorageBackend, TableRef};
+use atomo::{KeyIterator, SerdeBackend, StorageBackend};
 use jmt::proof::SparseMerkleProof;
 use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::jmt::JmtTreeReader;
-use crate::{SerializedNodeKey, SerializedNodeValue, TableKey};
+use crate::StateTreeStrategy;
 
 pub struct StateTreeTableRef<
     'a,
@@ -20,31 +19,41 @@ pub struct StateTreeTableRef<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
+    X: StateTreeStrategy<B, S, KH, VH>,
 > {
     inner: atomo::TableRef<'a, K, V, B, S>,
+    strategy: &'a X,
     table_name: String,
-    tree_table: &'a TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
     _phantom: PhantomData<(KH, VH)>,
 }
 
-impl<'a, K, V, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
-    StateTreeTableRef<'a, K, V, B, S, KH, VH>
+impl<
+    'a,
+    K,
+    V,
+    B: StorageBackend,
+    S: SerdeBackend,
+    KH: SimpleHasher,
+    VH: SimpleHasher,
+    X: StateTreeStrategy<B, S, KH, VH>,
+> StateTreeTableRef<'a, K, V, B, S, KH, VH, X>
 where
     K: Hash + Eq + Serialize + DeserializeOwned + Any,
     V: Serialize + DeserializeOwned + Any,
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
+    X: StateTreeStrategy<B, S, KH, VH>,
 {
     /// Create a new table reference.
     pub fn new(
         inner: atomo::TableRef<'a, K, V, B, S>,
+        strategy: &'a X,
         table_name: String,
-        tree_table: &'a TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
     ) -> Self {
         Self {
             inner,
+            strategy,
             table_name,
-            tree_table,
             _phantom: PhantomData,
         }
     }
@@ -68,27 +77,14 @@ where
     /// Return the value associated with the provided key, along with a merkle proof of existence in
     /// the state tree. If the key doesn't exist in the table, [`None`] is returned.
     pub fn get_with_proof(&self, key: impl Borrow<K>) -> (Option<V>, SparseMerkleProof<VH>) {
-        let value = self.get(key.borrow());
-
-        let reader = JmtTreeReader::new(self.tree_table);
-        let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
-
-        // Cache the value in the reader so it can be used when `get_with_proof` is called next,
-        // which calls `get_value_option`, which needs the value mapping.
-        let key = TableKey {
-            table: self.table_name.clone(),
-            key: S::serialize(key.borrow()),
-        };
-        let key_hash = key.hash::<S, KH>();
-        if let Some(value) = value {
-            reader.cache(key_hash, S::serialize(&value));
-        }
-
-        // TODO(snormore): Fix this unwrap.
-        let (value, proof) = tree.get_with_proof(key_hash, 0).unwrap();
+        let value = self.get(key.borrow()).map(|value| S::serialize(&value));
+        let key = S::serialize(key.borrow());
+        let (value, proof) = self
+            .strategy
+            .get_with_proof(self.table_name.clone(), key, value)
+            .unwrap();
 
         let value = value.map(|value| S::deserialize::<V>(&value));
-
         (value, proof)
     }
 

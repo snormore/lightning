@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::jmt::JmtTreeReader;
-use crate::{SerializedNodeKey, SerializedNodeValue, StateTreeTableRef};
+use crate::{SerializedNodeKey, SerializedNodeValue, StateTreeStrategy, StateTreeTableRef};
 
 pub struct StateTreeTableSelector<
     'a,
@@ -18,27 +18,31 @@ pub struct StateTreeTableSelector<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
+    X: StateTreeStrategy<B, S, KH, VH>,
 > {
     inner: &'a atomo::TableSelector<B, S>,
-    tree_table: &'a TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
+    strategy: &'a X,
     _phantom: PhantomData<(KH, VH)>,
 }
 
-impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
-    StateTreeTableSelector<'a, B, S, KH, VH>
+impl<
+    'a,
+    B: StorageBackend,
+    S: SerdeBackend,
+    KH: SimpleHasher,
+    VH: SimpleHasher,
+    X: StateTreeStrategy<B, S, KH, VH>,
+> StateTreeTableSelector<'a, B, S, KH, VH, X>
 where
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
 {
     /// Create a new table selector.
     #[inline]
-    pub fn new(
-        inner: &'a atomo::TableSelector<B, S>,
-        tree_table: &'a TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
-    ) -> Self {
+    pub fn new(inner: &'a atomo::TableSelector<B, S>, strategy: &'a X) -> Self {
         Self {
             inner,
-            tree_table,
+            strategy,
             _phantom: PhantomData,
         }
     }
@@ -46,7 +50,7 @@ where
     /// Returns the state tree table reference.
     #[inline]
     pub fn state_tree_table(&self) -> &TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S> {
-        self.tree_table
+        self.strategy.tree_table()
     }
 
     /// Returns the current changes in the batch.
@@ -59,22 +63,22 @@ where
     pub fn get_table<K, V>(
         &self,
         name: impl AsRef<str> + Clone,
-    ) -> StateTreeTableRef<K, V, B, S, KH, VH>
+    ) -> StateTreeTableRef<K, V, B, S, KH, VH, X>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,
     {
         StateTreeTableRef::new(
             self.inner.get_table(name.clone()),
+            self.strategy,
             name.as_ref().to_string(),
-            self.tree_table,
         )
     }
 
     /// Return the state root hash of the state tree.
     // TODO(snormore): This is leaking `jmt::RootHash`.`
     pub fn get_state_root(&self) -> Result<RootHash> {
-        let reader = JmtTreeReader::new(self.tree_table);
+        let reader = JmtTreeReader::new(self.strategy.tree_table());
         let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
 
         tree.get_root_hash(0)
