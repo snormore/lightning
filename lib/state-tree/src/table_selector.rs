@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -63,7 +62,7 @@ where
     ) -> StateTreeTableRef<K, V, B, S, KH, VH>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
-        V: Serialize + DeserializeOwned + Any + Debug,
+        V: Serialize + DeserializeOwned + Any,
     {
         StateTreeTableRef::new(
             self.inner.get_table(name.clone()),

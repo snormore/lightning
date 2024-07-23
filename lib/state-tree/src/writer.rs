@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use atomo::batch::Operation;
 use atomo::{Atomo, SerdeBackend, StorageBackend, TableId, UpdatePerm};
-use borsh::to_vec;
 use fxhash::FxHashMap;
 use jmt::SimpleHasher;
 
@@ -77,7 +76,7 @@ where
                             table: table_name_by_id.get(&table_id).unwrap().to_string(),
                             key: key.to_vec(),
                         };
-                        let key_hash = table_key.hash::<KH>();
+                        let key_hash = table_key.hash::<S, KH>();
 
                         // println!("table key {:?} key_hash {:?}", table_key, key_hash);
 
@@ -99,14 +98,15 @@ where
 
                 // Stale nodes are converted to remove operations.
                 for stale_node in tree_batch.stale_node_index_batch {
-                    // println!("stale node {:?}", stale_node);
-                    tree_table.remove(&to_vec(&stale_node.node_key).unwrap());
+                    let key = S::serialize(&stale_node.node_key);
+                    tree_table.remove(key);
                 }
 
                 // New nodes are converted to insert operations.
                 for (node_key, node) in tree_batch.node_batch.nodes() {
-                    // println!("node key {:?} node {:?}", node_key, node);
-                    tree_table.insert(to_vec(node_key).unwrap(), to_vec(node).unwrap());
+                    let key = S::serialize(node_key);
+                    let value = S::serialize(node);
+                    tree_table.insert(key, value);
                 }
             }
 

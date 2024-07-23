@@ -3,7 +3,6 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use atomo::{SerdeBackend, StorageBackend, TableRef};
-use borsh::{from_slice, to_vec};
 use jmt::storage::{LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
 
@@ -34,9 +33,10 @@ where
     S: SerdeBackend,
 {
     fn get_node_option(&self, node_key: &NodeKey) -> Result<Option<Node>> {
-        let value = self.tree_table.get(to_vec(node_key).unwrap());
+        let key = S::serialize(node_key);
+        let value = self.tree_table.get(key);
         match value {
-            Some(value) => Ok(Some(from_slice(&value).unwrap())),
+            Some(value) => Ok(Some(S::deserialize(&value))),
             None => Ok(None),
         }
     }
