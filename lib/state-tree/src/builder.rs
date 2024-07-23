@@ -17,14 +17,20 @@ pub struct StateTreeBuilder<
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
+    // X: StateTreeStrategy<C::Storage, S, KH, VH>,
 > {
     inner: AtomoBuilder<C, S>,
     tree_table_name: String,
     _phantom: PhantomData<(KH, VH)>,
 }
 
-impl<C: StorageBackendConstructor, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
-    StateTreeBuilder<C, S, KH, VH>
+impl<
+    C: StorageBackendConstructor,
+    S: SerdeBackend,
+    KH: SimpleHasher,
+    VH: SimpleHasher,
+    // X: StateTreeStrategy<C::Storage, S, KH, VH>,
+> StateTreeBuilder<C, S, KH, VH>
 where
     C::Storage: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
@@ -73,7 +79,7 @@ where
             // TODO(snormore): No need to enable_iter on this table by default
             .enable_iter(&self.tree_table_name)
             .build()?;
-        Ok(StateTreeWriter::new(
+        Ok(StateTreeWriter::<C::Storage, S, KH, VH>::new(
             atomo,
             self.tree_table_name,
             table_id_by_name,
