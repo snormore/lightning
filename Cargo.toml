@@ -74,6 +74,7 @@ lightning-types = { path = "core/types" }
 affair = { path = "lib/affair" }
 atomo = { path = "lib/atomo" }
 atomo-merklized = { path = "lib/atomo-merklized" }
+atomo-merklized-jmt = { path = "lib/atomo-merklized-jmt" }
 atomo-rocks = { path = "lib/atomo-rocks" }
 fleek-crypto = { path = "lib/fleek-crypto" }
 fleek-ipld = { path = "lib/fleek-ipld" }

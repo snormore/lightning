@@ -3,11 +3,7 @@ use std::marker::PhantomData;
 use anyhow::Result;
 use atomo::batch::{Operation, VerticalBatch};
 use atomo::{SerdeBackend, StorageBackend, TableId, TableRef};
-use fxhash::FxHashMap;
-use jmt::KeyHash;
-
-use super::JmtTreeReader;
-use crate::{
+use atomo_merklized::{
     MerklizedLayout,
     MerklizedStrategy,
     SerializedStateKey,
@@ -18,6 +14,10 @@ use crate::{
     StateRootHash,
     StateTable,
 };
+use fxhash::FxHashMap;
+use jmt::KeyHash;
+
+use super::JmtTreeReader;
 
 pub struct JmtMerklizedStrategy<L: MerklizedLayout> {
     _phantom: PhantomData<L>,
@@ -38,8 +38,8 @@ impl<L: MerklizedLayout> Default for JmtMerklizedStrategy<L> {
 }
 
 impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
-    fn get_root_hash<B2: StorageBackend, S: SerdeBackend>(
-        tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B2, S>,
+    fn get_root_hash<B: StorageBackend, S: SerdeBackend>(
+        tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
     ) -> Result<StateRootHash> {
         let reader = JmtTreeReader::new(tree_table);
         let tree = jmt::JellyfishMerkleTree::<_, L::ValueHasher>::new(&reader);
@@ -47,8 +47,8 @@ impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
         tree.get_root_hash(0).map(|hash| hash.0.into())
     }
 
-    fn get_with_proof<B2: StorageBackend, S: SerdeBackend>(
-        tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B2, S>,
+    fn get_with_proof<B: StorageBackend, S: SerdeBackend>(
+        tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
         table: StateTable,
         key: SerializedStateKey,
         // TODO(snormore): Should not have to pass in the value here.
@@ -77,8 +77,8 @@ impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
         Ok((value, Vec::new()))
     }
 
-    fn apply_changes<B2: StorageBackend, S: SerdeBackend>(
-        tree_table: &mut TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B2, S>,
+    fn apply_changes<B: StorageBackend, S: SerdeBackend>(
+        tree_table: &mut TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
         table_name_by_id: FxHashMap<TableId, String>,
         batch: VerticalBatch,
     ) -> Result<()> {

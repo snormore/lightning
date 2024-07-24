@@ -14,7 +14,6 @@ use atomo::{
     StorageBackend,
     StorageBackendConstructor,
 };
-use atomo_merklized::jmt::JmtMerklizedStrategy;
 use atomo_merklized::{
     KeccakHasher,
     MerklizedAtomo,
@@ -22,6 +21,7 @@ use atomo_merklized::{
     MerklizedLayout,
     StateRootHash,
 };
+use atomo_merklized_jmt::JmtMerklizedStrategy;
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;

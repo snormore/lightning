@@ -1,6 +1,5 @@
 mod atomo;
 mod builder;
-pub mod jmt;
 mod keccak;
 mod layout;
 mod strategy;
