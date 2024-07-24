@@ -1,4 +1,6 @@
+use std::any::Any;
 use std::collections::BTreeSet;
+use std::hash::Hash;
 use std::path::Path;
 use std::time::Duration;
 
@@ -29,6 +31,7 @@ use lightning_types::{
     TxHash,
     Value,
 };
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Collection;
@@ -140,6 +143,16 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
 
     /// Query Metadata Table
     fn get_metadata(&self, key: &lightning_types::Metadata) -> Option<Value>;
+
+    /// Get the state root hash.
+    // TODO(snormore): This should return RootHash from atomo-merklized.
+    fn get_state_root(&self) -> [u8; 32];
+
+    /// Get a state proof for a given table and key.
+    fn get_with_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
+    where
+        K: Hash + Eq + Serialize + DeserializeOwned + Any,
+        V: Serialize + DeserializeOwned + Any;
 
     /// Query Account Table
     /// Returns information about an account.

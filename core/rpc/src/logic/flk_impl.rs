@@ -387,9 +387,26 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         Ok((sub_dag_index, self.data.query_runner.get_epoch_info().epoch))
     }
 
-    async fn get_proof(&self, _table: String, _key: Vec<u8>) -> RpcResult<Vec<u8>> {
-        // TODO(snormore): Implement this.
-        todo!()
+    // TODO(snormore): This should return RootHash from atomo-merklized.
+    async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<[u8; 32]> {
+        Ok(self.data.query_runner(epoch).await?.get_state_root())
+    }
+
+    async fn get_state_value_with_proof(
+        &self,
+        table: String,
+        key: Vec<u8>,
+        epoch: Option<u64>,
+    ) -> RpcResult<(Option<Vec<u8>>, Vec<u8>)> {
+        // TODO(snormore): So we do we get generic bytes for the value here? Is the key just
+        // interpreted as bytes? Can we do better using an enum for table that maps to
+        // specific <K, V>?
+        Ok(self
+            .data
+            .query_runner(epoch)
+            .await?
+            .get_with_proof(&table, key)
+            .unwrap())
     }
 
     async fn send_txn(&self, tx: TransactionRequest) -> RpcResult<()> {

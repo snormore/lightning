@@ -46,7 +46,7 @@ use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
 pub struct Env<P, B: StorageBackend> {
-    pub inner: MerklizedAtomo<P, B, DefaultSerdeBackend>,
+    pub inner: MerklizedAtomo<P, B>,
 }
 
 impl Env<UpdatePerm, AtomoStorage> {
