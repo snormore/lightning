@@ -71,18 +71,66 @@ pub type SerializedTreeNodeValue = Vec<u8>;
 /// a value in the dataset (leaf nodes) and the key that's used to look it up in the state.
 pub type StateKeyHash = SimpleHash;
 
+/// Serialized state key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializedStateKey(Vec<u8>);
+
+impl SerializedStateKey {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<Vec<u8>> for SerializedStateKey {
+    fn from(key: Vec<u8>) -> Self {
+        Self(key)
+    }
+}
+
+impl From<SerializedStateKey> for Vec<u8> {
+    fn from(key: SerializedStateKey) -> Self {
+        key.0
+    }
+}
+
+/// Serialized state value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializedStateValue(Vec<u8>);
+
+impl SerializedStateValue {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<Vec<u8>> for SerializedStateValue {
+    fn from(value: Vec<u8>) -> Self {
+        Self(value)
+    }
+}
+
+impl From<SerializedStateValue> for Vec<u8> {
+    fn from(value: SerializedStateValue) -> Self {
+        value.0
+    }
+}
+
+impl From<&[u8]> for SerializedStateValue {
+    fn from(value: &[u8]) -> Self {
+        Self(value.to_vec())
+    }
+}
+
 /// Encapsulation of a value (leaf node) key in the state tree, including the state table name and
 /// entry key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateKey {
-    // TODO(snormore): Make this an enum.
-    pub table: String,
-    // TODO(snormore): Make this a type.
-    pub key: Vec<u8>,
+    table: String,
+    key: SerializedStateKey,
 }
 
 impl StateKey {
-    pub fn new(table: String, key: Vec<u8>) -> Self {
+    pub fn new(table: String, key: SerializedStateKey) -> Self {
         Self { table, key }
     }
 
@@ -93,3 +141,24 @@ impl StateKey {
 
 // TODO(snormore): Define our own type for this instead of leaking the JMT type.
 pub type StateProof<VH> = SparseMerkleProof<VH>;
+
+#[derive(Debug, Clone)]
+pub struct StateTable {
+    name: String,
+}
+
+impl StateTable {
+    pub fn new(name: impl AsRef<str>) -> Self {
+        Self {
+            name: name.as_ref().to_string(),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn key(&self, key: SerializedStateKey) -> StateKey {
+        StateKey::new(self.name.clone(), key)
+    }
+}

@@ -4,21 +4,22 @@ use std::time::Duration;
 
 use affair::AsyncWorker;
 use anyhow::{anyhow, Result};
+use atomo_merklized::MerklizedLayout;
 use lightning_interfaces::prelude::*;
-use lightning_interfaces::spawn_worker;
 use lightning_interfaces::types::{ChainId, NodeInfo};
+use lightning_interfaces::{spawn_worker, ApplicationLayout};
 use tracing::{error, info};
 
 use crate::config::{Config, StorageConfig};
 use crate::env::{Env, UpdateWorker};
 use crate::query_runner::QueryRunner;
-pub struct Application<C: Collection> {
+pub struct Application<C: Collection, L: MerklizedLayout = ApplicationLayout> {
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
-    query_runner: QueryRunner,
-    collection: PhantomData<C>,
+    query_runner: QueryRunner<L>,
+    _phantom: PhantomData<(C, L)>,
 }
 
-impl<C: Collection> Application<C> {
+impl<C: Collection, L: MerklizedLayout> Application<C, L> {
     /// Create a new instance of the application layer using the provided configuration.
     fn init(
         config: &C::ConfigProviderInterface,
@@ -42,32 +43,32 @@ impl<C: Collection> Application<C> {
         }
 
         let query_runner = env.query_runner();
-        let worker = UpdateWorker::<C>::new(env, blockstore.clone());
+        let worker = UpdateWorker::<C, L>::new(env, blockstore.clone());
         let update_socket = spawn_worker!(worker, "APPLICATION", waiter, crucial);
 
         Ok(Self {
             query_runner,
             update_socket: Mutex::new(Some(update_socket)),
-            collection: PhantomData,
+            _phantom: PhantomData,
         })
     }
 }
 
-impl<C: Collection> ConfigConsumer for Application<C> {
+impl<C: Collection, L: MerklizedLayout> ConfigConsumer for Application<C, L> {
     const KEY: &'static str = "application";
 
     type Config = Config;
 }
 
-impl<C: Collection> fdi::BuildGraph for Application<C> {
+impl<C: Collection, L: MerklizedLayout> fdi::BuildGraph for Application<C, L> {
     fn build_graph() -> fdi::DependencyGraph {
         fdi::DependencyGraph::new().with(Self::init)
     }
 }
 
-impl<C: Collection> ApplicationInterface<C> for Application<C> {
+impl<C: Collection, L: MerklizedLayout> ApplicationInterface<C> for Application<C, L> {
     /// The type for the sync query executor.
-    type SyncExecutor = QueryRunner;
+    type SyncExecutor = QueryRunner<L>;
 
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
@@ -102,7 +103,7 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut counter = 0;
 
         loop {
-            match Env::new(config, Some((checkpoint_hash, &checkpoint))) {
+            match Env::<_, _, L>::new(config, Some((checkpoint_hash, &checkpoint))) {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"

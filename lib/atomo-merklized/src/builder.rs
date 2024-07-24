@@ -1,14 +1,12 @@
 use std::any::Any;
 use std::hash::Hash;
-use std::marker::PhantomData;
 
-use atomo::{AtomoBuilder, SerdeBackend, StorageBackendConstructor, UpdatePerm};
-use jmt::SimpleHasher;
+use atomo::{AtomoBuilder, StorageBackendConstructor, UpdatePerm};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
-use crate::{KeccakHasher, MerklizedAtomo};
+use crate::{MerklizedAtomo, MerklizedLayout};
 
 const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
 
@@ -18,55 +16,38 @@ const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
 /// It wraps the `[atomo::AtomoBuilder]` for building a `[crate::MerklizedAtomoWriter]`(a wrapper
 /// of `[atomo::Atomo<UpdatePerm>]`), and can be used to build a `[crate::MerklizedAtomoReader]` (a
 /// wrapper of `[atomo::Atomo<QueryPerm>]`).
-pub struct MerklizedAtomoBuilder<
-    C: StorageBackendConstructor,
-    S: SerdeBackend,
-    // TODO(snormore): Move the hashers into a layout or in the strategy. We shouldn't be
-    // defaulting here.
-    KH: SimpleHasher = blake3::Hasher,
-    VH: SimpleHasher = KeccakHasher,
-    // X: MerklizedStrategy<C::Storage, S, KH, VH>,
-> {
-    inner: AtomoBuilder<C, S>,
+pub struct MerklizedAtomoBuilder<C: StorageBackendConstructor, L: MerklizedLayout> {
+    inner: AtomoBuilder<C, L::SerdeBackend>,
     tree_table_name: String,
-    _phantom: PhantomData<(KH, VH)>,
 }
 
-impl<
-    C: StorageBackendConstructor,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-    // X: MerklizedStrategy<C::Storage, S, KH, VH>,
-> MerklizedAtomoBuilder<C, S, KH, VH>
-{
+impl<C: StorageBackendConstructor, L: MerklizedLayout> MerklizedAtomoBuilder<C, L> {
     /// Create a new builder with the given storage backend constructor.
     pub fn new(constructor: C) -> Self {
         Self {
             inner: AtomoBuilder::new(constructor),
             tree_table_name: DEFAULT_STATE_TREE_TABLE_NAME.to_string(),
-            _phantom: PhantomData,
         }
     }
 
     /// Open a new table with the given name and key-value type.
     /// This is a pass-through to `[atomo::AtomoBuilder::with_table]`.
-    pub fn with_table<K, V>(self, name: impl ToString) -> Self
+    pub fn with_table<K, V>(self, table: impl ToString) -> Self
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,
     {
         Self {
-            inner: self.inner.with_table::<K, V>(name),
+            inner: self.inner.with_table::<K, V>(table),
             ..self
         }
     }
 
     /// Enable key iteration on the table with the given name.
     /// This is a pass-through to `[atomo::AtomoBuilder::enable_iter]`.
-    pub fn enable_iter(self, name: impl ToString) -> Self {
+    pub fn enable_iter(self, table: impl ToString) -> Self {
         Self {
-            inner: self.inner.enable_iter(name.to_string().as_str()),
+            inner: self.inner.enable_iter(&table.to_string()),
             ..self
         }
     }
@@ -83,16 +64,17 @@ impl<
     /// Build and return a writer for the state tree.
     // TODO(snormore): Remove this clippy allow.
     #[allow(clippy::type_complexity)]
-    pub fn build(self) -> Result<MerklizedAtomo<UpdatePerm, C::Storage, S, KH, VH>, C::Error> {
+    pub fn build(self) -> Result<MerklizedAtomo<UpdatePerm, C::Storage, L>, C::Error> {
         // TODO(snormore): Figure out a better way to get the table id by name.
         let table_id_by_name = self.inner.table_name_to_id();
         let atomo = self
             .inner
             .with_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(&self.tree_table_name)
-            // TODO(snormore): No need to enable_iter on this table by default
+            // TODO(snormore): No need to enable_iter on this table by default, it's just used in a
+            // test right now
             .enable_iter(&self.tree_table_name)
             .build()?;
-        Ok(MerklizedAtomo::<UpdatePerm, C::Storage, S, KH, VH>::new(
+        Ok(MerklizedAtomo::new(
             atomo,
             self.tree_table_name,
             table_id_by_name,

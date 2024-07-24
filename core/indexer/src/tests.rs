@@ -8,6 +8,7 @@ use lightning_application::genesis::{Genesis, GenesisNode};
 use lightning_application::query_runner::QueryRunner;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::NodePorts;
+use lightning_interfaces::ApplicationLayout;
 use lightning_notifier::Notifier;
 use lightning_signer::Signer;
 use lightning_test_utils::consensus::{Config as ConsensusConfig, MockConsensus, MockForwarder};
@@ -121,7 +122,10 @@ async fn test_submission() {
 
     // Given: an indexer & query runner.
     let indexer = node.provider.get::<Indexer<TestBinding>>();
-    let query_runner = node.provider.get::<QueryRunner>().clone();
+    let query_runner = node
+        .provider
+        .get::<QueryRunner<ApplicationLayout>>()
+        .clone();
 
     // Given: our index.
     let us = query_runner.pubkey_to_index(&node_public_key).unwrap();

@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
-use atomo::{DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
+use atomo::{QueryPerm, StorageBackend, UpdatePerm};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, MerklizedLayout};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -45,11 +45,11 @@ use crate::state::State;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
-pub struct Env<P, B: StorageBackend> {
-    pub inner: MerklizedAtomo<P, B>,
+pub struct Env<P, B: StorageBackend, L: MerklizedLayout> {
+    pub inner: MerklizedAtomo<P, B, L>,
 }
 
-impl Env<UpdatePerm, AtomoStorage> {
+impl<L: MerklizedLayout> Env<UpdatePerm, AtomoStorage, L> {
     pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
         let storage = match config.storage {
             StorageConfig::RocksDb => {
@@ -84,8 +84,7 @@ impl Env<UpdatePerm, AtomoStorage> {
             StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
         };
 
-        let mut atomo =
-            MerklizedAtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
+        let mut atomo = MerklizedAtomoBuilder::<AtomoStorageBuilder, L>::new(storage);
         atomo = atomo
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")
@@ -133,12 +132,12 @@ impl Env<UpdatePerm, AtomoStorage> {
         })
     }
 
-    pub fn query_runner(&self) -> QueryRunner {
+    pub fn query_runner(&self) -> QueryRunner<L> {
         QueryRunner::new(self.inner.query())
     }
 }
 
-impl<B: StorageBackend> Env<UpdatePerm, B> {
+impl<B: StorageBackend, L: MerklizedLayout> Env<UpdatePerm, B, L> {
     #[autometrics::autometrics]
     pub async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
     where
@@ -246,7 +245,7 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
     }
 
     /// Returns an identical environment but with query permissions
-    pub fn query_socket(&self) -> Env<QueryPerm, B> {
+    pub fn query_socket(&self) -> Env<QueryPerm, B, L> {
         Env {
             inner: self.inner.query(),
         }
@@ -480,25 +479,25 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
     }
 }
 
-impl Default for Env<UpdatePerm, AtomoStorage> {
+impl<L: MerklizedLayout> Default for Env<UpdatePerm, AtomoStorage, L> {
     fn default() -> Self {
         Self::new(&Config::default(), None).unwrap()
     }
 }
 
 /// The socket that receives all update transactions
-pub struct UpdateWorker<C: Collection> {
-    env: Env<UpdatePerm, AtomoStorage>,
+pub struct UpdateWorker<C: Collection, L: MerklizedLayout> {
+    env: Env<UpdatePerm, AtomoStorage, L>,
     blockstore: C::BlockstoreInterface,
 }
 
-impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: Env<UpdatePerm, AtomoStorage>, blockstore: C::BlockstoreInterface) -> Self {
+impl<C: Collection, L: MerklizedLayout> UpdateWorker<C, L> {
+    pub fn new(env: Env<UpdatePerm, AtomoStorage, L>, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
 
-impl<C: Collection> WorkerTrait for UpdateWorker<C> {
+impl<C: Collection, L: MerklizedLayout> WorkerTrait for UpdateWorker<C, L> {
     type Request = Block;
     type Response = BlockExecutionResponse;
     async fn handle(&mut self, req: Self::Request) -> Self::Response {
@@ -508,6 +507,7 @@ impl<C: Collection> WorkerTrait for UpdateWorker<C> {
 
 #[cfg(test)]
 mod env_tests {
+    use lightning_interfaces::ApplicationLayout;
     use tempfile::tempdir;
 
     use super::*;
@@ -520,7 +520,7 @@ mod env_tests {
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
             .unwrap();
         let config = Config::test(genesis_path);
-        let mut env = Env::<_, AtomoStorage>::new(&config, None).unwrap();
+        let mut env = Env::<_, AtomoStorage, ApplicationLayout>::new(&config, None).unwrap();
 
         assert!(env.apply_genesis_block(&config).unwrap());
 

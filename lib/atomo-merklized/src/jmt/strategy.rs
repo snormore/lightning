@@ -4,90 +4,86 @@ use anyhow::Result;
 use atomo::batch::{Operation, VerticalBatch};
 use atomo::{SerdeBackend, StorageBackend, TableId, TableRef};
 use fxhash::FxHashMap;
-use jmt::proof::SparseMerkleProof;
-use jmt::{KeyHash, SimpleHasher};
+use jmt::KeyHash;
 
 use super::JmtTreeReader;
 use crate::{
+    MerklizedLayout,
     MerklizedStrategy,
+    SerializedStateKey,
+    SerializedStateValue,
     SerializedTreeNodeKey,
     SerializedTreeNodeValue,
     StateKey,
     StateRootHash,
+    StateTable,
 };
 
-pub struct JmtMerklizedStrategy<
-    'a,
-    B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-> {
-    tree_table: TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
-    table_name_by_id: FxHashMap<TableId, String>,
-    _phantom: PhantomData<(KH, VH)>,
+pub struct JmtMerklizedStrategy<L: MerklizedLayout> {
+    _phantom: PhantomData<L>,
 }
 
-impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
-    JmtMerklizedStrategy<'a, B, S, KH, VH>
-{
-    pub fn new(
-        tree_table: TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
-        table_name_by_id: FxHashMap<TableId, String>,
-    ) -> Self {
+impl<L: MerklizedLayout> JmtMerklizedStrategy<L> {
+    pub fn new() -> Self {
         Self {
-            tree_table,
-            table_name_by_id,
             _phantom: PhantomData,
         }
     }
 }
 
-impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
-    MerklizedStrategy<B, S, KH, VH> for JmtMerklizedStrategy<'a, B, S, KH, VH>
-{
-    // fn build(tree_table: TableRef<SerializedNodeKey, SerializedTreeNodeValue, B, S>) -> &Self {
-    //     &JmtMerklizedStrategy::<'a, B, S, KH, VH>::new(tree_table)
-    // }
-
-    fn tree_table(&self) -> &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S> {
-        &self.tree_table
+impl<L: MerklizedLayout> Default for JmtMerklizedStrategy<L> {
+    fn default() -> Self {
+        Self::new()
     }
+}
 
-    fn get_root_hash(&self) -> Result<StateRootHash> {
-        let reader = JmtTreeReader::new(&self.tree_table);
-        let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
+impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
+    fn get_root_hash<B2: StorageBackend, S: SerdeBackend>(
+        tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B2, S>,
+    ) -> Result<StateRootHash> {
+        let reader = JmtTreeReader::new(tree_table);
+        let tree = jmt::JellyfishMerkleTree::<_, L::ValueHasher>::new(&reader);
 
         tree.get_root_hash(0).map(|hash| hash.0.into())
     }
 
-    fn get_with_proof(
-        &self,
-        table: String,
-        key: Vec<u8>,
+    fn get_with_proof<B2: StorageBackend, S: SerdeBackend>(
+        tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B2, S>,
+        table: StateTable,
+        key: SerializedStateKey,
         // TODO(snormore): Should not have to pass in the value here.
-        value: Option<Vec<u8>>,
-    ) -> Result<(Option<Vec<u8>>, SparseMerkleProof<VH>)> {
-        let reader = JmtTreeReader::new(&self.tree_table);
-        let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
+        value: Option<SerializedStateValue>,
+    ) -> Result<(Option<SerializedStateValue>, Vec<u8>)> {
+        let reader = JmtTreeReader::new(tree_table);
+        let tree = jmt::JellyfishMerkleTree::<_, L::ValueHasher>::new(&reader);
 
         // Cache the value in the reader so it can be used when `get_with_proof` is called next,
         // which calls `get_value_option`, which needs the value mapping.
-        let key = StateKey { table, key };
-        let key_hash = KeyHash(key.hash::<S, KH>().into());
+        let key_hash = KeyHash(
+            table
+                .key(key)
+                .hash::<L::SerdeBackend, L::KeyHasher>()
+                .into(),
+        );
         if let Some(value) = value {
-            reader.cache(key_hash, S::serialize(&value));
+            reader.cache(key_hash, L::SerdeBackend::serialize(&value));
         }
         // TODO(snormore): Fix this unwrap.
-        let (value, proof) = tree.get_with_proof(key_hash, 0).unwrap();
-        let value = value.map(|value| S::deserialize(&value));
+        let (value, _proof) = tree.get_with_proof(key_hash, 0).unwrap();
+        // TODO(snormore): This proof should be returned
+        let value = value.map(|value| L::SerdeBackend::deserialize(&value));
 
-        Ok((value, proof))
+        // TODO(snormore): Return the real prood here, converted to something else.
+        Ok((value, Vec::new()))
     }
 
-    fn apply_changes(&mut self, batch: VerticalBatch) -> Result<()> {
-        let reader = JmtTreeReader::new(&self.tree_table);
-        let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
+    fn apply_changes<B2: StorageBackend, S: SerdeBackend>(
+        tree_table: &mut TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B2, S>,
+        table_name_by_id: FxHashMap<TableId, String>,
+        batch: VerticalBatch,
+    ) -> Result<()> {
+        let reader = JmtTreeReader::new(tree_table);
+        let tree = jmt::JellyfishMerkleTree::<_, L::ValueHasher>::new(&reader);
 
         // Iterate over the changes and build the tree value set.
         let mut value_set: Vec<(jmt::KeyHash, Option<jmt::OwnedValue>)> = Default::default();
@@ -95,12 +91,12 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
             // println!("table {:?} changes {:?}", table_id, changes);
             let table_id: TableId = table_id.try_into().unwrap();
             for (key, operation) in changes.iter() {
-                let table_key = StateKey {
+                let table_key = StateKey::new(
                     // TODO(snormore): Fix this unwrap.
-                    table: self.table_name_by_id.get(&table_id).unwrap().to_string(),
-                    key: key.to_vec(),
-                };
-                let key_hash = KeyHash(table_key.hash::<S, KH>().into());
+                    table_name_by_id.get(&table_id).unwrap().to_string(),
+                    key.to_vec().into(),
+                );
+                let key_hash = KeyHash(table_key.hash::<L::SerdeBackend, L::KeyHasher>().into());
 
                 match operation {
                     Operation::Remove => {
@@ -120,11 +116,11 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
 
         // Stale nodes are converted to remove operations.
         for stale_node in tree_batch.stale_node_index_batch {
-            let key = S::serialize(&stale_node.node_key);
+            let key = L::SerdeBackend::serialize(&stale_node.node_key);
             // TODO(snormore): This is unecessarily/redundantly serializing. Instead, we should pass
             // in a key type that implements Serialize, because internally it serializes the key
             // again.
-            self.tree_table.remove(key);
+            tree_table.remove(key);
         }
 
         // New nodes are converted to insert operations.
@@ -132,9 +128,9 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
             // TODO(snormore): This is unecessarily/redundantly serializing. Instead, we should pass
             // in a key/value type that implements Serialize, because internally it serializes the
             // key/value again.
-            let key = S::serialize(node_key);
-            let value = S::serialize(node);
-            self.tree_table.insert(key, value);
+            let key = L::SerdeBackend::serialize(node_key);
+            let value = L::SerdeBackend::serialize(node);
+            tree_table.insert(key, value);
         }
 
         Ok(())
