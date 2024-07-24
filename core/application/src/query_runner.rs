@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, RootHash};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, StateRootHash};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
@@ -39,7 +39,7 @@ use crate::table::StateTables;
 
 #[derive(Clone)]
 pub struct QueryRunner {
-    inner: MerklizedAtomo<QueryPerm, AtomoStorage, DefaultSerdeBackend>,
+    inner: MerklizedAtomo<QueryPerm, AtomoStorage>,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
     client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
@@ -131,12 +131,12 @@ impl SyncQueryRunnerInterface for QueryRunner {
             .run(|ctx| self.metadata_table.get(ctx.inner()).get(key))
     }
 
-    fn get_state_root(&self) -> RootHash {
+    fn get_state_root(&self) -> StateRootHash {
         // TODO(snormore): Fix this unwrap.
-        self.inner.get_state_root().unwrap().into()
+        self.inner.get_state_root().unwrap()
     }
 
-    fn get_with_proof<K, V>(&self, table: &str, key: K) -> anyhow::Result<(Option<V>, Vec<u8>)>
+    fn get_state_proof<K, V>(&self, table: &str, key: K) -> anyhow::Result<(Option<V>, Vec<u8>)>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,

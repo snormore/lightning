@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use atomo_merklized::RootHash;
+use atomo_merklized::StateRootHash;
 use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
@@ -388,11 +388,11 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         Ok((sub_dag_index, self.data.query_runner.get_epoch_info().epoch))
     }
 
-    async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<RootHash> {
+    async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<StateRootHash> {
         Ok(self.data.query_runner(epoch).await?.get_state_root())
     }
 
-    async fn get_state_value_with_proof(
+    async fn get_state_proof(
         &self,
         table: String,
         key: Vec<u8>,
@@ -401,11 +401,12 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         // TODO(snormore): So we do we get generic bytes for the value here? Is the key just
         // interpreted as bytes? Can we do better using an enum for table that maps to
         // specific <K, V>?
+        // TODO(snormore): Fix this unwrap; translate to RpcResult instead.
         Ok(self
             .data
             .query_runner(epoch)
             .await?
-            .get_with_proof(&table, key)
+            .get_state_proof(&table, key)
             .unwrap())
     }
 

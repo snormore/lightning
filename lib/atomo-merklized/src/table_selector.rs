@@ -12,9 +12,9 @@ use serde::Serialize;
 use crate::{
     MerklizedStrategy,
     MerklizedTableRef,
-    RootHash,
     SerializedTreeNodeKey,
     SerializedTreeNodeValue,
+    StateRootHash,
 };
 
 pub struct MerklizedTableSelector<
@@ -57,7 +57,9 @@ impl<
 
     /// Returns the state tree table reference.
     #[inline]
-    pub fn state_tree_table(&self) -> &TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S> {
+    pub fn state_tree_table(
+        &self,
+    ) -> &TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S> {
         self.strategy.tree_table()
     }
 
@@ -84,7 +86,7 @@ impl<
     }
 
     /// Return the state root hash of the state tree.
-    pub fn get_state_root(&self) -> Result<RootHash> {
+    pub fn get_state_root(&self) -> Result<StateRootHash> {
         self.strategy.get_root_hash()
     }
 }

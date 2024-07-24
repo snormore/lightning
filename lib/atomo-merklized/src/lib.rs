@@ -13,4 +13,11 @@ pub use keccak::KeccakHasher;
 pub use strategy::MerklizedStrategy;
 pub use table_ref::MerklizedTableRef;
 pub use table_selector::MerklizedTableSelector;
-pub use types::{RootHash, SerializedTreeNodeKey, SerializedTreeNodeValue, TableKey};
+pub use types::{
+    SerializedTreeNodeKey,
+    SerializedTreeNodeValue,
+    StateKey,
+    StateKeyHash,
+    StateProof,
+    StateRootHash,
+};

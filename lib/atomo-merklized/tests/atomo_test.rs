@@ -1,5 +1,5 @@
 use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackend};
-use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, TableKey};
+use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, StateKey};
 
 #[test]
 fn test_atomo() {
@@ -81,7 +81,7 @@ fn test_atomo() {
             assert_eq!(value, Some(format!("value{i}")));
 
             // TODO(snormore): Make our own proof type and avoid constructing a keyhash out here.
-            let key = TableKey {
+            let key = StateKey {
                 table: "data".to_string(),
                 key: DefaultSerdeBackend::serialize(&format!("key{i}").as_bytes().to_vec()),
             };
@@ -89,7 +89,11 @@ fn test_atomo() {
             let value: Vec<u8> =
                 DefaultSerdeBackend::serialize(&format!("value{i}").as_bytes().to_vec());
             proof
-                .verify_existence(jmt::RootHash(root_hash.into()), key_hash, value)
+                .verify_existence(
+                    jmt::RootHash(root_hash.into()),
+                    jmt::KeyHash(key_hash.into()),
+                    value,
+                )
                 .unwrap();
         }
     });
