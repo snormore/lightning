@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use atomo_merklized::RootHash;
 use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
@@ -187,7 +188,7 @@ pub trait FleekApi {
 
     #[method(name = "get_state_root")]
     // TODO(snormore): This should return RootHash from atomo-merklized.
-    async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<[u8; 32]>;
+    async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<RootHash>;
 
     #[method(name = "get_state_value_with_proof")]
     async fn get_state_value_with_proof(

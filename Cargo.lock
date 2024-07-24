@@ -736,10 +736,13 @@ dependencies = [
  "anyhow",
  "atomo",
  "blake3",
+ "fleek-crypto",
  "fxhash",
  "hex",
  "jmt",
+ "schemars",
  "serde",
+ "serde_json",
  "tiny-keccak",
 ]
 
@@ -6929,6 +6932,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "async-trait",
+ "atomo-merklized",
  "autometrics",
  "clap 4.5.7",
  "ethers",
@@ -11241,9 +11245,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.110"
+version = "1.0.120"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fbd975230bada99c8bb618e0c365c2eefa219158d5c6c29610fd09ff1833257"
+checksum = "4e0d21c9a8cae1235ad58a00c11cb40d4b1e5c784f1ef2c537876ed6ffd8b7c5"
 dependencies = [
  "indexmap 2.2.6",
  "itoa",

@@ -14,13 +14,13 @@ use atomo::{
     UpdatePerm,
 };
 use fxhash::FxHashMap;
-use jmt::{RootHash, SimpleHasher};
+use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::jmt::JmtMerklizedStrategy;
 use crate::types::{SerializedNodeKey, SerializedNodeValue};
-use crate::{KeccakHasher, MerklizedStrategy, MerklizedTableSelector};
+use crate::{KeccakHasher, MerklizedStrategy, MerklizedTableSelector, RootHash};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
 pub struct MerklizedAtomo<
@@ -173,7 +173,6 @@ impl<
     }
 
     /// Return the state root hash of the state tree.
-    // TODO(snormore): This is leaking `jmt::RootHash`.`
     pub fn get_state_root(&self) -> Result<RootHash> {
         self.run(|ctx| ctx.get_state_root())
     }
