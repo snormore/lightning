@@ -40,9 +40,6 @@ impl<
 where
     K: Hash + Eq + Serialize + DeserializeOwned + Any,
     V: Serialize + DeserializeOwned + Any,
-    B: StorageBackend + Send + Sync,
-    S: SerdeBackend + Send + Sync,
-    X: MerklizedStrategy<B, S, KH, VH>,
 {
     /// Create a new table reference.
     pub fn new(

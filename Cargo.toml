@@ -73,6 +73,7 @@ tower = { version = "0.4.13", features = ["tokio", "steer"] }
 lightning-types = { path = "core/types" }
 affair = { path = "lib/affair" }
 atomo = { path = "lib/atomo" }
+atomo-merklized = { path = "lib/atomo-merklized" }
 atomo-rocks = { path = "lib/atomo-rocks" }
 fleek-crypto = { path = "lib/fleek-crypto" }
 fleek-ipld = { path = "lib/fleek-ipld" }

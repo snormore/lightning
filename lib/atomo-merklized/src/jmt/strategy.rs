@@ -8,7 +8,7 @@ use jmt::proof::SparseMerkleProof;
 use jmt::{RootHash, SimpleHasher};
 
 use super::JmtTreeReader;
-use crate::{SerializedNodeKey, SerializedNodeValue, MerklizedStrategy, TableKey};
+use crate::{MerklizedStrategy, SerializedNodeKey, SerializedNodeValue, TableKey};
 
 pub struct JmtMerklizedStrategy<
     'a,
@@ -39,9 +39,6 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
 
 impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
     MerklizedStrategy<B, S, KH, VH> for JmtMerklizedStrategy<'a, B, S, KH, VH>
-where
-    B: StorageBackend + Send + Sync,
-    S: SerdeBackend + Send + Sync,
 {
     // fn build(tree_table: TableRef<SerializedNodeKey, SerializedNodeValue, B, S>) -> &Self {
     //     &JmtMerklizedStrategy::<'a, B, S, KH, VH>::new(tree_table)
