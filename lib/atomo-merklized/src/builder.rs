@@ -7,7 +7,7 @@ use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::types::{SerializedNodeKey, SerializedNodeValue};
+use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
 use crate::{KeccakHasher, MerklizedAtomo};
 
 const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
@@ -88,7 +88,7 @@ impl<
         let table_id_by_name = self.inner.table_name_to_id();
         let atomo = self
             .inner
-            .with_table::<SerializedNodeKey, SerializedNodeValue>(&self.tree_table_name)
+            .with_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(&self.tree_table_name)
             // TODO(snormore): No need to enable_iter on this table by default
             .enable_iter(&self.tree_table_name)
             .build()?;

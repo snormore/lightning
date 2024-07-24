@@ -13,8 +13,8 @@ use crate::{
     MerklizedStrategy,
     MerklizedTableRef,
     RootHash,
-    SerializedNodeKey,
-    SerializedNodeValue,
+    SerializedTreeNodeKey,
+    SerializedTreeNodeValue,
 };
 
 pub struct MerklizedTableSelector<
@@ -57,7 +57,7 @@ impl<
 
     /// Returns the state tree table reference.
     #[inline]
-    pub fn state_tree_table(&self) -> &TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S> {
+    pub fn state_tree_table(&self) -> &TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S> {
         self.strategy.tree_table()
     }
 

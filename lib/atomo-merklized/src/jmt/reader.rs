@@ -6,15 +6,17 @@ use atomo::{SerdeBackend, StorageBackend, TableRef};
 use jmt::storage::{LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
 
-use crate::types::{SerializedNodeKey, SerializedNodeValue};
+use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
 
 pub struct JmtTreeReader<'a, B: StorageBackend, S: SerdeBackend> {
-    tree_table: &'a TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
+    tree_table: &'a TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
     values: Arc<RwLock<HashMap<KeyHash, OwnedValue>>>,
 }
 
 impl<'a, B: StorageBackend, S: SerdeBackend> JmtTreeReader<'a, B, S> {
-    pub fn new(tree_table: &'a TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>) -> Self {
+    pub fn new(
+        tree_table: &'a TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
+    ) -> Self {
         Self {
             tree_table,
             values: Default::default(),

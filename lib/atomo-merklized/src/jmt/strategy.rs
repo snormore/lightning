@@ -8,7 +8,13 @@ use jmt::proof::SparseMerkleProof;
 use jmt::SimpleHasher;
 
 use super::JmtTreeReader;
-use crate::{MerklizedStrategy, RootHash, SerializedNodeKey, SerializedNodeValue, TableKey};
+use crate::{
+    MerklizedStrategy,
+    RootHash,
+    SerializedTreeNodeKey,
+    SerializedTreeNodeValue,
+    TableKey,
+};
 
 pub struct JmtMerklizedStrategy<
     'a,
@@ -17,7 +23,7 @@ pub struct JmtMerklizedStrategy<
     KH: SimpleHasher,
     VH: SimpleHasher,
 > {
-    tree_table: TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
+    tree_table: TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
     table_name_by_id: FxHashMap<TableId, String>,
     _phantom: PhantomData<(KH, VH)>,
 }
@@ -26,7 +32,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
     JmtMerklizedStrategy<'a, B, S, KH, VH>
 {
     pub fn new(
-        tree_table: TableRef<'a, SerializedNodeKey, SerializedNodeValue, B, S>,
+        tree_table: TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
         table_name_by_id: FxHashMap<TableId, String>,
     ) -> Self {
         Self {
@@ -40,11 +46,11 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
 impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
     MerklizedStrategy<B, S, KH, VH> for JmtMerklizedStrategy<'a, B, S, KH, VH>
 {
-    // fn build(tree_table: TableRef<SerializedNodeKey, SerializedNodeValue, B, S>) -> &Self {
+    // fn build(tree_table: TableRef<SerializedNodeKey, SerializedTreeNodeValue, B, S>) -> &Self {
     //     &JmtMerklizedStrategy::<'a, B, S, KH, VH>::new(tree_table)
     // }
 
-    fn tree_table(&self) -> &TableRef<SerializedNodeKey, SerializedNodeValue, B, S> {
+    fn tree_table(&self) -> &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S> {
         &self.tree_table
     }
 
