@@ -735,6 +735,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "atomo",
+ "atomo-merklized-jmt",
  "blake3",
  "fleek-crypto",
  "fxhash",
@@ -744,6 +745,17 @@ dependencies = [
  "serde",
  "serde_json",
  "tiny-keccak",
+]
+
+[[package]]
+name = "atomo-merklized-jmt"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "atomo",
+ "atomo-merklized",
+ "fxhash",
+ "jmt",
 ]
 
 [[package]]
@@ -6583,6 +6595,7 @@ dependencies = [
  "anyhow",
  "atomo",
  "atomo-merklized",
+ "atomo-merklized-jmt",
  "atomo-rocks",
  "better-shutdown",
  "blake3",

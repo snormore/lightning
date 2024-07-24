@@ -16,4 +16,5 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 schemars.workspace = true
 
 [dev-dependencies]
+atomo-merklized-jmt = { path = "../atomo-merklized-jmt" }
 hex = "0.4.3"

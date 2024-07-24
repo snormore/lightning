@@ -62,8 +62,6 @@ impl<C: StorageBackendConstructor, L: MerklizedLayout> MerklizedAtomoBuilder<C, 
     }
 
     /// Build and return a writer for the state tree.
-    // TODO(snormore): Remove this clippy allow.
-    #[allow(clippy::type_complexity)]
     pub fn build(self) -> Result<MerklizedAtomo<UpdatePerm, C::Storage, L>, C::Error> {
         // TODO(snormore): Figure out a better way to get the table id by name.
         let table_id_by_name = self.inner.table_name_to_id();

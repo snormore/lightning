@@ -1,6 +1,6 @@
 use atomo::{DefaultSerdeBackend, InMemoryStorage, StorageBackend};
-use atomo_merklized::jmt::JmtMerklizedStrategy;
 use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, MerklizedLayout};
+use atomo_merklized_jmt::JmtMerklizedStrategy;
 
 #[test]
 fn test_atomo() {

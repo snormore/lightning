@@ -45,6 +45,7 @@ workspace-members = [
     "affair",
     "atomo",
     "atomo-merklized",
+    "atomo-merklized-jmt",
     "atomo-rocks",
     "b3fs",
     "better-shutdown",

@@ -225,7 +225,7 @@ macro_rules! change_epoch {
 /// * `socket: &ExecutionEngineSocket` - Socket for submitting transaction.
 /// * `committee_keystore: &Vec<GenesisCommitteeKeystore> ` - Keystore with committee's private
 ///   keys.
-/// * `query_runner: &QueryRunner<ApplicationLayout>` - Query Runner.
+/// * `query_runner: &QueryRunner` - Query Runner.
 /// * `epoch: u64` - Epoch to be changed.
 macro_rules! simple_epoch_change {
     ($socket:expr,$committee_keystore:expr,$query_runner:expr,$epoch:expr) => {{
@@ -367,7 +367,7 @@ macro_rules! stake_lock {
 ///
 ///  # Arguments
 ///
-/// * `query_runner: &QueryRunner<ApplicationLayout>` - Query Runner.
+/// * `query_runner: &QueryRunner` - Query Runner.
 /// * `update: (u32, ReputationMeasurements)` - Tuple containing node index and reputation
 ///   measurements.
 /// * `reporting_node_index: u64` - Reporting Node index.
@@ -387,7 +387,7 @@ macro_rules! assert_rep_measurements_update {
 ///  # Arguments
 ///
 /// * `valid_nodes: &Vec<NodeInfo>` - List of valid nodes.
-/// * `query_runner: &QueryRunner<ApplicationLayout>` - Query Runner.
+/// * `query_runner: &QueryRunner` - Query Runner.
 /// * `node_pk: &NodePublicKey` - Node's public key
 macro_rules! assert_valid_node {
     ($valid_nodes:expr,$query_runner:expr,$node_pk:expr) => {{
@@ -402,7 +402,7 @@ macro_rules! assert_valid_node {
 ///  # Arguments
 ///
 /// * `valid_nodes: &Vec<NodeInfo>` - List of valid nodes.
-/// * `query_runner: &QueryRunner<ApplicationLayout>` - Query Runner.
+/// * `query_runner: &QueryRunner` - Query Runner.
 /// * `node_pk: &NodePublicKey` - Node's public key
 macro_rules! assert_not_valid_node {
     ($valid_nodes:expr,$query_runner:expr,$node_pk:expr) => {{
@@ -416,7 +416,7 @@ macro_rules! assert_not_valid_node {
 ///
 ///  # Arguments
 ///
-/// * `query_runner: &QueryRunner<ApplicationLayout>` - Query Runner.
+/// * `query_runner: &QueryRunner` - Query Runner.
 /// * `paging_params: PagingParams` - Paging params.
 /// * `expected_len: usize` - Expected length of the query result.
 macro_rules! assert_paging_node_registry {

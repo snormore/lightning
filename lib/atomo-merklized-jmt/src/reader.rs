@@ -3,10 +3,9 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use atomo::{SerdeBackend, StorageBackend, TableRef};
+use atomo_merklized::{SerializedTreeNodeKey, SerializedTreeNodeValue};
 use jmt::storage::{LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
-
-use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
 
 pub struct JmtTreeReader<'a, B: StorageBackend, S: SerdeBackend> {
     tree_table: &'a TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
