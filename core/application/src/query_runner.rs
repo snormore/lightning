@@ -1,4 +1,6 @@
+use std::any::Any;
 use std::collections::BTreeSet;
+use std::hash::Hash;
 use std::path::Path;
 use std::time::Duration;
 
@@ -28,6 +30,8 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::state::State;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
@@ -61,7 +65,7 @@ pub struct QueryRunner {
 impl SyncQueryRunnerInterface for QueryRunner {
     type Backend = AtomoStorage;
 
-    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, DefaultSerdeBackend>) -> Self {
+    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage>) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -125,6 +129,26 @@ impl SyncQueryRunnerInterface for QueryRunner {
     fn get_metadata(&self, key: &Metadata) -> Option<Value> {
         self.inner
             .run(|ctx| self.metadata_table.get(ctx.inner()).get(key))
+    }
+
+    // TODO(snormore): This should return RootHash from atomo-merklized.
+    fn get_state_root(&self) -> [u8; 32] {
+        // TODO(snormore): Fix this unwrap.
+        self.inner.get_state_root().unwrap().into()
+    }
+
+    fn get_with_proof<K, V>(&self, table: &str, key: K) -> anyhow::Result<(Option<V>, Vec<u8>)>
+    where
+        K: Hash + Eq + Serialize + DeserializeOwned + Any,
+        V: Serialize + DeserializeOwned + Any,
+    {
+        self.inner.run(|ctx| {
+            let table = ctx.get_table::<K, V>(table);
+            let (value, _proof) = table.get_with_proof(key);
+            // TODO(snormore): Make get_with_proof return something we can return in the result.
+            Ok((value, Vec::new()))
+        })
+        // .map_err(Into::into)
     }
 
     #[inline]
