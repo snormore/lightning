@@ -389,7 +389,12 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
     }
 
     async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<StateRootHash> {
-        Ok(self.data.query_runner(epoch).await?.get_state_root())
+        Ok(self
+            .data
+            .query_runner(epoch)
+            .await?
+            .get_state_root()
+            .map_err(|e| RPCError::custom(e.to_string()))?)
     }
 
     async fn get_state_proof(
@@ -401,13 +406,12 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         // TODO(snormore): So we do we get generic bytes for the value here? Is the key just
         // interpreted as bytes? Can we do better using an enum for table that maps to
         // specific <K, V>?
-        // TODO(snormore): Fix this unwrap; translate to RpcResult instead.
         Ok(self
             .data
             .query_runner(epoch)
             .await?
             .get_state_proof(&table, key)
-            .unwrap())
+            .map_err(|e| RPCError::custom(e.to_string()))?)
     }
 
     async fn send_txn(&self, tx: TransactionRequest) -> RpcResult<()> {

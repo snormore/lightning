@@ -4,6 +4,7 @@ use std::hash::Hash;
 use std::path::Path;
 use std::time::Duration;
 
+use anyhow::Result;
 use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
 use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, StateRootHash};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
@@ -131,12 +132,11 @@ impl SyncQueryRunnerInterface for QueryRunner {
             .run(|ctx| self.metadata_table.get(ctx.inner()).get(key))
     }
 
-    fn get_state_root(&self) -> StateRootHash {
-        // TODO(snormore): Fix this unwrap.
-        self.inner.get_state_root().unwrap()
+    fn get_state_root(&self) -> Result<StateRootHash> {
+        self.inner.get_state_root()
     }
 
-    fn get_state_proof<K, V>(&self, table: &str, key: K) -> anyhow::Result<(Option<V>, Vec<u8>)>
+    fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,
