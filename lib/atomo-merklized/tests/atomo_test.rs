@@ -46,8 +46,8 @@ fn test_atomo() {
     // Check state root.
     let root_hash = reader.get_state_root().unwrap();
     assert_eq!(
-        hex::encode(root_hash),
-        "f3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
+        root_hash,
+        "0xf3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
     );
 
     // Verify data via state tree reader.
@@ -66,8 +66,8 @@ fn test_atomo() {
         // Check state root.
         let root_hash = ctx.get_state_root().unwrap();
         assert_eq!(
-            hex::encode(root_hash),
-            "f3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
+            root_hash,
+            "0xf3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
         );
 
         // Check tree table key count.
@@ -88,7 +88,9 @@ fn test_atomo() {
             let key_hash = key.hash::<DefaultSerdeBackend, blake3::Hasher>();
             let value: Vec<u8> =
                 DefaultSerdeBackend::serialize(&format!("value{i}").as_bytes().to_vec());
-            proof.verify_existence(root_hash, key_hash, value).unwrap();
+            proof
+                .verify_existence(jmt::RootHash(root_hash.into()), key_hash, value)
+                .unwrap();
         }
     });
 }

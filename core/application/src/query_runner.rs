@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, RootHash};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
@@ -131,8 +131,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
             .run(|ctx| self.metadata_table.get(ctx.inner()).get(key))
     }
 
-    // TODO(snormore): This should return RootHash from atomo-merklized.
-    fn get_state_root(&self) -> [u8; 32] {
+    fn get_state_root(&self) -> RootHash {
         // TODO(snormore): Fix this unwrap.
         self.inner.get_state_root().unwrap().into()
     }

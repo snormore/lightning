@@ -6,11 +6,14 @@ edition.workspace = true
 [dependencies]
 anyhow.workspace = true
 atomo = { path = "../atomo" }
+fleek-crypto = { path = "../fleek-crypto" }
 blake3 = { version = "1.5.3", features = ["std", "traits-preview"] }
 fxhash = "0.2.1"
 jmt = "0.10.0"
 serde.workspace = true
+serde_json.workspace = true
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+schemars.workspace = true
 
 [dev-dependencies]
 hex = "0.4.3"
