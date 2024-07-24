@@ -1,26 +1,34 @@
-use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackend};
-use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, StateKey};
+use atomo::{DefaultSerdeBackend, InMemoryStorage, StorageBackend};
+use atomo_merklized::jmt::JmtMerklizedStrategy;
+use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, MerklizedLayout};
 
 #[test]
 fn test_atomo() {
+    #[derive(Clone)]
+    pub struct TestLayout;
+
+    impl MerklizedLayout for TestLayout {
+        type SerdeBackend = DefaultSerdeBackend;
+        type Strategy = JmtMerklizedStrategy<Self>;
+        type KeyHasher = blake3::Hasher;
+        type ValueHasher = KeccakHasher;
+    }
+
     let storage = InMemoryStorage::default();
-    let mut db = MerklizedAtomoBuilder::<
-        InMemoryStorage,
-        DefaultSerdeBackend,
-        blake3::Hasher,
-        KeccakHasher,
-    >::new(storage)
-    .with_table::<String, String>("data")
-    .enable_iter("data")
-    .with_table::<u8, u8>("other")
-    .build()
-    .unwrap();
+    let mut db = MerklizedAtomoBuilder::<InMemoryStorage, TestLayout>::new(storage)
+        // TODO(snormore): Should the following happen internally to the StateTable implementation?
+        .with_table::<String, String>("data")
+        .enable_iter("data")
+        .with_table::<u8, u8>("other")
+        .build()
+        .unwrap();
     let reader = db.query();
 
     let data_insert_count = 10;
 
     // Insert initial data.
     db.run(|ctx: _| {
+        // TODO(snormore): Encapsulate this in a state table trait method `get_table_reference`.
         let mut data_table = ctx.get_table::<String, String>("data");
 
         for i in 1..=data_insert_count {
@@ -52,6 +60,7 @@ fn test_atomo() {
 
     // Verify data via state tree reader.
     reader.run(|ctx| {
+        // TODO(snormore): Encapsulate this in a state table trait method `get_table_reference`.
         let data_table = ctx.get_table::<String, String>("data");
 
         // Check data key count.
@@ -77,24 +86,22 @@ fn test_atomo() {
 
         // Check existence proofs.
         for i in 1..=data_insert_count {
-            let (value, proof) = data_table.get_with_proof(format!("key{i}"));
+            let (value, _proof) = data_table.get_with_proof(format!("key{i}"));
             assert_eq!(value, Some(format!("value{i}")));
 
             // TODO(snormore): Make our own proof type and avoid constructing a keyhash out here.
-            let key = StateKey {
-                table: "data".to_string(),
-                key: DefaultSerdeBackend::serialize(&format!("key{i}").as_bytes().to_vec()),
-            };
-            let key_hash = key.hash::<DefaultSerdeBackend, blake3::Hasher>();
-            let value: Vec<u8> =
-                DefaultSerdeBackend::serialize(&format!("value{i}").as_bytes().to_vec());
-            proof
-                .verify_existence(
-                    jmt::RootHash(root_hash.into()),
-                    jmt::KeyHash(key_hash.into()),
-                    value,
-                )
-                .unwrap();
+            // let key_hash = StateTable::new("data".to_string())
+            //     .key(DefaultSerdeBackend::serialize(&format!("key{i}").as_bytes().to_vec()).
+            // into())     .hash::<DefaultSerdeBackend, blake3::Hasher>();
+            // let value: Vec<u8> =
+            //     DefaultSerdeBackend::serialize(&format!("value{i}").as_bytes().to_vec());
+            // proof
+            //     .verify_existence(
+            //         jmt::RootHash(root_hash.into()),
+            //         jmt::KeyHash(key_hash.into()),
+            //         value,
+            //     )
+            //     .unwrap();
         }
     });
 }

@@ -7,14 +7,21 @@ use std::time::Duration;
 use affair::Socket;
 use anyhow::Result;
 use atomo::{
+    DefaultSerdeBackend,
     InMemoryStorage,
     KeyIterator,
     QueryPerm,
-    SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
 };
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, StateRootHash};
+use atomo_merklized::jmt::JmtMerklizedStrategy;
+use atomo_merklized::{
+    KeccakHasher,
+    MerklizedAtomo,
+    MerklizedAtomoBuilder,
+    MerklizedLayout,
+    StateRootHash,
+};
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -98,24 +105,39 @@ pub trait ApplicationInterface<C: Collection>:
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
 }
 
+#[derive(Clone)]
+pub struct ApplicationLayout;
+
+impl MerklizedLayout for ApplicationLayout {
+    type SerdeBackend = DefaultSerdeBackend;
+    type Strategy = JmtMerklizedStrategy<Self>;
+    type KeyHasher = blake3::Hasher;
+    type ValueHasher = KeccakHasher;
+}
+
 #[interfaces_proc::blank]
 pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     #[blank(InMemoryStorage)]
     type Backend: StorageBackend;
 
-    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Backend>) -> Self;
+    #[blank(ApplicationLayout)]
+    type Layout: MerklizedLayout;
+
+    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>) -> Self;
 
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> Result<MerklizedAtomo<QueryPerm, Self::Backend>>;
+    ) -> Result<MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>>;
 
-    fn atomo_from_path(path: impl AsRef<Path>) -> Result<MerklizedAtomo<QueryPerm, Self::Backend>>;
+    fn atomo_from_path(
+        path: impl AsRef<Path>,
+    ) -> Result<MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>>;
 
-    fn register_tables<B: StorageBackendConstructor, S: SerdeBackend>(
-        builder: MerklizedAtomoBuilder<B, S>,
-    ) -> MerklizedAtomoBuilder<B, S> {
+    fn register_tables<B: StorageBackendConstructor>(
+        builder: MerklizedAtomoBuilder<B, Self::Layout>,
+    ) -> MerklizedAtomoBuilder<B, Self::Layout> {
         builder
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")

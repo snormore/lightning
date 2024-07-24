@@ -13,7 +13,7 @@ use lightning_application::genesis::{Genesis, GenesisNode};
 use lightning_application::query_runner::QueryRunner;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{NodeIndex, NodePorts};
-use lightning_interfaces::ServiceScope;
+use lightning_interfaces::{ApplicationLayout, ServiceScope};
 use lightning_notifier::Notifier;
 use lightning_rep_collector::ReputationAggregator;
 use lightning_signer::Signer;
@@ -160,7 +160,7 @@ fn create_peer(
 
     let node_index = if in_state {
         node.provider
-            .get::<QueryRunner>()
+            .get::<QueryRunner<ApplicationLayout>>()
             .pubkey_to_index(&node_public_key)
             .unwrap()
     } else {

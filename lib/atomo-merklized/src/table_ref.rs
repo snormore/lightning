@@ -1,57 +1,52 @@
 use std::any::Any;
 use std::borrow::Borrow;
 use std::hash::Hash;
-use std::marker::PhantomData;
 
 use atomo::{KeyIterator, SerdeBackend, StorageBackend};
-use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::types::StateProof;
-use crate::MerklizedStrategy;
+use crate::{
+    MerklizedLayout,
+    MerklizedStrategy,
+    SerializedTreeNodeKey,
+    SerializedTreeNodeValue,
+    StateTable,
+};
 
 pub struct MerklizedTableRef<
     'a,
     K: Hash + Eq + Serialize + DeserializeOwned + Any,
     V: Serialize + DeserializeOwned + Any,
     B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-    X: MerklizedStrategy<B, S, KH, VH>,
+    L: MerklizedLayout,
 > {
-    inner: atomo::TableRef<'a, K, V, B, S>,
-    strategy: &'a X,
-    table_name: String,
-    _phantom: PhantomData<(KH, VH)>,
+    inner: atomo::TableRef<'a, K, V, B, L::SerdeBackend>,
+    tree_table:
+        &'a atomo::TableRef<'a, SerializedTreeNodeKey, SerializedTreeNodeValue, B, L::SerdeBackend>,
+    table: StateTable,
 }
 
-impl<
-    'a,
-    K,
-    V,
-    B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-    X: MerklizedStrategy<B, S, KH, VH>,
-> MerklizedTableRef<'a, K, V, B, S, KH, VH, X>
+impl<'a, K, V, B: StorageBackend, L: MerklizedLayout> MerklizedTableRef<'a, K, V, B, L>
 where
     K: Hash + Eq + Serialize + DeserializeOwned + Any,
     V: Serialize + DeserializeOwned + Any,
 {
     /// Create a new table reference.
     pub fn new(
-        inner: atomo::TableRef<'a, K, V, B, S>,
-        strategy: &'a X,
-        table_name: String,
+        inner: atomo::TableRef<'a, K, V, B, L::SerdeBackend>,
+        tree_table: &'a atomo::TableRef<
+            SerializedTreeNodeKey,
+            SerializedTreeNodeValue,
+            B,
+            L::SerdeBackend,
+        >,
+        table: StateTable,
     ) -> Self {
         Self {
             inner,
-            strategy,
-            table_name,
-            _phantom: PhantomData,
+            tree_table,
+            table,
         }
     }
 
@@ -73,15 +68,20 @@ where
 
     /// Return the value associated with the provided key, along with a merkle proof of existence in
     /// the state tree. If the key doesn't exist in the table, [`None`] is returned.
-    pub fn get_with_proof(&self, key: impl Borrow<K>) -> (Option<V>, StateProof<VH>) {
-        let value = self.get(key.borrow()).map(|value| S::serialize(&value));
-        let key = S::serialize(key.borrow());
-        let (value, proof) = self
-            .strategy
-            .get_with_proof(self.table_name.clone(), key, value)
-            .unwrap();
+    pub fn get_with_proof(&self, key: impl Borrow<K>) -> (Option<V>, Vec<u8>) {
+        let value = self
+            .get(key.borrow())
+            .map(|value| L::SerdeBackend::serialize(&value));
+        let key = L::SerdeBackend::serialize(key.borrow());
+        let (value, proof) = L::Strategy::get_with_proof::<B, L::SerdeBackend>(
+            self.tree_table,
+            self.table.clone(),
+            key.into(),
+            value.map(Into::into),
+        )
+        .unwrap();
 
-        let value = value.map(|value| S::deserialize::<V>(&value));
+        let value = value.map(|value| L::SerdeBackend::deserialize::<V>(value.as_bytes()));
         (value, proof)
     }
 

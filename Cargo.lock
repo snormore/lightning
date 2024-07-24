@@ -6585,6 +6585,7 @@ dependencies = [
  "atomo-merklized",
  "atomo-rocks",
  "better-shutdown",
+ "blake3",
  "blake3-tree",
  "bytes",
  "criterion",

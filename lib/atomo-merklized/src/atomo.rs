@@ -1,57 +1,25 @@
 use std::any::Any;
 use std::hash::Hash;
-use std::marker::PhantomData;
 
 use anyhow::Result;
-use atomo::{
-    Atomo,
-    DefaultSerdeBackend,
-    QueryPerm,
-    ResolvedTableReference,
-    SerdeBackend,
-    StorageBackend,
-    TableId,
-    UpdatePerm,
-};
+use atomo::{Atomo, QueryPerm, ResolvedTableReference, StorageBackend, TableId, UpdatePerm};
 use fxhash::FxHashMap;
-use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::jmt::JmtMerklizedStrategy;
 use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
-use crate::{KeccakHasher, MerklizedStrategy, MerklizedTableSelector, StateRootHash};
+use crate::{MerklizedLayout, MerklizedStrategy, MerklizedTableSelector, StateRootHash};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
-pub struct MerklizedAtomo<
-    P,
-    B: StorageBackend,
-    S: SerdeBackend = DefaultSerdeBackend,
-    // TODO(snormore): Move the hashers into a layout or in the strategy. We shouldn't be
-    // defaulting here.
-    KH: SimpleHasher = blake3::Hasher,
-    VH: SimpleHasher = KeccakHasher,
-    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
-> {
-    inner: Atomo<P, B, S>,
+pub struct MerklizedAtomo<P, B: StorageBackend, L: MerklizedLayout> {
+    inner: Atomo<P, B, L::SerdeBackend>,
     tree_table_name: String,
     table_name_by_id: FxHashMap<TableId, String>,
     table_id_by_name: FxHashMap<String, TableId>,
-    _phantom: PhantomData<(KH, VH)>,
 }
 
 /// Implement the `Clone` trait for `MerklizedAtomo<QueryPerm>`.
-impl<
-    B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
-> Clone for MerklizedAtomo<QueryPerm, B, S, KH, VH>
-where
-    B: StorageBackend,
-    S: SerdeBackend,
-{
+impl<B: StorageBackend, L: MerklizedLayout> Clone for MerklizedAtomo<QueryPerm, B, L> {
     fn clone(&self) -> Self {
         Self::new(
             self.inner.clone(),
@@ -61,17 +29,9 @@ where
     }
 }
 
-impl<
-    P,
-    B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
-> MerklizedAtomo<P, B, S, KH, VH>
-{
+impl<P, B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<P, B, L> {
     pub fn new(
-        inner: Atomo<P, B, S>,
+        inner: Atomo<P, B, L::SerdeBackend>,
         tree_table_name: String,
         table_id_by_name: FxHashMap<String, TableId>,
     ) -> Self {
@@ -85,12 +45,11 @@ impl<
             tree_table_name,
             table_name_by_id,
             table_id_by_name,
-            _phantom: PhantomData,
         }
     }
 
     /// Build and return a query reader for the data.
-    pub fn query(&self) -> MerklizedAtomo<QueryPerm, B, S, KH, VH> {
+    pub fn query(&self) -> MerklizedAtomo<QueryPerm, B, L> {
         MerklizedAtomo::new(
             self.inner.query(),
             self.tree_table_name.clone(),
@@ -108,34 +67,31 @@ impl<
     }
 }
 
-impl<
-    B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
-> MerklizedAtomo<UpdatePerm, B, S, KH, VH>
-{
+impl<B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<UpdatePerm, B, L> {
     /// Run an update on the data.
     pub fn run<F, R>(&mut self, mutation: F) -> R
     where
-        F: FnOnce(
-            &mut MerklizedTableSelector<B, S, KH, VH, JmtMerklizedStrategy<B, S, KH, VH>>,
-        ) -> R,
+        F: FnOnce(&mut MerklizedTableSelector<B, L>) -> R,
     {
         let tree_table_name = self.tree_table_name.clone();
         self.inner.run(|ctx| {
-            let tree_table =
+            let mut tree_table =
                 ctx.get_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(tree_table_name);
-            // TODO(snormore): Strategy builder should be passed in here instead of the
-            // implementation being hard coded.
-            // let strategy = X::build(tree_table);
-            let mut strategy = JmtMerklizedStrategy::new(tree_table, self.table_name_by_id.clone());
-            let mut ctx = MerklizedTableSelector::new(ctx, &strategy);
+            let mut ctx = MerklizedTableSelector::<'_, B, L>::new(ctx, &tree_table);
             let res = mutation(&mut ctx);
 
+            let current_changes = ctx.current_changes();
+
+            #[allow(clippy::drop_non_drop)]
+            drop(ctx);
+
             // TODO(snormore): Fix this unwrap.
-            strategy.apply_changes(ctx.current_changes()).unwrap();
+            L::Strategy::apply_changes::<B, L::SerdeBackend>(
+                &mut tree_table,
+                self.table_name_by_id.clone(),
+                current_changes,
+            )
+            .unwrap();
 
             res
         })
@@ -147,28 +103,17 @@ impl<
     }
 }
 
-impl<
-    B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
-    // X: MerklizedStrategy<B, S, KH, VH>,
-> MerklizedAtomo<QueryPerm, B, S, KH, VH>
-{
+impl<B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<QueryPerm, B, L> {
     /// Run a query on the database.
     pub fn run<F, R>(&self, query: F) -> R
     where
-        F: FnOnce(
-            &mut MerklizedTableSelector<B, S, KH, VH, JmtMerklizedStrategy<B, S, KH, VH>>,
-        ) -> R,
+        F: FnOnce(&mut MerklizedTableSelector<B, L>) -> R,
     {
         self.inner.run(|ctx| {
             let tree_table = ctx.get_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(
                 self.tree_table_name.clone(),
             );
-            // let strategy = X::build(tree_table);
-            let strategy = JmtMerklizedStrategy::new(tree_table, self.table_name_by_id.clone());
-            let mut ctx = MerklizedTableSelector::new(ctx, &strategy);
+            let mut ctx = MerklizedTableSelector::new(ctx, &tree_table);
             query(&mut ctx)
         })
     }

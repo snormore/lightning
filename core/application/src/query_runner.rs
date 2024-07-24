@@ -5,8 +5,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Result;
-use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, StateRootHash};
+use atomo::{KeyIterator, QueryPerm, ResolvedTableReference};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, MerklizedLayout, StateRootHash};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
@@ -39,8 +39,8 @@ use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
 #[derive(Clone)]
-pub struct QueryRunner {
-    inner: MerklizedAtomo<QueryPerm, AtomoStorage>,
+pub struct QueryRunner<L: MerklizedLayout> {
+    inner: MerklizedAtomo<QueryPerm, AtomoStorage, L>,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
     client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
@@ -63,10 +63,12 @@ pub struct QueryRunner {
     node_to_uri: ResolvedTableReference<NodeIndex, BTreeSet<Blake3Hash>>,
 }
 
-impl SyncQueryRunnerInterface for QueryRunner {
+impl<L: MerklizedLayout> SyncQueryRunnerInterface for QueryRunner<L> {
     type Backend = AtomoStorage;
 
-    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage>) -> Self {
+    type Layout = L;
+
+    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, Self::Layout>) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -97,15 +99,14 @@ impl SyncQueryRunnerInterface for QueryRunner {
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Backend>> {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
             .from_checkpoint(hash, checkpoint)
             .read_only();
 
-        let atomo = Self::register_tables(MerklizedAtomoBuilder::<
-            AtomoStorageBuilder,
-            DefaultSerdeBackend,
-        >::new(backend))
+        let atomo = Self::register_tables(
+            MerklizedAtomoBuilder::<AtomoStorageBuilder, Self::Layout>::new(backend),
+        )
         .build()?
         .query();
 
@@ -114,13 +115,12 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn atomo_from_path(
         path: impl AsRef<Path>,
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Backend>> {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
-        let atomo = Self::register_tables(MerklizedAtomoBuilder::<
-            AtomoStorageBuilder,
-            DefaultSerdeBackend,
-        >::new(backend))
+        let atomo = Self::register_tables(
+            MerklizedAtomoBuilder::<AtomoStorageBuilder, Self::Layout>::new(backend),
+        )
         .build()?
         .query();
 
