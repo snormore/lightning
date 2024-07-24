@@ -145,7 +145,7 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_metadata(&self, key: &lightning_types::Metadata) -> Option<Value>;
 
     /// Get the state root hash.
-    fn get_state_root(&self) -> StateRootHash;
+    fn get_state_root(&self) -> Result<StateRootHash>;
 
     /// Get a state proof for a given table and key.
     fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
