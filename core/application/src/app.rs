@@ -15,11 +15,11 @@ use crate::env::{Env, UpdateWorker};
 use crate::query_runner::QueryRunner;
 pub struct Application<C: Collection, L: MerklizedLayout = ApplicationLayout> {
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
-    query_runner: QueryRunner<L>,
+    query_runner: QueryRunner,
     _phantom: PhantomData<(C, L)>,
 }
 
-impl<C: Collection, L: MerklizedLayout> Application<C, L> {
+impl<C: Collection> Application<C> {
     /// Create a new instance of the application layer using the provided configuration.
     fn init(
         config: &C::ConfigProviderInterface,
@@ -43,7 +43,7 @@ impl<C: Collection, L: MerklizedLayout> Application<C, L> {
         }
 
         let query_runner = env.query_runner();
-        let worker = UpdateWorker::<C, L>::new(env, blockstore.clone());
+        let worker = UpdateWorker::<C>::new(env, blockstore.clone());
         let update_socket = spawn_worker!(worker, "APPLICATION", waiter, crucial);
 
         Ok(Self {
@@ -54,21 +54,21 @@ impl<C: Collection, L: MerklizedLayout> Application<C, L> {
     }
 }
 
-impl<C: Collection, L: MerklizedLayout> ConfigConsumer for Application<C, L> {
+impl<C: Collection> ConfigConsumer for Application<C> {
     const KEY: &'static str = "application";
 
     type Config = Config;
 }
 
-impl<C: Collection, L: MerklizedLayout> fdi::BuildGraph for Application<C, L> {
+impl<C: Collection> fdi::BuildGraph for Application<C> {
     fn build_graph() -> fdi::DependencyGraph {
         fdi::DependencyGraph::new().with(Self::init)
     }
 }
 
-impl<C: Collection, L: MerklizedLayout> ApplicationInterface<C> for Application<C, L> {
+impl<C: Collection> ApplicationInterface<C> for Application<C> {
     /// The type for the sync query executor.
-    type SyncExecutor = QueryRunner<L>;
+    type SyncExecutor = QueryRunner;
 
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
@@ -103,7 +103,7 @@ impl<C: Collection, L: MerklizedLayout> ApplicationInterface<C> for Application<
         let mut counter = 0;
 
         loop {
-            match Env::<_, _, L>::new(config, Some((checkpoint_hash, &checkpoint))) {
+            match Env::new(config, Some((checkpoint_hash, &checkpoint))) {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"

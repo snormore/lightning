@@ -31,7 +31,6 @@ use lightning_interfaces::types::{
     TotalServed,
     Value,
 };
-use lightning_interfaces::ApplicationLayout;
 use lightning_notifier::Notifier;
 use lightning_origin_demuxer::OriginDemuxer;
 use lightning_pool::PoolProvider;
@@ -84,7 +83,7 @@ impl TestNode {
     fn rpc(&self) -> fdi::Ref<Rpc<TestBinding>> {
         self.inner.provider.get()
     }
-    fn query_runner(&self) -> fdi::Ref<QueryRunner<ApplicationLayout>> {
+    fn query_runner(&self) -> fdi::Ref<QueryRunner> {
         self.inner.provider.get()
     }
 }
