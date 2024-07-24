@@ -8,7 +8,7 @@ use lightning_application::genesis::{Genesis, GenesisNode};
 use lightning_application::query_runner::QueryRunner;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{NodePorts, UpdateMethod, UpdatePayload, UpdateRequest};
-use lightning_interfaces::{ApplicationLayout, Weight};
+use lightning_interfaces::Weight;
 use lightning_notifier::Notifier;
 use lightning_signer::Signer;
 use lightning_test_utils::consensus::{
@@ -264,7 +264,7 @@ async fn test_submit_measurements() {
     .expect("failed to initialize node");
     node.start().await;
 
-    let query_runner: fdi::Ref<QueryRunner<ApplicationLayout>> = node.provider.get();
+    let query_runner: fdi::Ref<QueryRunner> = node.provider.get();
     let rep_reporter = node.provider.get::<MyReputationReporter>();
 
     // Report some measurements to the reputation aggregator.
@@ -437,7 +437,7 @@ async fn test_reputation_calculation_and_query() {
     )
     .expect("failed to initialize node");
     node2.start().await;
-    let query_runner: fdi::Ref<QueryRunner<ApplicationLayout>> = node2.provider.get();
+    let query_runner: fdi::Ref<QueryRunner> = node2.provider.get();
     let rep_reporter2 = node2.provider.get::<MyReputationReporter>();
 
     // Both nodes report measurements for two peers (alice and bob).

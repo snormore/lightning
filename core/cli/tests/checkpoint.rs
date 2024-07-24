@@ -26,7 +26,6 @@ use lightning_handshake::handshake::Handshake;
 use lightning_handshake::transports::webrtc::WebRtcConfig;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{HandshakePorts, NodePorts};
-use lightning_interfaces::ApplicationLayout;
 use lightning_keystore::{Keystore, KeystoreConfig};
 use lightning_pinger::{Config as PingerConfig, Pinger};
 use lightning_pool::{Config as PoolConfig, PoolProvider};
@@ -228,7 +227,7 @@ async fn node_checkpointing() -> Result<()> {
         db_options: None,
         dev: None,
     };
-    let mut env = Env::<_, _, ApplicationLayout>::new(&app_config_temp, None)?;
+    let mut env = Env::new(&app_config_temp, None)?;
     env.apply_genesis_block(&app_config_temp)?;
 
     let storage = env.inner.get_storage_backend_unsafe();

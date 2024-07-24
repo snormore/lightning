@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use atomo::{KeyIterator, QueryPerm, ResolvedTableReference};
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, MerklizedLayout, StateRootHash};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, StateRootHash};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
@@ -30,7 +30,7 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::SyncQueryRunnerInterface;
+use lightning_interfaces::{ApplicationLayout, SyncQueryRunnerInterface};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -39,8 +39,8 @@ use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
 #[derive(Clone)]
-pub struct QueryRunner<L: MerklizedLayout> {
-    inner: MerklizedAtomo<QueryPerm, AtomoStorage, L>,
+pub struct QueryRunner {
+    inner: MerklizedAtomo<QueryPerm, AtomoStorage, ApplicationLayout>,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
     client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
@@ -63,10 +63,10 @@ pub struct QueryRunner<L: MerklizedLayout> {
     node_to_uri: ResolvedTableReference<NodeIndex, BTreeSet<Blake3Hash>>,
 }
 
-impl<L: MerklizedLayout> SyncQueryRunnerInterface for QueryRunner<L> {
+impl SyncQueryRunnerInterface for QueryRunner {
     type Backend = AtomoStorage;
 
-    type Layout = L;
+    type Layout = ApplicationLayout;
 
     fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, Self::Layout>) -> Self {
         Self {
