@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use atomo_merklized::RootHash;
 use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
@@ -387,8 +388,7 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         Ok((sub_dag_index, self.data.query_runner.get_epoch_info().epoch))
     }
 
-    // TODO(snormore): This should return RootHash from atomo-merklized.
-    async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<[u8; 32]> {
+    async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<RootHash> {
         Ok(self.data.query_runner(epoch).await?.get_state_root())
     }
 

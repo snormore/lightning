@@ -5,10 +5,10 @@ use atomo::batch::{Operation, VerticalBatch};
 use atomo::{SerdeBackend, StorageBackend, TableId, TableRef};
 use fxhash::FxHashMap;
 use jmt::proof::SparseMerkleProof;
-use jmt::{RootHash, SimpleHasher};
+use jmt::SimpleHasher;
 
 use super::JmtTreeReader;
-use crate::{MerklizedStrategy, SerializedNodeKey, SerializedNodeValue, TableKey};
+use crate::{MerklizedStrategy, RootHash, SerializedNodeKey, SerializedNodeValue, TableKey};
 
 pub struct JmtMerklizedStrategy<
     'a,
@@ -52,7 +52,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
         let reader = JmtTreeReader::new(&self.tree_table);
         let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
 
-        tree.get_root_hash(0)
+        tree.get_root_hash(0).map(|hash| hash.0.into())
     }
 
     fn get_with_proof(

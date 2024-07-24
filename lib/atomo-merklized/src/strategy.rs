@@ -2,9 +2,9 @@ use anyhow::Result;
 use atomo::batch::VerticalBatch;
 use atomo::{SerdeBackend, StorageBackend, TableRef};
 use jmt::proof::SparseMerkleProof;
-use jmt::{RootHash, SimpleHasher};
+use jmt::SimpleHasher;
 
-use crate::{SerializedNodeKey, SerializedNodeValue};
+use crate::{RootHash, SerializedNodeKey, SerializedNodeValue};
 
 /// A strategy for a merklized atomo describing the configuration and architecture of the
 /// database-backed merkle state tree.

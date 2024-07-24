@@ -5,12 +5,17 @@ use std::marker::PhantomData;
 use anyhow::Result;
 use atomo::batch::VerticalBatch;
 use atomo::{SerdeBackend, StorageBackend, TableRef};
-use jmt::{RootHash, SimpleHasher};
+use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::jmt::JmtTreeReader;
-use crate::{MerklizedStrategy, MerklizedTableRef, SerializedNodeKey, SerializedNodeValue};
+use crate::{
+    MerklizedStrategy,
+    MerklizedTableRef,
+    RootHash,
+    SerializedNodeKey,
+    SerializedNodeValue,
+};
 
 pub struct MerklizedTableSelector<
     'a,
@@ -79,11 +84,7 @@ impl<
     }
 
     /// Return the state root hash of the state tree.
-    // TODO(snormore): This is leaking `jmt::RootHash`.`
     pub fn get_state_root(&self) -> Result<RootHash> {
-        let reader = JmtTreeReader::new(self.strategy.tree_table());
-        let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
-
-        tree.get_root_hash(0)
+        self.strategy.get_root_hash()
     }
 }

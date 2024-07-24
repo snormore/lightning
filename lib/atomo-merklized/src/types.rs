@@ -1,6 +1,48 @@
 use atomo::SerdeBackend;
+use fleek_crypto::hex_array;
 use jmt::{KeyHash, SimpleHasher};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+/// Root hash of the state tree.
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
+pub struct RootHash(
+    #[serde(
+        deserialize_with = "hex_array::deserialize",
+        serialize_with = "hex_array::serialize"
+    )]
+    [u8; 32],
+);
+
+impl From<[u8; 32]> for RootHash {
+    fn from(hash: [u8; 32]) -> Self {
+        Self(hash)
+    }
+}
+
+impl From<RootHash> for [u8; 32] {
+    fn from(hash: RootHash) -> Self {
+        hash.0
+    }
+}
+
+impl std::fmt::Display for RootHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            serde_json::to_string(&self).unwrap().trim_matches('"')
+        )
+    }
+}
+
+impl PartialEq<&str> for RootHash {
+    fn eq(&self, other: &&str) -> bool {
+        &self.to_string() == other
+    }
+}
 
 /// Serialized key of a node in the state tree.
 pub type SerializedNodeKey = Vec<u8>;
