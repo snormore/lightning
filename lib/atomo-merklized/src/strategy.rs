@@ -4,16 +4,17 @@ use atomo::{SerdeBackend, StorageBackend, TableRef};
 use jmt::proof::SparseMerkleProof;
 use jmt::SimpleHasher;
 
-use crate::{RootHash, SerializedNodeKey, SerializedNodeValue};
+use crate::{RootHash, SerializedTreeNodeKey, SerializedTreeNodeValue};
 
 /// A strategy for a merklized atomo describing the configuration and architecture of the
 /// database-backed merkle state tree.
 pub trait MerklizedStrategy<B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
 {
-    // fn build(tree_table: TableRef<SerializedNodeKey, SerializedNodeValue, B, S>) -> &Self;
+    // fn build(tree_table: TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>) ->
+    // &Self;
 
     /// Returns the `[atomo::TableRef]` for the state tree data.
-    fn tree_table(&self) -> &TableRef<SerializedNodeKey, SerializedNodeValue, B, S>;
+    fn tree_table(&self) -> &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>;
 
     /// Returns the root hash of the state tree.
     fn get_root_hash(&self) -> Result<RootHash>;

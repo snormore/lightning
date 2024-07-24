@@ -19,7 +19,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::jmt::JmtMerklizedStrategy;
-use crate::types::{SerializedNodeKey, SerializedNodeValue};
+use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
 use crate::{KeccakHasher, MerklizedStrategy, MerklizedTableSelector, RootHash};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
@@ -126,7 +126,7 @@ impl<
         let tree_table_name = self.tree_table_name.clone();
         self.inner.run(|ctx| {
             let tree_table =
-                ctx.get_table::<SerializedNodeKey, SerializedNodeValue>(tree_table_name);
+                ctx.get_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(tree_table_name);
             // TODO(snormore): Strategy builder should be passed in here instead of the
             // implementation being hard coded.
             // let strategy = X::build(tree_table);
@@ -164,7 +164,7 @@ impl<
     {
         self.inner.run(|ctx| {
             let tree_table = ctx
-                .get_table::<SerializedNodeKey, SerializedNodeValue>(self.tree_table_name.clone());
+                .get_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(self.tree_table_name.clone());
             // let strategy = X::build(tree_table);
             let strategy = JmtMerklizedStrategy::new(tree_table, self.table_name_by_id.clone());
             let mut ctx = MerklizedTableSelector::new(ctx, &strategy);

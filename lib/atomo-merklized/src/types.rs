@@ -47,10 +47,10 @@ impl PartialEq<&str> for RootHash {
 }
 
 /// Serialized key of a node in the state tree.
-pub type SerializedNodeKey = Vec<u8>;
+pub type SerializedTreeNodeKey = Vec<u8>;
 
 /// Serialized value of a node in the state tree.
-pub type SerializedNodeValue = Vec<u8>;
+pub type SerializedTreeNodeValue = Vec<u8>;
 
 /// Encapsulation of a value (leaf node) key in the state tree, including the state table name and
 /// entry key.
