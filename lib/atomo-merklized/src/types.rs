@@ -8,9 +8,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Root hash of the state tree.
-#[derive(
-    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct SimpleHash(
     #[serde(
         deserialize_with = "hex_array::deserialize",
@@ -48,13 +46,25 @@ impl PartialEq<&str> for SimpleHash {
     }
 }
 
+impl PartialEq<SimpleHash> for &str {
+    fn eq(&self, other: &SimpleHash) -> bool {
+        self == &other.to_string()
+    }
+}
+
 impl core::fmt::Display for SimpleHash {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
             "{}",
             serde_json::to_string(&self).unwrap().trim_matches('"')
         )
+    }
+}
+
+impl core::fmt::Debug for SimpleHash {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", serde_json::to_string(&self).unwrap())
     }
 }
 
