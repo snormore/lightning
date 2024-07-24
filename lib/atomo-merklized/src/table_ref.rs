@@ -4,11 +4,11 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use atomo::{KeyIterator, SerdeBackend, StorageBackend};
-use jmt::proof::SparseMerkleProof;
 use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::types::StateProof;
 use crate::MerklizedStrategy;
 
 pub struct MerklizedTableRef<
@@ -73,7 +73,7 @@ where
 
     /// Return the value associated with the provided key, along with a merkle proof of existence in
     /// the state tree. If the key doesn't exist in the table, [`None`] is returned.
-    pub fn get_with_proof(&self, key: impl Borrow<K>) -> (Option<V>, SparseMerkleProof<VH>) {
+    pub fn get_with_proof(&self, key: impl Borrow<K>) -> (Option<V>, StateProof<VH>) {
         let value = self.get(key.borrow()).map(|value| S::serialize(&value));
         let key = S::serialize(key.borrow());
         let (value, proof) = self

@@ -14,7 +14,7 @@ use atomo::{
     StorageBackend,
     StorageBackendConstructor,
 };
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, RootHash};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, StateRootHash};
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -145,10 +145,10 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_metadata(&self, key: &lightning_types::Metadata) -> Option<Value>;
 
     /// Get the state root hash.
-    fn get_state_root(&self) -> RootHash;
+    fn get_state_root(&self) -> StateRootHash;
 
     /// Get a state proof for a given table and key.
-    fn get_with_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
+    fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any;

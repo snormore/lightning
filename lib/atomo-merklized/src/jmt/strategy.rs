@@ -5,15 +5,15 @@ use atomo::batch::{Operation, VerticalBatch};
 use atomo::{SerdeBackend, StorageBackend, TableId, TableRef};
 use fxhash::FxHashMap;
 use jmt::proof::SparseMerkleProof;
-use jmt::SimpleHasher;
+use jmt::{KeyHash, SimpleHasher};
 
 use super::JmtTreeReader;
 use crate::{
     MerklizedStrategy,
-    RootHash,
     SerializedTreeNodeKey,
     SerializedTreeNodeValue,
-    TableKey,
+    StateKey,
+    StateRootHash,
 };
 
 pub struct JmtMerklizedStrategy<
@@ -54,7 +54,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
         &self.tree_table
     }
 
-    fn get_root_hash(&self) -> Result<RootHash> {
+    fn get_root_hash(&self) -> Result<StateRootHash> {
         let reader = JmtTreeReader::new(&self.tree_table);
         let tree = jmt::JellyfishMerkleTree::<_, VH>::new(&reader);
 
@@ -73,8 +73,8 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
 
         // Cache the value in the reader so it can be used when `get_with_proof` is called next,
         // which calls `get_value_option`, which needs the value mapping.
-        let key = TableKey { table, key };
-        let key_hash = key.hash::<S, KH>();
+        let key = StateKey { table, key };
+        let key_hash = KeyHash(key.hash::<S, KH>().into());
         if let Some(value) = value {
             reader.cache(key_hash, S::serialize(&value));
         }
@@ -95,14 +95,12 @@ impl<'a, B: StorageBackend, S: SerdeBackend, KH: SimpleHasher, VH: SimpleHasher>
             // println!("table {:?} changes {:?}", table_id, changes);
             let table_id: TableId = table_id.try_into().unwrap();
             for (key, operation) in changes.iter() {
-                let table_key = TableKey {
+                let table_key = StateKey {
                     // TODO(snormore): Fix this unwrap.
                     table: self.table_name_by_id.get(&table_id).unwrap().to_string(),
                     key: key.to_vec(),
                 };
-                let key_hash = table_key.hash::<S, KH>();
-
-                // println!("table key {:?} key_hash {:?}", table_key, key_hash);
+                let key_hash = KeyHash(table_key.hash::<S, KH>().into());
 
                 match operation {
                     Operation::Remove => {

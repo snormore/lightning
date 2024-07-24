@@ -20,7 +20,7 @@ use serde::Serialize;
 
 use crate::jmt::JmtMerklizedStrategy;
 use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
-use crate::{KeccakHasher, MerklizedStrategy, MerklizedTableSelector, RootHash};
+use crate::{KeccakHasher, MerklizedStrategy, MerklizedTableSelector, StateRootHash};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
 pub struct MerklizedAtomo<
@@ -163,8 +163,9 @@ impl<
         ) -> R,
     {
         self.inner.run(|ctx| {
-            let tree_table = ctx
-                .get_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(self.tree_table_name.clone());
+            let tree_table = ctx.get_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(
+                self.tree_table_name.clone(),
+            );
             // let strategy = X::build(tree_table);
             let strategy = JmtMerklizedStrategy::new(tree_table, self.table_name_by_id.clone());
             let mut ctx = MerklizedTableSelector::new(ctx, &strategy);
@@ -173,7 +174,7 @@ impl<
     }
 
     /// Return the state root hash of the state tree.
-    pub fn get_state_root(&self) -> Result<RootHash> {
+    pub fn get_state_root(&self) -> Result<StateRootHash> {
         self.run(|ctx| ctx.get_state_root())
     }
 }
