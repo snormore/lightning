@@ -1,40 +1,77 @@
+use std::any::Any;
+use std::hash::Hash;
 use std::marker::PhantomData;
 
-use atomo::{Atomo, SerdeBackend, StorageBackend, TableId, UpdatePerm};
+use anyhow::Result;
+use atomo::{
+    Atomo,
+    DefaultSerdeBackend,
+    QueryPerm,
+    ResolvedTableReference,
+    SerdeBackend,
+    StorageBackend,
+    TableId,
+    UpdatePerm,
+};
 use fxhash::FxHashMap;
-use jmt::SimpleHasher;
+use jmt::{RootHash, SimpleHasher};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::jmt::JmtMerklizedStrategy;
 use crate::types::{SerializedNodeKey, SerializedNodeValue};
-use crate::{MerklizedAtomoReader, MerklizedStrategy, MerklizedTableSelector};
+use crate::{KeccakHasher, MerklizedStrategy, MerklizedTableSelector};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
-pub struct MerklizedAtomoWriter<
+pub struct MerklizedAtomo<
+    P,
     B: StorageBackend,
-    S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
+    S: SerdeBackend = DefaultSerdeBackend,
+    // TODO(snormore): Move the hashers into a layout or in the strategy. We shouldn't be
+    // defaulting here.
+    KH: SimpleHasher = blake3::Hasher,
+    VH: SimpleHasher = KeccakHasher,
     // X: MerklizedAtomoStrategy<B, S, KH, VH>,
 > {
-    inner: Atomo<UpdatePerm, B, S>,
+    inner: Atomo<P, B, S>,
     tree_table_name: String,
     table_name_by_id: FxHashMap<TableId, String>,
+    table_id_by_name: FxHashMap<String, TableId>,
     _phantom: PhantomData<(KH, VH)>,
 }
 
+/// Implement the `Clone` trait for `MerklizedAtomo<QueryPerm>`.
 impl<
     B: StorageBackend,
     S: SerdeBackend,
     KH: SimpleHasher,
     VH: SimpleHasher,
     // X: MerklizedAtomoStrategy<B, S, KH, VH>,
-> MerklizedAtomoWriter<B, S, KH, VH>
+> Clone for MerklizedAtomo<QueryPerm, B, S, KH, VH>
 where
-    B: StorageBackend + Send + Sync,
-    S: SerdeBackend + Send + Sync,
+    B: StorageBackend,
+    S: SerdeBackend,
+{
+    fn clone(&self) -> Self {
+        Self::new(
+            self.inner.clone(),
+            self.tree_table_name.clone(),
+            self.table_id_by_name.clone(),
+        )
+    }
+}
+
+impl<
+    P,
+    B: StorageBackend,
+    S: SerdeBackend,
+    KH: SimpleHasher,
+    VH: SimpleHasher,
+    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
+> MerklizedAtomo<P, B, S, KH, VH>
 {
     pub fn new(
-        inner: Atomo<UpdatePerm, B, S>,
+        inner: Atomo<P, B, S>,
         tree_table_name: String,
         table_id_by_name: FxHashMap<String, TableId>,
     ) -> Self {
@@ -47,10 +84,38 @@ where
             inner,
             tree_table_name,
             table_name_by_id,
+            table_id_by_name,
             _phantom: PhantomData,
         }
     }
 
+    /// Build and return a query reader for the data.
+    pub fn query(&self) -> MerklizedAtomo<QueryPerm, B, S, KH, VH> {
+        MerklizedAtomo::new(
+            self.inner.query(),
+            self.tree_table_name.clone(),
+            self.table_id_by_name.clone(),
+        )
+    }
+
+    /// Resolve a table with the given name and key-value types.
+    pub fn resolve<K, V>(&self, name: impl AsRef<str>) -> ResolvedTableReference<K, V>
+    where
+        K: Hash + Eq + Serialize + DeserializeOwned + Any,
+        V: Serialize + DeserializeOwned + Any,
+    {
+        self.inner.resolve::<K, V>(name)
+    }
+}
+
+impl<
+    B: StorageBackend,
+    S: SerdeBackend,
+    KH: SimpleHasher,
+    VH: SimpleHasher,
+    // X: MerklizedAtomoStrategy<B, S, KH, VH>,
+> MerklizedAtomo<UpdatePerm, B, S, KH, VH>
+{
     /// Run an update on the data.
     pub fn run<F, R>(&mut self, mutation: F) -> R
     where
@@ -76,18 +141,41 @@ where
         })
     }
 
-    /// Build and return a query reader for the data.
-    pub fn query(&self) -> MerklizedAtomoReader<B, S, KH, VH> {
-        MerklizedAtomoReader::new(
-            self.inner.query(),
-            self.tree_table_name.clone(),
-            self.table_name_by_id.clone(),
-        )
-    }
-
     /// Return the internal storage backend.
     pub fn get_storage_backend_unsafe(&mut self) -> &B {
         self.inner.get_storage_backend_unsafe()
+    }
+}
+
+impl<
+    B: StorageBackend,
+    S: SerdeBackend,
+    KH: SimpleHasher,
+    VH: SimpleHasher,
+    // X: MerklizedStrategy<B, S, KH, VH>,
+> MerklizedAtomo<QueryPerm, B, S, KH, VH>
+{
+    /// Run a query on the database.
+    pub fn run<F, R>(&self, query: F) -> R
+    where
+        F: FnOnce(
+            &mut MerklizedTableSelector<B, S, KH, VH, JmtMerklizedStrategy<B, S, KH, VH>>,
+        ) -> R,
+    {
+        self.inner.run(|ctx| {
+            let tree_table = ctx
+                .get_table::<SerializedNodeKey, SerializedNodeValue>(self.tree_table_name.clone());
+            // let strategy = X::build(tree_table);
+            let strategy = JmtMerklizedStrategy::new(tree_table, self.table_name_by_id.clone());
+            let mut ctx = MerklizedTableSelector::new(ctx, &strategy);
+            query(&mut ctx)
+        })
+    }
+
+    /// Return the state root hash of the state tree.
+    // TODO(snormore): This is leaking `jmt::RootHash`.`
+    pub fn get_state_root(&self) -> Result<RootHash> {
+        self.run(|ctx| ctx.get_state_root())
     }
 }
 

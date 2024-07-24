@@ -33,9 +33,6 @@ impl<
     VH: SimpleHasher,
     X: MerklizedStrategy<B, S, KH, VH>,
 > MerklizedTableSelector<'a, B, S, KH, VH, X>
-where
-    B: StorageBackend + Send + Sync,
-    S: SerdeBackend + Send + Sync,
 {
     /// Create a new table selector.
     #[inline]
@@ -45,6 +42,12 @@ where
             strategy,
             _phantom: PhantomData,
         }
+    }
+
+    /// Returns the inner atomo table selector.
+    #[inline]
+    pub fn inner(&self) -> &'a atomo::TableSelector<B, S> {
+        self.inner
     }
 
     /// Returns the state tree table reference.

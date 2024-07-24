@@ -2,13 +2,13 @@ use std::any::Any;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor};
+use atomo::{AtomoBuilder, SerdeBackend, StorageBackendConstructor, UpdatePerm};
 use jmt::SimpleHasher;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::types::{SerializedNodeKey, SerializedNodeValue};
-use crate::MerklizedAtomoWriter;
+use crate::{KeccakHasher, MerklizedAtomo};
 
 const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
 
@@ -21,8 +21,10 @@ const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
 pub struct MerklizedAtomoBuilder<
     C: StorageBackendConstructor,
     S: SerdeBackend,
-    KH: SimpleHasher,
-    VH: SimpleHasher,
+    // TODO(snormore): Move the hashers into a layout or in the strategy. We shouldn't be
+    // defaulting here.
+    KH: SimpleHasher = blake3::Hasher,
+    VH: SimpleHasher = KeccakHasher,
     // X: MerklizedStrategy<C::Storage, S, KH, VH>,
 > {
     inner: AtomoBuilder<C, S>,
@@ -37,9 +39,6 @@ impl<
     VH: SimpleHasher,
     // X: MerklizedStrategy<C::Storage, S, KH, VH>,
 > MerklizedAtomoBuilder<C, S, KH, VH>
-where
-    C::Storage: StorageBackend + Send + Sync,
-    S: SerdeBackend + Send + Sync,
 {
     /// Create a new builder with the given storage backend constructor.
     pub fn new(constructor: C) -> Self {
@@ -82,7 +81,9 @@ where
     }
 
     /// Build and return a writer for the state tree.
-    pub fn build(self) -> Result<MerklizedAtomoWriter<C::Storage, S, KH, VH>, C::Error> {
+    // TODO(snormore): Remove this clippy allow.
+    #[allow(clippy::type_complexity)]
+    pub fn build(self) -> Result<MerklizedAtomo<UpdatePerm, C::Storage, S, KH, VH>, C::Error> {
         // TODO(snormore): Figure out a better way to get the table id by name.
         let table_id_by_name = self.inner.table_name_to_id();
         let atomo = self
@@ -91,7 +92,7 @@ where
             // TODO(snormore): No need to enable_iter on this table by default
             .enable_iter(&self.tree_table_name)
             .build()?;
-        Ok(MerklizedAtomoWriter::<C::Storage, S, KH, VH>::new(
+        Ok(MerklizedAtomo::<UpdatePerm, C::Storage, S, KH, VH>::new(
             atomo,
             self.tree_table_name,
             table_id_by_name,

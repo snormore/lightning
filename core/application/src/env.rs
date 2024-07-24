@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
-use atomo::{Atomo, AtomoBuilder, DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
+use atomo::{DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -45,7 +46,7 @@ use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
 pub struct Env<P, B: StorageBackend> {
-    pub inner: Atomo<P, B>,
+    pub inner: MerklizedAtomo<P, B, DefaultSerdeBackend>,
 }
 
 impl Env<UpdatePerm, AtomoStorage> {
@@ -83,7 +84,8 @@ impl Env<UpdatePerm, AtomoStorage> {
             StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
         };
 
-        let mut atomo = AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
+        let mut atomo =
+            MerklizedAtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
         atomo = atomo
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")
@@ -146,7 +148,7 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
         let response = self.inner.run(move |ctx| {
             // Create the app/execution environment
             let backend = StateTables {
-                table_selector: ctx,
+                table_selector: ctx.inner(),
             };
             let app = State::new(backend);
             let last_block_hash = app.get_block_hash();
@@ -470,7 +472,7 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
     pub fn update_last_epoch_hash(&mut self, state_hash: [u8; 32]) {
         self.inner.run(move |ctx| {
             let backend = StateTables {
-                table_selector: ctx,
+                table_selector: ctx.inner(),
             };
             let app = State::new(backend);
             app.set_last_epoch_hash(state_hash);

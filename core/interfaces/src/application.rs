@@ -5,8 +5,6 @@ use std::time::Duration;
 use affair::Socket;
 use anyhow::Result;
 use atomo::{
-    Atomo,
-    AtomoBuilder,
     InMemoryStorage,
     KeyIterator,
     QueryPerm,
@@ -14,6 +12,7 @@ use atomo::{
     StorageBackend,
     StorageBackendConstructor,
 };
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -101,19 +100,19 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     #[blank(InMemoryStorage)]
     type Backend: StorageBackend;
 
-    fn new(atomo: Atomo<QueryPerm, Self::Backend>) -> Self;
+    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Backend>) -> Self;
 
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> Result<Atomo<QueryPerm, Self::Backend>>;
+    ) -> Result<MerklizedAtomo<QueryPerm, Self::Backend>>;
 
-    fn atomo_from_path(path: impl AsRef<Path>) -> Result<Atomo<QueryPerm, Self::Backend>>;
+    fn atomo_from_path(path: impl AsRef<Path>) -> Result<MerklizedAtomo<QueryPerm, Self::Backend>>;
 
     fn register_tables<B: StorageBackendConstructor, S: SerdeBackend>(
-        builder: AtomoBuilder<B, S>,
-    ) -> AtomoBuilder<B, S> {
+        builder: MerklizedAtomoBuilder<B, S>,
+    ) -> MerklizedAtomoBuilder<B, S> {
         builder
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")

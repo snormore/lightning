@@ -2,14 +2,8 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Duration;
 
-use atomo::{
-    Atomo,
-    AtomoBuilder,
-    DefaultSerdeBackend,
-    KeyIterator,
-    QueryPerm,
-    ResolvedTableReference,
-};
+use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
@@ -41,7 +35,7 @@ use crate::table::StateTables;
 
 #[derive(Clone)]
 pub struct QueryRunner {
-    inner: Atomo<QueryPerm, AtomoStorage>,
+    inner: MerklizedAtomo<QueryPerm, AtomoStorage, DefaultSerdeBackend>,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
     client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
@@ -67,7 +61,7 @@ pub struct QueryRunner {
 impl SyncQueryRunnerInterface for QueryRunner {
     type Backend = AtomoStorage;
 
-    fn new(atomo: Atomo<QueryPerm, AtomoStorage>) -> Self {
+    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, DefaultSerdeBackend>) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -98,26 +92,30 @@ impl SyncQueryRunnerInterface for QueryRunner {
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Backend>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
             .from_checkpoint(hash, checkpoint)
             .read_only();
 
-        let atomo = Self::register_tables(
-            AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(backend),
-        )
+        let atomo = Self::register_tables(MerklizedAtomoBuilder::<
+            AtomoStorageBuilder,
+            DefaultSerdeBackend,
+        >::new(backend))
         .build()?
         .query();
 
         Ok(atomo)
     }
 
-    fn atomo_from_path(path: impl AsRef<Path>) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
+    fn atomo_from_path(
+        path: impl AsRef<Path>,
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Backend>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
-        let atomo = Self::register_tables(
-            AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(backend),
-        )
+        let atomo = Self::register_tables(MerklizedAtomoBuilder::<
+            AtomoStorageBuilder,
+            DefaultSerdeBackend,
+        >::new(backend))
         .build()?
         .query();
 
@@ -125,7 +123,8 @@ impl SyncQueryRunnerInterface for QueryRunner {
     }
 
     fn get_metadata(&self, key: &Metadata) -> Option<Value> {
-        self.inner.run(|ctx| self.metadata_table.get(ctx).get(key))
+        self.inner
+            .run(|ctx| self.metadata_table.get(ctx.inner()).get(key))
     }
 
     #[inline]
@@ -135,13 +134,13 @@ impl SyncQueryRunnerInterface for QueryRunner {
         selector: impl FnOnce(AccountInfo) -> V,
     ) -> Option<V> {
         self.inner
-            .run(|ctx| self.account_table.get(ctx).get(address))
+            .run(|ctx| self.account_table.get(ctx.inner()).get(address))
             .map(selector)
     }
 
     fn client_key_to_account_key(&self, pub_key: &ClientPublicKey) -> Option<EthAddress> {
         self.inner
-            .run(|ctx| self.client_table.get(ctx).get(pub_key))
+            .run(|ctx| self.client_table.get(ctx.inner()).get(pub_key))
     }
 
     #[inline]
@@ -151,19 +150,19 @@ impl SyncQueryRunnerInterface for QueryRunner {
         selector: impl FnOnce(NodeInfo) -> V,
     ) -> Option<V> {
         self.inner
-            .run(|ctx| self.node_table.get(ctx).get(node))
+            .run(|ctx| self.node_table.get(ctx.inner()).get(node))
             .map(selector)
     }
 
     #[inline]
     fn get_node_table_iter<V>(&self, closure: impl FnOnce(KeyIterator<NodeIndex>) -> V) -> V {
         self.inner
-            .run(|ctx| closure(self.node_table.get(ctx).keys()))
+            .run(|ctx| closure(self.node_table.get(ctx.inner()).keys()))
     }
 
     fn pubkey_to_index(&self, pub_key: &NodePublicKey) -> Option<NodeIndex> {
         self.inner
-            .run(|ctx| self.pub_key_to_index.get(ctx).get(pub_key))
+            .run(|ctx| self.pub_key_to_index.get(ctx.inner()).get(pub_key))
     }
 
     #[inline]
@@ -173,21 +172,23 @@ impl SyncQueryRunnerInterface for QueryRunner {
         selector: impl FnOnce(Committee) -> V,
     ) -> Option<V> {
         self.inner
-            .run(|ctx| self.committee_table.get(ctx).get(epoch))
+            .run(|ctx| self.committee_table.get(ctx.inner()).get(epoch))
             .map(selector)
     }
 
     fn get_service_info(&self, id: &ServiceId) -> Option<Service> {
-        self.inner.run(|ctx| self.services_table.get(ctx).get(id))
+        self.inner
+            .run(|ctx| self.services_table.get(ctx.inner()).get(id))
     }
 
     fn get_protocol_param(&self, param: &ProtocolParams) -> Option<u128> {
-        self.inner.run(|ctx| self.param_table.get(ctx).get(param))
+        self.inner
+            .run(|ctx| self.param_table.get(ctx.inner()).get(param))
     }
 
     fn get_current_epoch_served(&self, node: &NodeIndex) -> Option<NodeServed> {
         self.inner
-            .run(|ctx| self.current_epoch_served.get(ctx).get(node))
+            .run(|ctx| self.current_epoch_served.get(ctx.inner()).get(node))
     }
 
     fn get_reputation_measurements(
@@ -195,11 +196,12 @@ impl SyncQueryRunnerInterface for QueryRunner {
         node: &NodeIndex,
     ) -> Option<Vec<ReportedReputationMeasurements>> {
         self.inner
-            .run(|ctx| self.rep_measurements.get(ctx).get(node))
+            .run(|ctx| self.rep_measurements.get(ctx.inner()).get(node))
     }
 
     fn get_latencies(&self, nodes: &(NodeIndex, NodeIndex)) -> Option<Duration> {
-        self.inner.run(|ctx| self.latencies.get(ctx).get(nodes))
+        self.inner
+            .run(|ctx| self.latencies.get(ctx.inner()).get(nodes))
     }
 
     fn get_latencies_iter<V>(
@@ -207,21 +209,22 @@ impl SyncQueryRunnerInterface for QueryRunner {
         closure: impl FnOnce(KeyIterator<(NodeIndex, NodeIndex)>) -> V,
     ) -> V {
         self.inner
-            .run(|ctx| closure(self.latencies.get(ctx).keys()))
+            .run(|ctx| closure(self.latencies.get(ctx.inner()).keys()))
     }
 
     fn get_reputation_score(&self, node: &NodeIndex) -> Option<u8> {
-        self.inner.run(|ctx| self.rep_scores.get(ctx).get(node))
+        self.inner
+            .run(|ctx| self.rep_scores.get(ctx.inner()).get(node))
     }
 
     fn get_total_served(&self, epoch: &Epoch) -> Option<TotalServed> {
         self.inner
-            .run(|ctx| self.total_served_table.get(ctx).get(epoch))
+            .run(|ctx| self.total_served_table.get(ctx.inner()).get(epoch))
     }
 
     fn has_executed_digest(&self, digest: [u8; 32]) -> bool {
         self.inner
-            .run(|ctx| self.executed_digests_table.get(ctx).get(digest))
+            .run(|ctx| self.executed_digests_table.get(ctx.inner()).get(digest))
             .is_some()
     }
 
@@ -233,7 +236,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
         self.inner.run(|ctx| {
             // Create the app/execution environment
             let backend = StateTables {
-                table_selector: ctx,
+                table_selector: ctx.inner(),
             };
             let app = State::new(backend);
             app.execute_transaction(txn)
@@ -242,15 +245,16 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn get_node_uptime(&self, node_index: &NodeIndex) -> Option<u8> {
         self.inner
-            .run(|ctx| self.uptime_table.get(ctx).get(node_index))
+            .run(|ctx| self.uptime_table.get(ctx.inner()).get(node_index))
     }
 
     fn get_uri_providers(&self, uri: &Blake3Hash) -> Option<BTreeSet<NodeIndex>> {
-        self.inner.run(|ctx| self.uri_to_node.get(ctx).get(uri))
+        self.inner
+            .run(|ctx| self.uri_to_node.get(ctx.inner()).get(uri))
     }
 
     fn get_content_registry(&self, node_index: &NodeIndex) -> Option<BTreeSet<Blake3Hash>> {
         self.inner
-            .run(|ctx| self.node_to_uri.get(ctx).get(node_index))
+            .run(|ctx| self.node_to_uri.get(ctx.inner()).get(node_index))
     }
 }
