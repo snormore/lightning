@@ -1,11 +1,10 @@
 [package]
 name = "atomo-merklized-jmt"
-version.workspace = true
 edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-atomo = { path = "../atomo" }
+atomo.workspace = true
 atomo-merklized = { path = "../atomo-merklized" }
-fxhash = "0.2.1"
+fxhash.workspace = true
 jmt = "0.10.0"

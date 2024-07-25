@@ -1,20 +1,18 @@
 [package]
 name = "atomo-merklized"
-version.workspace = true
 edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-atomo = { path = "../atomo" }
-fxhash = "0.2.1"
+atomo.workspace = true
+fxhash.workspace = true
+hex.workspace = true
 jmt = "0.10.0"
 serde.workspace = true
 serde_json.workspace = true
-tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 schemars.workspace = true
-hex = { version = "0.4.3", features = ["serde"] }
+tiny-keccak.workspace = true
 
 [dev-dependencies]
 atomo-merklized-jmt = { path = "../atomo-merklized-jmt" }
-blake3 = { version = "1.5.3", features = ["std", "traits-preview"] }
-hex = "0.4.3"
+blake3.workspace = true
