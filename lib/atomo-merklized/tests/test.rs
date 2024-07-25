@@ -41,7 +41,7 @@ fn test_atomo() {
         let root_hash = reader.get_state_root().unwrap();
         assert_eq!(
             root_hash,
-            "0xf3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
+            "f3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
         );
 
         // Check data in storage.
@@ -76,7 +76,7 @@ fn test_atomo() {
             let root_hash = ctx.get_state_root().unwrap();
             assert_eq!(
                 root_hash,
-                "0xf3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
+                "f3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
             );
 
             // Check tree table key count.
@@ -120,7 +120,7 @@ fn test_atomo() {
         let root_hash = reader.get_state_root().unwrap();
         assert_eq!(
             root_hash,
-            "0x24d94d1ec858e9d3cd043683777ce9f345fe9c121fdee0727c1d9bfa7dd17e99",
+            "24d94d1ec858e9d3cd043683777ce9f345fe9c121fdee0727c1d9bfa7dd17e99",
         );
 
         // Check data in storage.
@@ -153,7 +153,7 @@ fn test_atomo() {
         let root_hash = reader.get_state_root().unwrap();
         assert_eq!(
             root_hash,
-            "0xefe212a8ae9804fd99841fd1c7ead73a8e1d8856174c5a6de1c6bee8b6c74a64",
+            "efe212a8ae9804fd99841fd1c7ead73a8e1d8856174c5a6de1c6bee8b6c74a64",
         );
 
         // Check data in storage.

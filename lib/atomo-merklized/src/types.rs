@@ -1,27 +1,31 @@
 use atomo::SerdeBackend;
-// TODO(snormore): Move `hex_array` to a separate, common crate, like utils, and use it here
-// instead of dependending on `fleek-crypto` (and remove the dependency from `Cargo.toml`).
-use fleek_crypto::hex_array;
 use jmt::proof::SparseMerkleProof;
 use jmt::SimpleHasher;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Root hash of the state tree.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
-pub struct SimpleHash(
-    #[serde(
-        deserialize_with = "hex_array::deserialize",
-        serialize_with = "hex_array::serialize"
-    )]
-    [u8; 32],
-);
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
+pub struct SimpleHash([u8; 32]);
+
+impl serde::Serialize for SimpleHash {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        hex::serde::serialize(self.0, serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SimpleHash {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        hex::serde::deserialize(deserializer).map(SimpleHash)
+    }
+}
 
 impl SimpleHash {
     pub fn build<H: SimpleHasher>(key: impl AsRef<[u8]>) -> Self {
         Self(H::hash(key.as_ref()))
     }
 }
+
 impl From<[u8; 32]> for SimpleHash {
     fn from(hash: [u8; 32]) -> Self {
         Self(hash)
@@ -54,17 +58,13 @@ impl PartialEq<SimpleHash> for &str {
 
 impl core::fmt::Display for SimpleHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            serde_json::to_string(&self).unwrap().trim_matches('"')
-        )
+        f.write_str(serde_json::to_string(&self).unwrap().trim_matches('"'))
     }
 }
 
 impl core::fmt::Debug for SimpleHash {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", serde_json::to_string(&self).unwrap())
+        f.write_str(serde_json::to_string(&self).unwrap().as_str())
     }
 }
 
