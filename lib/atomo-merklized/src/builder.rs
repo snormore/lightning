@@ -1,7 +1,8 @@
 use std::any::Any;
 use std::hash::Hash;
 
-use atomo::{AtomoBuilder, StorageBackendConstructor, UpdatePerm};
+use atomo::{AtomoBuilder, StorageBackendConstructor, TableIndex, UpdatePerm};
+use fxhash::FxHashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -63,15 +64,21 @@ impl<C: StorageBackendConstructor, L: MerklizedLayout> MerklizedAtomoBuilder<C, 
 
     /// Build and return a writer for the state tree.
     pub fn build(self) -> Result<MerklizedAtomo<UpdatePerm, C::Storage, L>, C::Error> {
-        // TODO(snormore): Figure out a better way to get the table id by name.
-        let table_id_by_name = self.inner.table_name_to_id();
         let atomo = self
             .inner
             .with_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(&self.tree_table_name)
-            // TODO(snormore): No need to enable_iter on this table by default, it's just used in a
-            // test right now
+            // TODO(snormore): This `enable_iter` is unecessary and is only here for testing right
+            // now. It should be removed.
             .enable_iter(&self.tree_table_name)
             .build()?;
+
+        let tables = atomo.tables();
+        let mut table_id_by_name = FxHashMap::default();
+        for (i, table) in tables.iter().enumerate() {
+            let table_id: TableIndex = i.try_into().unwrap();
+            table_id_by_name.insert(table._name.to_string(), table_id);
+        }
+
         Ok(MerklizedAtomo::new(
             atomo,
             self.tree_table_name,

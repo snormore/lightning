@@ -196,6 +196,8 @@ pub trait FleekApi {
         key: Vec<u8>,
         epoch: Option<u64>,
     ) -> RpcResult<(Option<Vec<u8>>, Vec<u8>)>;
+    // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
+    // ics23 proof.
 
     #[method(name = "send_txn")]
     async fn send_txn(&self, tx: TransactionRequest) -> RpcResult<()>;

@@ -141,6 +141,8 @@ impl SyncQueryRunnerInterface for QueryRunner {
         self.inner.get_state_root()
     }
 
+    // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
+    // ics23 proof.
     fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
@@ -148,11 +150,9 @@ impl SyncQueryRunnerInterface for QueryRunner {
     {
         self.inner.run(|ctx| {
             let table = ctx.get_table::<K, V>(table);
-            let (value, _proof) = table.get_with_proof(key);
-            // TODO(snormore): Make get_with_proof return something we can return in the result.
-            Ok((value, Vec::new()))
+            let (value, proof) = table.get_with_proof(key);
+            Ok((value, proof))
         })
-        // .map_err(Into::into)
     }
 
     #[inline]

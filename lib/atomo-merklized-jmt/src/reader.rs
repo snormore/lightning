@@ -34,9 +34,6 @@ where
     S: SerdeBackend,
 {
     fn get_node_option(&self, node_key: &NodeKey) -> Result<Option<Node>> {
-        // TODO(snormore): This is unecessarily/redundantly serializing. Instead, we should pass
-        // in a key type that implements Serialize, because internally it serializes the key
-        // again.
         let key = S::serialize(node_key);
         let value = self.tree_table.get(key);
         match value {

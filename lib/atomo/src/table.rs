@@ -17,6 +17,7 @@ use crate::serder::SerdeBackend;
 use crate::snapshot::Snapshot;
 use crate::{KeyIterator, StorageBackend};
 
+#[derive(Clone)]
 pub struct TableMeta {
     pub _name: String,
     pub k_id: TypeId,
@@ -123,7 +124,7 @@ impl<B: StorageBackend, S: SerdeBackend> TableSelector<B, S> {
     }
 
     #[inline]
-    pub fn current_changes(&self) -> VerticalBatch {
+    pub fn batch(&self) -> VerticalBatch {
         self.batch.clone()
     }
 
