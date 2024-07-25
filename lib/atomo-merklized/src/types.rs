@@ -1,6 +1,4 @@
 use atomo::SerdeBackend;
-use jmt::proof::SparseMerkleProof;
-use jmt::SimpleHasher;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +22,8 @@ impl<'de> serde::Deserialize<'de> for SimpleHash {
 
 impl SimpleHash {
     /// Build and return a new `SimpleHash` by hashing the given key.
-    pub fn build<H: SimpleHasher>(key: impl AsRef<[u8]>) -> Self {
+    /// TODO: This is leaking `jmt::SimpleHasher`.
+    pub fn build<H: jmt::SimpleHasher>(key: impl AsRef<[u8]>) -> Self {
         Self(H::hash(key.as_ref()))
     }
 }
@@ -158,13 +157,14 @@ impl StateKey {
     }
 
     /// Build and return a hash for the state key.
-    pub fn hash<S: SerdeBackend, H: SimpleHasher>(&self) -> StateKeyHash {
+    /// TODO: This is leaking `jmt::SimpleHasher`.
+    pub fn hash<S: SerdeBackend, H: jmt::SimpleHasher>(&self) -> StateKeyHash {
         StateKeyHash::build::<H>(S::serialize(&self))
     }
 }
 
-// TODO(snormore): Define our own type for this instead of leaking the JMT type.
-pub type StateProof<VH> = SparseMerkleProof<VH>;
+// TODO(snormore): This is leaking `jmt::proof::SparseMerkleProof`.
+pub type StateProof<VH> = jmt::proof::SparseMerkleProof<VH>;
 
 /// A table in the state database.
 #[derive(Debug, Clone)]

@@ -20,7 +20,6 @@ use crate::{
 /// A merklized atomo, that can be used to query and update tables. It wraps an atomo instance and
 /// a reference to the state tree table. It is parameterized by the permission type, which can be
 /// either `UpdatePerm` or `QueryPerm`.
-// TODO(snormore): This is leaking `jmt::SimpleHasher`.
 pub struct MerklizedAtomo<P, B: StorageBackend, L: MerklizedLayout> {
     inner: Atomo<P, B, L::SerdeBackend>,
     tree_table_name: String,
