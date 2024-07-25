@@ -16,7 +16,6 @@ fn test_atomo() {
 
     let storage = InMemoryStorage::default();
     let mut db = MerklizedAtomoBuilder::<InMemoryStorage, TestLayout>::new(storage)
-        // TODO(snormore): Should the following happen internally to the StateTable implementation?
         .with_table::<String, String>("data")
         .enable_iter("data")
         .with_table::<u8, u8>("other")
@@ -29,7 +28,6 @@ fn test_atomo() {
     // Insert initial data.
     {
         db.run(|ctx: _| {
-            // TODO(snormore): Encapsulate this in a state table trait method `get_table_reference`.
             let mut data_table = ctx.get_table::<String, String>("data");
 
             for i in 1..=data_insert_count {
@@ -52,8 +50,6 @@ fn test_atomo() {
             let keys = storage.keys(data_table_id);
             assert_eq!(keys.len(), data_insert_count);
 
-            // TODO(snormore): Can we get this table index via the table ref instead of indirectly
-            // inferring it?
             let tree_table_id = 2;
             let keys = storage.keys(tree_table_id);
             assert_eq!(keys.len(), 12);
@@ -89,6 +85,7 @@ fn test_atomo() {
                 let (value, _proof) = data_table.get_with_proof(format!("key{i}"));
                 assert_eq!(value, Some(format!("value{i}")));
 
+                // TODO(snormore): Test proof verification here.
                 // TODO(snormore): Make our own proof type and avoid constructing a keyhash out
                 // here. let key_hash = StateTable::new("data".to_string())
                 //     .key(DefaultSerdeBackend::serialize(&format!("key{i}").as_bytes().to_vec()).

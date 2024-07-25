@@ -68,12 +68,14 @@ where
 
     /// Return the value associated with the provided key, along with a merkle proof of existence in
     /// the state tree. If the key doesn't exist in the table, [`None`] is returned.
+    // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
+    // ics23 proof.
     pub fn get_with_proof(&self, key: impl Borrow<K>) -> (Option<V>, Vec<u8>) {
         let value = self
             .get(key.borrow())
             .map(|value| L::SerdeBackend::serialize(&value));
         let key = L::SerdeBackend::serialize(key.borrow());
-        let (value, proof) = L::Strategy::get_with_proof::<B, L::SerdeBackend>(
+        let (value, proof) = L::Strategy::get_proof::<B, L::SerdeBackend>(
             self.tree_table,
             self.table.clone(),
             key.into(),

@@ -170,6 +170,8 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_state_root(&self) -> Result<StateRootHash>;
 
     /// Get a state proof for a given table and key.
+    // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
+    // ics23 proof.
     fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,

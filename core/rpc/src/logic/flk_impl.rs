@@ -403,9 +403,10 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         key: Vec<u8>,
         epoch: Option<u64>,
     ) -> RpcResult<(Option<Vec<u8>>, Vec<u8>)> {
-        // TODO(snormore): So we do we get generic bytes for the value here? Is the key just
-        // interpreted as bytes? Can we do better using an enum for table that maps to
-        // specific <K, V>?
+        // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
+        // ics23 proof.
+        // TODO(snormore): Can we do something better than Vec<u8> bytes for the key and returned
+        // value?
         Ok(self
             .data
             .query_runner(epoch)

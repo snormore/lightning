@@ -90,16 +90,15 @@ impl<B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<UpdatePerm, B, L> {
             let mut ctx = MerklizedTableSelector::<'_, B, L>::new(ctx, &tree_table);
             let res = mutation(&mut ctx);
 
-            let current_changes = ctx.current_changes();
+            let batch = ctx.batch();
 
             #[allow(clippy::drop_non_drop)]
             drop(ctx);
 
-            // TODO(snormore): Fix this unwrap.
             L::Strategy::apply_changes::<B, L::SerdeBackend>(
                 &mut tree_table,
                 self.table_name_by_id.clone(),
-                current_changes,
+                batch,
             )
             .unwrap();
 

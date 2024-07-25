@@ -55,8 +55,8 @@ impl<'a, B: StorageBackend, L: MerklizedLayout> MerklizedTableSelector<'a, B, L>
 
     /// Returns the current changes in the batch.
     #[inline]
-    pub fn current_changes(&self) -> VerticalBatch {
-        self.inner.current_changes()
+    pub fn batch(&self) -> VerticalBatch {
+        self.inner.batch()
     }
 
     /// Return the table reference for the table with the provided name and K, V type.
@@ -74,6 +74,6 @@ impl<'a, B: StorageBackend, L: MerklizedLayout> MerklizedTableSelector<'a, B, L>
 
     /// Return the state root hash of the state tree.
     pub fn get_state_root(&self) -> Result<StateRootHash> {
-        L::Strategy::get_root_hash::<B, L::SerdeBackend>(self.tree_table)
+        L::Strategy::get_root::<B, L::SerdeBackend>(self.tree_table)
     }
 }

@@ -9,7 +9,7 @@ use serde::Serialize;
 use crate::inner::AtomoInner;
 use crate::serder::SerdeBackend;
 use crate::storage::{InMemoryStorage, StorageBackend};
-use crate::table::{ResolvedTableReference, TableSelector};
+use crate::table::{ResolvedTableReference, TableMeta, TableSelector};
 use crate::DefaultSerdeBackend;
 
 /// The id of a table. Currently we are limited to 256 tables which is something
@@ -75,6 +75,11 @@ impl<O, B: StorageBackend, S: SerdeBackend> Atomo<O, B, S> {
         V: Serialize + DeserializeOwned + Any,
     {
         self.inner.resolve::<K, V>(name)
+    }
+
+    /// Returns metadata for the tables that are currently open in the database.
+    pub fn tables(&self) -> Vec<TableMeta> {
+        self.inner.tables.clone()
     }
 }
 
