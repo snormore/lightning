@@ -5,6 +5,7 @@ use tiny_keccak::{Hasher, Keccak};
 #[derive(Clone)]
 pub struct KeccakHasher(Keccak);
 
+/// TODO: This is leaking `jmt::SimpleHasher`.
 impl SimpleHasher for KeccakHasher {
     fn new() -> Self {
         KeccakHasher(Keccak::v256())
