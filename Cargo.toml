@@ -69,6 +69,11 @@ tempfile = "3.10.1"
 hyper = { version = "0.14.27", features = ["server", "full"] }
 tower = { version = "0.4.13", features = ["tokio", "steer"] }
 
+blake3 = { version = "1.5", features = ["traits-preview"] }
+fxhash = "0.2"
+hex = { version = "0.4.3", features = ["serde"] }
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+
 # Our libraries
 lightning-types = { path = "core/types" }
 affair = { path = "lib/affair" }
