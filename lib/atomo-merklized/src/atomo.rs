@@ -17,6 +17,9 @@ use crate::{
     StateTable,
 };
 
+/// A merklized atomo, that can be used to query and update tables. It wraps an atomo instance and
+/// a reference to the state tree table. It is parameterized by the permission type, which can be
+/// either `UpdatePerm` or `QueryPerm`.
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
 pub struct MerklizedAtomo<P, B: StorageBackend, L: MerklizedLayout> {
     inner: Atomo<P, B, L::SerdeBackend>,
@@ -25,7 +28,6 @@ pub struct MerklizedAtomo<P, B: StorageBackend, L: MerklizedLayout> {
     table_id_by_name: FxHashMap<String, TableIndex>,
 }
 
-/// Implement the `Clone` trait for `MerklizedAtomo<QueryPerm>`.
 impl<B: StorageBackend, L: MerklizedLayout> Clone for MerklizedAtomo<QueryPerm, B, L> {
     fn clone(&self) -> Self {
         Self::new(
@@ -37,6 +39,7 @@ impl<B: StorageBackend, L: MerklizedLayout> Clone for MerklizedAtomo<QueryPerm, 
 }
 
 impl<P, B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<P, B, L> {
+    /// Create a new merklized atomo.
     pub fn new(
         inner: Atomo<P, B, L::SerdeBackend>,
         tree_table_name: String,
@@ -56,6 +59,7 @@ impl<P, B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<P, B, L> {
     }
 
     /// Build and return a query reader for the data.
+    #[inline]
     pub fn query(&self) -> MerklizedAtomo<QueryPerm, B, L> {
         MerklizedAtomo::new(
             self.inner.query(),
@@ -65,6 +69,7 @@ impl<P, B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<P, B, L> {
     }
 
     /// Resolve a table with the given name and key-value types.
+    #[inline]
     pub fn resolve<K, V>(&self, name: impl AsRef<str>) -> MerklizedResolvedTableReference<K, V>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
@@ -128,48 +133,8 @@ impl<B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<QueryPerm, B, L> {
     }
 
     /// Return the state root hash of the state tree.
+    #[inline]
     pub fn get_state_root(&self) -> Result<StateRootHash> {
         self.run(|ctx| ctx.get_state_root())
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use atomo::{InMemoryStorage, StorageBackendConstructor};
-
-//     use super::*;
-//     use crate::keccak::KeccakHasher;
-
-//     #[test]
-//     fn test_commit() {
-//         type KeyHasher = blake3::Hasher;
-//         type ValueHasher = KeccakHasher;
-
-//         let mut storage = InMemoryStorage::default();
-//         let data_table_id = storage.open_table("data".to_string());
-//         let tree_table_id = storage.open_table("tree".to_string());
-//         let storage = Arc::new(storage);
-
-//         let writer =
-//             MerklizedAtomoWriter::<_, KeyHasher, ValueHasher>::new(storage.clone(),
-// "tree".to_string());
-
-//         let mut batch = VerticalBatch::new(2);
-//         let insert_count = 10;
-//         for i in 1..=insert_count {
-//             batch.insert(
-//                 data_table_id,
-//                 format!("key{i}").as_bytes().to_vec().into(),
-//                 Operation::Insert(format!("value{i}").as_bytes().to_vec().into()),
-//             );
-//         }
-
-//         // writer.commit(batch);
-
-//         let keys = storage.keys(data_table_id);
-//         assert_eq!(keys.len(), insert_count);
-
-//         let keys = storage.keys(tree_table_id);
-//         assert_eq!(keys.len(), 12);
-//     }
-// }

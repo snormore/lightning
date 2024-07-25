@@ -9,6 +9,10 @@ use serde::Serialize;
 use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
 use crate::{MerklizedAtomo, MerklizedLayout};
 
+/// The default name of the table that stores the state tree. The use of `%` as a prefix is a
+/// convention to indicate that this is a special table, but otherwise it is just a regular table,
+/// with no special treatment, except that it is used to store the state tree alongside the rest of
+/// the state.
 const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
 
 /// This is a builder of `[crate::MerklizedAtomoWriter]` and `[crate::MerklizedAtomoReader]`
@@ -33,6 +37,7 @@ impl<C: StorageBackendConstructor, L: MerklizedLayout> MerklizedAtomoBuilder<C, 
 
     /// Open a new table with the given name and key-value type.
     /// This is a pass-through to `[atomo::AtomoBuilder::with_table]`.
+    #[inline]
     pub fn with_table<K, V>(self, table: impl ToString) -> Self
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
@@ -46,6 +51,7 @@ impl<C: StorageBackendConstructor, L: MerklizedLayout> MerklizedAtomoBuilder<C, 
 
     /// Enable key iteration on the table with the given name.
     /// This is a pass-through to `[atomo::AtomoBuilder::enable_iter]`.
+    #[inline]
     pub fn enable_iter(self, table: impl ToString) -> Self {
         Self {
             inner: self.inner.enable_iter(&table.to_string()),
@@ -55,6 +61,7 @@ impl<C: StorageBackendConstructor, L: MerklizedLayout> MerklizedAtomoBuilder<C, 
 
     /// Set the name of the table that will store the state tree, and return a new, updated builder.
     /// This is a pass-through to `[crate::MerklizedAtomoWriter::with_tree_table_name]`.
+    #[inline]
     pub fn with_tree_table_name(self, name: impl ToString) -> Self {
         Self {
             tree_table_name: name.to_string(),

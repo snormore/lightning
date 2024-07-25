@@ -17,6 +17,8 @@ use crate::{
     StateTable,
 };
 
+/// A selector for tables in a merklized atomo, that can be used to query and update the tables. It
+/// wraps an atomo table selector and a reference to the state tree table.
 pub struct MerklizedTableSelector<'a, B: StorageBackend, L: MerklizedLayout> {
     inner: &'a atomo::TableSelector<B, L::SerdeBackend>,
     tree_table:
@@ -25,7 +27,6 @@ pub struct MerklizedTableSelector<'a, B: StorageBackend, L: MerklizedLayout> {
 
 impl<'a, B: StorageBackend, L: MerklizedLayout> MerklizedTableSelector<'a, B, L> {
     /// Create a new table selector.
-    #[inline]
     pub fn new(
         inner: &'a atomo::TableSelector<B, L::SerdeBackend>,
         tree_table: &'a atomo::TableRef<
@@ -60,6 +61,7 @@ impl<'a, B: StorageBackend, L: MerklizedLayout> MerklizedTableSelector<'a, B, L>
     }
 
     /// Return the table reference for the table with the provided name and K, V type.
+    #[inline]
     pub fn get_table<K, V>(&self, table: impl AsRef<str>) -> MerklizedTableRef<K, V, B, L>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
@@ -73,6 +75,7 @@ impl<'a, B: StorageBackend, L: MerklizedLayout> MerklizedTableSelector<'a, B, L>
     }
 
     /// Return the state root hash of the state tree.
+    #[inline]
     pub fn get_state_root(&self) -> Result<StateRootHash> {
         L::Strategy::get_root::<B, L::SerdeBackend>(self.tree_table)
     }

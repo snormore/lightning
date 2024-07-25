@@ -19,10 +19,7 @@ impl<K, V> MerklizedResolvedTableReference<K, V> {
     }
 
     /// Returns the table reference for this table.
-    ///
-    /// # Panics
-    ///
-    /// If the table is already claimed.
+    #[inline]
     pub fn get<'selector, B: StorageBackend, L: MerklizedLayout>(
         &self,
         selector: &'selector MerklizedTableSelector<B, L>,

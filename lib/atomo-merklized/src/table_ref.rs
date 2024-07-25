@@ -51,17 +51,20 @@ where
     }
 
     /// Insert a new `key` and `value` pair into the table.
+    #[inline]
     pub fn insert(&mut self, key: impl Borrow<K>, value: impl Borrow<V>) {
         self.inner.insert(key, value)
     }
 
     /// Remove the given key from the table.
+    #[inline]
     pub fn remove(&mut self, key: impl Borrow<K>) {
         self.inner.remove(key)
     }
 
     /// Returns the value associated with the provided key. If the key doesn't exits in the table
     /// [`None`] is returned.
+    #[inline]
     pub fn get(&self, key: impl Borrow<K>) -> Option<V> {
         self.inner.get(key)
     }
@@ -88,11 +91,13 @@ where
     }
 
     /// Returns `true` if the key exists in the table.
+    #[inline]
     pub fn contains_key(&self, key: impl Borrow<K>) -> bool {
         self.inner.contains_key(key)
     }
 
     /// Returns an iterator of the keys in this table.
+    #[inline]
     pub fn keys(&self) -> KeyIterator<K> {
         self.inner.keys()
     }
