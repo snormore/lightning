@@ -2,7 +2,7 @@ use std::any::Any;
 use std::borrow::Borrow;
 use std::hash::Hash;
 
-use atomo::{KeyIterator, SerdeBackend, StorageBackend};
+use atomo::{KeyIterator, StorageBackend};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -74,19 +74,15 @@ where
     // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
     // ics23 proof.
     pub fn get_with_proof(&self, key: impl Borrow<K>) -> (Option<V>, Vec<u8>) {
-        let value = self
-            .get(key.borrow())
-            .map(|value| L::SerdeBackend::serialize(&value));
-        let key = L::SerdeBackend::serialize(key.borrow());
-        let (value, proof) = L::Strategy::get_proof::<B, L::SerdeBackend>(
+        let value = self.get(key.borrow());
+        let (value, proof) = L::Strategy::get_proof::<K, V, B, L::SerdeBackend>(
             self.tree_table,
             self.table.clone(),
-            key.into(),
-            value.map(Into::into),
+            key,
+            value,
         )
         .unwrap();
-
-        let value = value.map(|value| L::SerdeBackend::deserialize::<V>(value.as_bytes()));
+        // TODO(snormore): Fix this unwrap.
         (value, proof)
     }
 
