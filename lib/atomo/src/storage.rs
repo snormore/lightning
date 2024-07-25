@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use dashmap::DashMap;
 
 use crate::batch::{BoxedVec, Operation, VerticalBatch};
-use crate::TableId;
+use crate::TableIndex;
 
 pub trait StorageBackendConstructor {
     /// The storage API.
@@ -14,7 +14,7 @@ pub trait StorageBackendConstructor {
 
     /// Called during the initialization.
     /// Returns the table index.
-    fn open_table(&mut self, name: String) -> TableId;
+    fn open_table(&mut self, name: String) -> TableIndex;
 
     /// Build the storage object and return it. If there is any error
     /// should return the error.
@@ -28,13 +28,13 @@ pub trait StorageBackend {
     fn commit(&self, batch: VerticalBatch);
 
     /// Return all of the keys from a table.
-    fn keys(&self, tid: TableId) -> Vec<BoxedVec>;
+    fn keys(&self, tid: TableIndex) -> Vec<BoxedVec>;
 
     /// Get the value associated with the given key from the provided table.
-    fn get(&self, tid: TableId, key: &[u8]) -> Option<Vec<u8>>;
+    fn get(&self, tid: TableIndex, key: &[u8]) -> Option<Vec<u8>>;
 
     /// Returns true if the table contains the provided key.
-    fn contains(&self, tid: TableId, key: &[u8]) -> bool;
+    fn contains(&self, tid: TableIndex, key: &[u8]) -> bool;
 
     /// Serialize the backend to a series of bytes.
     fn serialize(&self) -> Option<Vec<u8>> {
@@ -51,7 +51,7 @@ impl StorageBackendConstructor for InMemoryStorage {
     type Error = std::convert::Infallible;
 
     #[inline]
-    fn open_table(&mut self, _name: String) -> TableId {
+    fn open_table(&mut self, _name: String) -> TableIndex {
         self.0.push(DashMap::default());
         (self.0.len() - 1).try_into().unwrap()
     }
@@ -79,7 +79,7 @@ impl StorageBackend for InMemoryStorage {
     }
 
     #[inline]
-    fn keys(&self, tid: TableId) -> Vec<BoxedVec> {
+    fn keys(&self, tid: TableIndex) -> Vec<BoxedVec> {
         let mut collection = Vec::new();
         for item in self.0[tid as usize].iter() {
             collection.push(item.key().clone());
@@ -88,12 +88,12 @@ impl StorageBackend for InMemoryStorage {
     }
 
     #[inline]
-    fn get(&self, tid: TableId, key: &[u8]) -> Option<Vec<u8>> {
+    fn get(&self, tid: TableIndex, key: &[u8]) -> Option<Vec<u8>> {
         self.0[tid as usize].get(key).map(|v| v.to_vec())
     }
 
     #[inline]
-    fn contains(&self, tid: TableId, key: &[u8]) -> bool {
+    fn contains(&self, tid: TableIndex, key: &[u8]) -> bool {
         self.0[tid as usize].contains_key(key)
     }
 }

@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::batch::{BatchReference, Operation, VerticalBatch};
-use crate::db::TableId;
+use crate::db::TableIndex;
 use crate::inner::AtomoInner;
 use crate::keys::VerticalKeys;
 use crate::serder::SerdeBackend;
@@ -36,7 +36,7 @@ pub struct ResolvedTableReference<K, V> {
     /// The ID for the `Atomo` instance.
     atomo_id: usize,
     /// The index of the table.
-    index: TableId,
+    index: TableIndex,
     kv: PhantomData<(K, V)>,
 }
 
@@ -57,7 +57,7 @@ pub struct TableSelector<B: StorageBackend, S: SerdeBackend> {
     snapshot: Snapshot<VerticalBatch, VerticalKeys>,
     /// A set of already claimed tables.
     // TODO(qti3e): Replace this with a UnsafeCell or a `SingleThreadedBoolVec`.
-    selected: RefCell<FxHashSet<TableId>>,
+    selected: RefCell<FxHashSet<TableIndex>>,
     /// The *hot* changes happening here in this run.
     batch: VerticalBatch,
     /// The new version of the keys.
@@ -73,7 +73,7 @@ pub struct TableRef<
     B: StorageBackend,
     S: SerdeBackend,
 > {
-    tid: TableId,
+    tid: TableIndex,
     batch: BatchReference,
     selector: &'selector TableSelector<B, S>,
     kv: PhantomData<(K, V)>,
@@ -142,7 +142,7 @@ impl<B: StorageBackend, S: SerdeBackend> TableSelector<B, S> {
 }
 
 impl<K, V> ResolvedTableReference<K, V> {
-    pub(crate) fn new(atomo_id: usize, index: TableId) -> Self {
+    pub(crate) fn new(atomo_id: usize, index: TableIndex) -> Self {
         ResolvedTableReference {
             atomo_id,
             index,

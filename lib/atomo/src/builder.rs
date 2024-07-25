@@ -7,7 +7,7 @@ use fxhash::FxHashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::db::{Atomo, TableId, UpdatePerm};
+use crate::db::{Atomo, TableIndex, UpdatePerm};
 use crate::inner::AtomoInner;
 use crate::serder::SerdeBackend;
 use crate::storage::{InMemoryStorage, StorageBackendConstructor};
@@ -56,14 +56,14 @@ impl<B: StorageBackendConstructor, S: SerdeBackend> AtomoBuilder<B, S> {
     fn with_table_internal_non_generic_part(&mut self, name: String) {
         let index = self.atomo.tables.len();
 
-        if index > (TableId::MAX as usize) {
+        if index > (TableIndex::MAX as usize) {
             panic!("Table ID overflow.");
         }
 
         if self
             .atomo
             .table_name_to_id
-            .insert(name.clone(), index as TableId)
+            .insert(name.clone(), index as TableIndex)
             .is_some()
         {
             panic!("Table {name} is already defined.");
@@ -97,7 +97,7 @@ impl<B: StorageBackendConstructor, S: SerdeBackend> AtomoBuilder<B, S> {
     }
 
     // TODO(snormore): Figure out a better way to expose the table name to id mapping.
-    pub fn table_name_to_id(&self) -> FxHashMap<String, TableId> {
+    pub fn table_name_to_id(&self) -> FxHashMap<String, TableIndex> {
         self.atomo.table_name_to_id.clone()
     }
 

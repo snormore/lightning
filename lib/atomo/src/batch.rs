@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use fxhash::FxHashMap;
 
-use crate::TableId;
+use crate::TableIndex;
 
 pub type BoxedVec = Box<[u8]>;
 
@@ -39,27 +39,27 @@ impl VerticalBatch {
     }
 
     #[inline(always)]
-    pub fn get(&self, index: TableId) -> &BatchHashMap {
+    pub fn get(&self, index: TableIndex) -> &BatchHashMap {
         let index: usize = index.into();
         debug_assert!(index < self.0.len());
         &self.0[index]
     }
 
     #[inline(always)]
-    pub fn get_mut(&mut self, index: TableId) -> &mut BatchHashMap {
+    pub fn get_mut(&mut self, index: TableIndex) -> &mut BatchHashMap {
         let index: usize = index.into();
         debug_assert!(index < self.0.len());
         &mut self.0[index]
     }
 
     #[inline(always)]
-    pub fn insert(&mut self, index: TableId, key: BoxedVec, operation: Operation) {
+    pub fn insert(&mut self, index: TableIndex, key: BoxedVec, operation: Operation) {
         let index: usize = index.into();
         self.0[index].insert(key, operation);
     }
 
     #[inline(always)]
-    pub fn set(&mut self, index: TableId, batch: BatchHashMap) {
+    pub fn set(&mut self, index: TableIndex, batch: BatchHashMap) {
         let index: usize = index.into();
         self.0[index] = batch;
     }

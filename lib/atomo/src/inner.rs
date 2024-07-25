@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::batch::{Operation, VerticalBatch};
-use crate::db::TableId;
+use crate::db::TableIndex;
 use crate::keys::VerticalKeys;
 use crate::serder::SerdeBackend;
 use crate::snapshot::SnapshotList;
@@ -25,7 +25,7 @@ pub struct AtomoInner<B, S: SerdeBackend> {
     /// The tables and dynamic runtime types.
     pub tables: Vec<TableMeta>,
     /// Map each table name to its index.
-    pub table_name_to_id: FxHashMap<String, TableId>,
+    pub table_name_to_id: FxHashMap<String, TableIndex>,
     /// The linked list of the old-snapshots.
     pub snapshot_list: SnapshotList<VerticalBatch, VerticalKeys>,
     serde: PhantomData<S>,
@@ -115,7 +115,7 @@ impl<B: StorageBackend, S: SerdeBackend> AtomoInner<B, S> {
             table.reserve(batch_table.len());
 
             for (key, op) in batch_table.iter() {
-                match (op, self.get_raw(t as TableId, key)) {
+                match (op, self.get_raw(t as TableIndex, key)) {
                     (Operation::Remove, Some(old_value)) => {
                         table.insert(key.clone(), Operation::Insert(old_value.into_boxed_slice()));
                     },
@@ -146,12 +146,12 @@ impl<B: StorageBackend, S: SerdeBackend> AtomoInner<B, S> {
 
 impl<B: StorageBackend, S: SerdeBackend> AtomoInner<B, S> {
     /// Return the raw byte representation of a value for a raw key.
-    pub fn get_raw(&self, tid: TableId, key: &[u8]) -> Option<Vec<u8>> {
+    pub fn get_raw(&self, tid: TableIndex, key: &[u8]) -> Option<Vec<u8>> {
         self.persistence.get(tid, key)
     }
 
     /// Returns the deserialized value associated with a key.
-    pub fn get<V>(&self, tid: TableId, key: &[u8]) -> Option<V>
+    pub fn get<V>(&self, tid: TableIndex, key: &[u8]) -> Option<V>
     where
         V: Serialize + DeserializeOwned + Any,
     {
@@ -159,7 +159,7 @@ impl<B: StorageBackend, S: SerdeBackend> AtomoInner<B, S> {
     }
 
     /// Returns true if the key exists.
-    pub fn contains_key(&self, tid: TableId, key: &[u8]) -> bool {
+    pub fn contains_key(&self, tid: TableIndex, key: &[u8]) -> bool {
         self.persistence.contains(tid, key)
     }
 }

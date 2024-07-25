@@ -1,6 +1,6 @@
 use anyhow::Result;
 use atomo::batch::VerticalBatch;
-use atomo::{SerdeBackend, StorageBackend, TableId};
+use atomo::{SerdeBackend, StorageBackend, TableIndex};
 use fxhash::FxHashMap;
 
 use crate::{
@@ -35,7 +35,7 @@ pub trait MerklizedStrategy {
     /// nodes, to be committed with same state updates.
     fn apply_changes<B: StorageBackend, S: SerdeBackend>(
         tree_table: &mut atomo::TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
-        table_name_by_id: FxHashMap<TableId, String>,
+        table_name_by_id: FxHashMap<TableIndex, String>,
         batch: VerticalBatch,
     ) -> Result<()>;
 }
