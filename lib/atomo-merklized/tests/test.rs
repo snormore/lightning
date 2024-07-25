@@ -1,6 +1,7 @@
-use atomo::{DefaultSerdeBackend, InMemoryStorage, StorageBackend};
-use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, MerklizedLayout};
+use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackend};
+use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, MerklizedLayout, StateTable};
 use atomo_merklized_jmt::JmtMerklizedStrategy;
+use jmt::proof::SparseMerkleProof;
 
 #[test]
 fn test_atomo() {
@@ -14,8 +15,12 @@ fn test_atomo() {
         type ValueHasher = KeccakHasher;
     }
 
+    generic_test_atomo::<TestLayout>();
+}
+
+fn generic_test_atomo<L: MerklizedLayout>() {
     let storage = InMemoryStorage::default();
-    let mut db = MerklizedAtomoBuilder::<InMemoryStorage, TestLayout>::new(storage)
+    let mut db = MerklizedAtomoBuilder::<InMemoryStorage, L>::new(storage)
         .with_table::<String, String>("data")
         .enable_iter("data")
         .with_table::<u8, u8>("other")
@@ -82,23 +87,31 @@ fn test_atomo() {
 
             // Check existence proofs.
             for i in 1..=data_insert_count {
-                let (value, _proof) = data_table.get_with_proof(format!("key{i}"));
+                // Generate proof.
+                let (value, proof) = data_table.get_with_proof(format!("key{i}"));
                 assert_eq!(value, Some(format!("value{i}")));
 
-                // TODO(snormore): Test proof verification here.
-                // TODO(snormore): Make our own proof type and avoid constructing a keyhash out
-                // here. let key_hash = StateTable::new("data".to_string())
-                //     .key(DefaultSerdeBackend::serialize(&format!("key{i}").as_bytes().to_vec()).
-                // into())     .hash::<DefaultSerdeBackend, blake3::Hasher>();
-                // let value: Vec<u8> =
-                //     DefaultSerdeBackend::serialize(&format!("value{i}").as_bytes().to_vec());
-                // proof
-                //     .verify_existence(
-                //         jmt::RootHash(root_hash.into()),
-                //         jmt::KeyHash(key_hash.into()),
-                //         value,
-                //     )
-                //     .unwrap();
+                // Verify proof.
+                let proof =
+                    L::SerdeBackend::deserialize::<SparseMerkleProof<L::ValueHasher>>(&proof);
+                // TODO(snormore): This is leaking a lot of internals and should use our own proof
+                // type instead.
+                let key_hash = StateTable::new("data")
+                    .key(
+                        DefaultSerdeBackend::serialize(&format!("key{i}").as_bytes().to_vec())
+                            .into(),
+                    )
+                    .hash::<DefaultSerdeBackend, blake3::Hasher>();
+                let value = DefaultSerdeBackend::serialize::<Vec<u8>>(
+                    &format!("value{i}").as_bytes().to_vec(),
+                );
+                proof
+                    .verify_existence(
+                        jmt::RootHash(root_hash.into()),
+                        jmt::KeyHash(key_hash.into()),
+                        value,
+                    )
+                    .unwrap();
             }
         });
     }
