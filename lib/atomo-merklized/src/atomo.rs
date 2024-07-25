@@ -2,13 +2,20 @@ use std::any::Any;
 use std::hash::Hash;
 
 use anyhow::Result;
-use atomo::{Atomo, QueryPerm, ResolvedTableReference, StorageBackend, TableId, UpdatePerm};
+use atomo::{Atomo, QueryPerm, StorageBackend, TableId, UpdatePerm};
 use fxhash::FxHashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
-use crate::{MerklizedLayout, MerklizedStrategy, MerklizedTableSelector, StateRootHash};
+use crate::{
+    MerklizedLayout,
+    MerklizedResolvedTableReference,
+    MerklizedStrategy,
+    MerklizedTableSelector,
+    StateRootHash,
+    StateTable,
+};
 
 // TODO(snormore): This is leaking `jmt::SimpleHasher`.
 pub struct MerklizedAtomo<P, B: StorageBackend, L: MerklizedLayout> {
@@ -58,12 +65,15 @@ impl<P, B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<P, B, L> {
     }
 
     /// Resolve a table with the given name and key-value types.
-    pub fn resolve<K, V>(&self, name: impl AsRef<str>) -> ResolvedTableReference<K, V>
+    pub fn resolve<K, V>(&self, name: impl AsRef<str>) -> MerklizedResolvedTableReference<K, V>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,
     {
-        self.inner.resolve::<K, V>(name)
+        MerklizedResolvedTableReference::new(
+            self.inner.resolve::<K, V>(name.as_ref()),
+            StateTable::new(name),
+        )
     }
 }
 

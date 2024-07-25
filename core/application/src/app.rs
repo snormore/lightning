@@ -4,19 +4,18 @@ use std::time::Duration;
 
 use affair::AsyncWorker;
 use anyhow::{anyhow, Result};
-use atomo_merklized::MerklizedLayout;
 use lightning_interfaces::prelude::*;
+use lightning_interfaces::spawn_worker;
 use lightning_interfaces::types::{ChainId, NodeInfo};
-use lightning_interfaces::{spawn_worker, ApplicationLayout};
 use tracing::{error, info};
 
 use crate::config::{Config, StorageConfig};
 use crate::env::{Env, UpdateWorker};
 use crate::query_runner::QueryRunner;
-pub struct Application<C: Collection, L: MerklizedLayout = ApplicationLayout> {
+pub struct Application<C: Collection> {
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
     query_runner: QueryRunner,
-    _phantom: PhantomData<(C, L)>,
+    collection: PhantomData<C>,
 }
 
 impl<C: Collection> Application<C> {
@@ -49,7 +48,7 @@ impl<C: Collection> Application<C> {
         Ok(Self {
             query_runner,
             update_socket: Mutex::new(Some(update_socket)),
-            _phantom: PhantomData,
+            collection: PhantomData,
         })
     }
 }
