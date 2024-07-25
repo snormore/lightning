@@ -29,6 +29,8 @@ fn generic_test_atomo<L: MerklizedLayout>() {
     let reader = db.query();
 
     let data_insert_count = 10;
+    let data_table_id = 0;
+    let tree_table_id = 2;
 
     // Insert initial data.
     {
@@ -51,11 +53,9 @@ fn generic_test_atomo<L: MerklizedLayout>() {
         {
             let storage = db.get_storage_backend_unsafe();
 
-            let data_table_id = 0;
             let keys = storage.keys(data_table_id);
             assert_eq!(keys.len(), data_insert_count);
 
-            let tree_table_id = 2;
             let keys = storage.keys(tree_table_id);
             assert_eq!(keys.len(), 12);
         }
@@ -137,13 +137,9 @@ fn generic_test_atomo<L: MerklizedLayout>() {
         {
             let storage = db.get_storage_backend_unsafe();
 
-            let data_table_id = 0;
             let keys = storage.keys(data_table_id);
             assert_eq!(keys.len(), 2 * data_insert_count);
 
-            // TODO(snormore): Can we get this table index via the table ref instead of indirectly
-            // inferring it?
-            let tree_table_id = 2;
             let keys = storage.keys(tree_table_id);
             assert_eq!(keys.len(), 22);
         }
@@ -170,13 +166,9 @@ fn generic_test_atomo<L: MerklizedLayout>() {
         {
             let storage = db.get_storage_backend_unsafe();
 
-            let data_table_id = 0;
             let keys = storage.keys(data_table_id);
             assert_eq!(keys.len(), 2 * data_insert_count - 3);
 
-            // TODO(snormore): Can we get this table index via the table ref instead of indirectly
-            // inferring it?
-            let tree_table_id = 2;
             let keys = storage.keys(tree_table_id);
             assert_eq!(keys.len(), 20);
         }
