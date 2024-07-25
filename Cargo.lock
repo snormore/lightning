@@ -755,6 +755,7 @@ dependencies = [
  "atomo-merklized",
  "fxhash",
  "jmt",
+ "serde",
 ]
 
 [[package]]

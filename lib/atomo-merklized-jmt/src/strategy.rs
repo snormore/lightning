@@ -1,3 +1,6 @@
+use std::any::Any;
+use std::borrow::Borrow;
+use std::hash::Hash;
 use std::marker::PhantomData;
 
 use anyhow::{anyhow, Result};
@@ -6,8 +9,6 @@ use atomo::{SerdeBackend, StorageBackend, TableIndex, TableRef};
 use atomo_merklized::{
     MerklizedLayout,
     MerklizedStrategy,
-    SerializedStateKey,
-    SerializedStateValue,
     SerializedTreeNodeKey,
     SerializedTreeNodeValue,
     StateKey,
@@ -15,6 +16,8 @@ use atomo_merklized::{
     StateTable,
 };
 use fxhash::FxHashMap;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use super::JmtTreeReader;
 
@@ -50,12 +53,16 @@ impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
     // the special Serialized* types.
     // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
     // ics23 proof.
-    fn get_proof<B: StorageBackend, S: SerdeBackend>(
+    fn get_proof<K, V, B: StorageBackend, S: SerdeBackend>(
         tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
         table: StateTable,
-        key: SerializedStateKey,
-        value: Option<SerializedStateValue>,
-    ) -> Result<(Option<SerializedStateValue>, Vec<u8>)> {
+        key: impl Borrow<K>,
+        value: Option<V>,
+    ) -> Result<(Option<V>, Vec<u8>)>
+    where
+        K: Hash + Eq + Serialize + DeserializeOwned + Any,
+        V: Serialize + DeserializeOwned + Any,
+    {
         let reader = JmtTreeReader::new(tree_table);
         let tree = jmt::JellyfishMerkleTree::<_, L::ValueHasher>::new(&reader);
 
@@ -63,7 +70,7 @@ impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
         // after this.
         let key_hash = jmt::KeyHash(
             table
-                .key(key)
+                .key(S::serialize(key.borrow()).into())
                 .hash::<L::SerdeBackend, L::KeyHasher>()
                 .into(),
         );

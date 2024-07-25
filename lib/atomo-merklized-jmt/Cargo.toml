@@ -8,3 +8,4 @@ atomo.workspace = true
 atomo-merklized = { path = "../atomo-merklized" }
 fxhash.workspace = true
 jmt = "0.10.0"
+serde.workspace = true
