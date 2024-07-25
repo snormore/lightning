@@ -2,7 +2,7 @@ use std::any::Any;
 use std::hash::Hash;
 
 use anyhow::Result;
-use atomo::{Atomo, QueryPerm, StorageBackend, TableId, UpdatePerm};
+use atomo::{Atomo, QueryPerm, StorageBackend, TableIndex, UpdatePerm};
 use fxhash::FxHashMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -21,8 +21,8 @@ use crate::{
 pub struct MerklizedAtomo<P, B: StorageBackend, L: MerklizedLayout> {
     inner: Atomo<P, B, L::SerdeBackend>,
     tree_table_name: String,
-    table_name_by_id: FxHashMap<TableId, String>,
-    table_id_by_name: FxHashMap<String, TableId>,
+    table_name_by_id: FxHashMap<TableIndex, String>,
+    table_id_by_name: FxHashMap<String, TableIndex>,
 }
 
 /// Implement the `Clone` trait for `MerklizedAtomo<QueryPerm>`.
@@ -40,13 +40,13 @@ impl<P, B: StorageBackend, L: MerklizedLayout> MerklizedAtomo<P, B, L> {
     pub fn new(
         inner: Atomo<P, B, L::SerdeBackend>,
         tree_table_name: String,
-        table_id_by_name: FxHashMap<String, TableId>,
+        table_id_by_name: FxHashMap<String, TableIndex>,
     ) -> Self {
         let table_name_by_id = table_id_by_name
             .clone()
             .into_iter()
             .map(|(k, v)| (v, k))
-            .collect::<FxHashMap<TableId, String>>();
+            .collect::<FxHashMap<TableIndex, String>>();
         Self {
             inner,
             tree_table_name,

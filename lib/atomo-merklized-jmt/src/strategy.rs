@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use anyhow::Result;
 use atomo::batch::{Operation, VerticalBatch};
-use atomo::{SerdeBackend, StorageBackend, TableId, TableRef};
+use atomo::{SerdeBackend, StorageBackend, TableIndex, TableRef};
 use atomo_merklized::{
     MerklizedLayout,
     MerklizedStrategy,
@@ -79,7 +79,7 @@ impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
 
     fn apply_changes<B: StorageBackend, S: SerdeBackend>(
         tree_table: &mut TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
-        table_name_by_id: FxHashMap<TableId, String>,
+        table_name_by_id: FxHashMap<TableIndex, String>,
         batch: VerticalBatch,
     ) -> Result<()> {
         let reader = JmtTreeReader::new(tree_table);
@@ -89,7 +89,7 @@ impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
         let mut value_set: Vec<(jmt::KeyHash, Option<jmt::OwnedValue>)> = Default::default();
         for (table_id, changes) in batch.into_raw().iter().enumerate() {
             // println!("table {:?} changes {:?}", table_id, changes);
-            let table_id: TableId = table_id.try_into().unwrap();
+            let table_id: TableIndex = table_id.try_into().unwrap();
             for (key, operation) in changes.iter() {
                 let table_key = StateKey::new(
                     // TODO(snormore): Fix this unwrap.
