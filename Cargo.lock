@@ -737,7 +737,6 @@ dependencies = [
  "atomo",
  "atomo-merklized-jmt",
  "blake3",
- "fleek-crypto",
  "fxhash",
  "hex",
  "jmt",
@@ -4938,6 +4937,9 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "hex-literal"
@@ -7245,6 +7247,7 @@ dependencies = [
  "base64 0.13.1",
  "base64 0.21.5",
  "bitflags 2.4.1",
+ "blake2",
  "blake3",
  "block-padding 0.3.3",
  "bytemuck",
@@ -7268,6 +7271,7 @@ dependencies = [
  "crypto-common",
  "data-encoding",
  "der 0.7.8",
+ "digest 0.10.7",
  "ecdsa",
  "either",
  "elliptic-curve",
@@ -7362,6 +7366,7 @@ dependencies = [
  "socket2 0.5.5",
  "spin 0.9.8",
  "spki 0.7.3",
+ "subtle",
  "syn 1.0.109",
  "syn 2.0.46",
  "time",
