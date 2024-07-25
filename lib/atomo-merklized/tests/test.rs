@@ -1,26 +1,64 @@
-use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackend};
-use atomo_merklized::{KeccakHasher, MerklizedAtomoBuilder, MerklizedLayout, StateTable};
+use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
+use atomo_merklized::{MerklizedAtomoBuilder, MerklizedStrategy, StateTable};
 use atomo_merklized_jmt::JmtMerklizedStrategy;
-use jmt::proof::SparseMerkleProof;
+use jmt::proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR};
+
+/// This is originally defined in the jmt crate but is not publicly exported, so we redefine it here
+/// until it is.
+const SPARSE_MERKLE_PLACEHOLDER_HASH: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HASH__";
 
 #[test]
 fn test_atomo() {
-    #[derive(Clone)]
-    pub struct TestLayout;
+    init_logger();
 
-    impl MerklizedLayout for TestLayout {
-        type SerdeBackend = DefaultSerdeBackend;
-        type Strategy = JmtMerklizedStrategy<Self>;
-        type KeyHasher = blake3::Hasher;
-        type ValueHasher = KeccakHasher;
+    fn ics23_spec(hash_op: ics23::HashOp) -> ics23::ProofSpec {
+        ics23::ProofSpec {
+            leaf_spec: Some(ics23::LeafOp {
+                hash: hash_op.into(),
+                prehash_key: hash_op.into(),
+                prehash_value: hash_op.into(),
+                length: ics23::LengthOp::NoPrefix.into(),
+                prefix: LEAF_DOMAIN_SEPARATOR.to_vec(),
+            }),
+            inner_spec: Some(ics23::InnerSpec {
+                hash: hash_op.into(),
+                child_order: vec![0, 1],
+                min_prefix_length: INTERNAL_DOMAIN_SEPARATOR.len() as i32,
+                max_prefix_length: INTERNAL_DOMAIN_SEPARATOR.len() as i32,
+                child_size: 32,
+                empty_child: SPARSE_MERKLE_PLACEHOLDER_HASH.to_vec(),
+            }),
+            min_depth: 0,
+            max_depth: 64,
+            prehash_key_before_comparison: true,
+        }
     }
 
-    generic_test_atomo::<TestLayout>();
+    generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizedStrategy<_, _, sha2::Sha256>>(
+        InMemoryStorage::default(),
+        ics23_spec(ics23::HashOp::Sha256),
+    );
+
+    // generic_test_atomo::<_, DefaultSerdeBackend, blake3::Hasher, JmtMerklizedStrategy<_, _, _>>(
+    //     InMemoryStorage::default(),
+    //     ics23_spec(ics23::HashOp::Blake3),
+    // );
+
+    // generic_test_atomo::<_, DefaultSerdeBackend, KeccakHasher, JmtMerklizedStrategy<_, _, _>>(
+    //     InMemoryStorage::default(),
+    //     ics23_spec(ics23::HashOp::Keccak256),
+    // );
 }
 
-fn generic_test_atomo<L: MerklizedLayout>() {
-    let storage = InMemoryStorage::default();
-    let mut db = MerklizedAtomoBuilder::<InMemoryStorage, L>::new(storage)
+fn generic_test_atomo<
+    C: StorageBackendConstructor,
+    S: SerdeBackend,
+    X: MerklizedStrategy<Storage = C::Storage, Serde = S>,
+>(
+    builder: C,
+    ics23_spec: ics23::ProofSpec,
+) {
+    let mut db = MerklizedAtomoBuilder::<C, S, X>::new(builder)
         .with_table::<String, String>("data")
         .enable_iter("data")
         .with_table::<u8, u8>("other")
@@ -29,8 +67,6 @@ fn generic_test_atomo<L: MerklizedLayout>() {
     let reader = db.query();
 
     let data_insert_count = 10;
-    let data_table_id = 0;
-    let tree_table_id = 2;
 
     // Insert initial data.
     {
@@ -46,23 +82,13 @@ fn generic_test_atomo<L: MerklizedLayout>() {
         let root_hash = reader.get_state_root().unwrap();
         assert_eq!(
             root_hash,
-            "f3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
+            "23b5ec5bdc76df17e4e522abff1772f642b87553c229ba96bc6487c83c726d04"
         );
-
-        // Check data in storage.
-        {
-            let storage = db.get_storage_backend_unsafe();
-
-            let keys = storage.keys(data_table_id);
-            assert_eq!(keys.len(), data_insert_count);
-
-            let keys = storage.keys(tree_table_id);
-            assert_eq!(keys.len(), 12);
-        }
 
         // Check data via reader.
         reader.run(|ctx| {
             let data_table = ctx.get_table::<String, String>("data");
+            let ctx = X::context(ctx);
 
             // Check data key count.
             let keys = data_table.keys().collect::<Vec<_>>();
@@ -77,41 +103,40 @@ fn generic_test_atomo<L: MerklizedLayout>() {
             let root_hash = ctx.get_state_root().unwrap();
             assert_eq!(
                 root_hash,
-                "f3e46a84409c4b1cdf2cc51d60137acb3afccdccc6e2822b9c5d641c5ef95157"
+                "23b5ec5bdc76df17e4e522abff1772f642b87553c229ba96bc6487c83c726d04"
             );
-
-            // Check tree table key count.
-            let tree_table = ctx.state_tree_table();
-            let keys = tree_table.keys().collect::<Vec<_>>();
-            assert_eq!(keys.len(), 12);
 
             // Check existence proofs.
             for i in 1..=data_insert_count {
                 // Generate proof.
-                let (value, proof) = data_table.get_with_proof(format!("key{i}"));
-                assert_eq!(value, Some(format!("value{i}")));
-
-                // Verify proof.
-                let proof =
-                    L::SerdeBackend::deserialize::<SparseMerkleProof<L::ValueHasher>>(&proof);
-                // TODO(snormore): This is leaking a lot of internals and should use our own proof
-                // type instead.
-                let key_hash = StateTable::new("data")
-                    .key(
-                        DefaultSerdeBackend::serialize(&format!("key{i}").as_bytes().to_vec())
-                            .into(),
-                    )
-                    .hash::<DefaultSerdeBackend, blake3::Hasher>();
-                let value = DefaultSerdeBackend::serialize::<Vec<u8>>(
-                    &format!("value{i}").as_bytes().to_vec(),
-                );
-                proof
-                    .verify_existence(
-                        jmt::RootHash(root_hash.into()),
-                        jmt::KeyHash(key_hash.into()),
-                        value,
+                let (value, proof) = ctx
+                    .get_state_proof(
+                        "data",
+                        S::serialize::<Vec<u8>>(&format!("key{i}").as_bytes().to_vec()),
                     )
                     .unwrap();
+                // TODO(snormore): Fix this unwrap.
+                // TODO(snormore): Clean up the ser/deser here, it ideally should be encapsulated in
+                // the strategy/context with K/V param types.
+                assert_eq!(
+                    value.map(|v| S::deserialize::<String>(&v.to_vec())),
+                    Some(format!("value{i}"))
+                );
+
+                // Verify proof.
+                // TODO(snormore): Should this be encapsulated?
+                let key = S::serialize(
+                    &StateTable::new("data")
+                        .key(S::serialize(&format!("key{i}").as_bytes().to_vec())),
+                );
+                let value = S::serialize::<Vec<u8>>(&format!("value{i}").as_bytes().to_vec());
+                assert!(ics23::verify_membership::<ics23::HostFunctionsManager>(
+                    &proof,
+                    &ics23_spec,
+                    &root_hash.as_ref().to_vec(),
+                    &key,
+                    value.as_slice()
+                ))
             }
         });
     }
@@ -130,19 +155,8 @@ fn generic_test_atomo<L: MerklizedLayout>() {
         let root_hash = reader.get_state_root().unwrap();
         assert_eq!(
             root_hash,
-            "24d94d1ec858e9d3cd043683777ce9f345fe9c121fdee0727c1d9bfa7dd17e99",
+            "b728c39bafa70fc835797f618ae1a5dcce288c6c00033139e67583d9b1970ef4",
         );
-
-        // Check data in storage.
-        {
-            let storage = db.get_storage_backend_unsafe();
-
-            let keys = storage.keys(data_table_id);
-            assert_eq!(keys.len(), 2 * data_insert_count);
-
-            let keys = storage.keys(tree_table_id);
-            assert_eq!(keys.len(), 22);
-        }
     }
 
     // Remove some data.
@@ -159,18 +173,15 @@ fn generic_test_atomo<L: MerklizedLayout>() {
         let root_hash = reader.get_state_root().unwrap();
         assert_eq!(
             root_hash,
-            "efe212a8ae9804fd99841fd1c7ead73a8e1d8856174c5a6de1c6bee8b6c74a64",
+            "6b9c6c8a0bc498509afaa8508e98dc6af2c6225c71e216d786d877050d397d81",
         );
-
-        // Check data in storage.
-        {
-            let storage = db.get_storage_backend_unsafe();
-
-            let keys = storage.keys(data_table_id);
-            assert_eq!(keys.len(), 2 * data_insert_count - 3);
-
-            let keys = storage.keys(tree_table_id);
-            assert_eq!(keys.len(), 20);
-        }
     }
+}
+
+#[allow(dead_code)]
+pub fn init_logger() {
+    let _ = env_logger::Builder::from_env(env_logger::Env::default())
+        .is_test(true)
+        .format_timestamp(None)
+        .try_init();
 }

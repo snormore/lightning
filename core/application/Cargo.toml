@@ -23,17 +23,20 @@ rand.workspace = true
 fleek-blake3 = "1.5"
 tracing.workspace = true
 tokio.workspace = true
+ics23.workspace = true
 
 # Our libraries
 affair.workspace = true
 atomo.workspace = true
 atomo-merklized.workspace = true
+atomo-merklized-jmt.workspace = true
 fleek-crypto.workspace = true
 hp-fixed.workspace = true
 atomo-rocks.workspace = true
 resolved-pathbuf.workspace = true
 lightning-workspace-hack.workspace = true
 serde_with = "3.8.1"
+sha2 = "0.10.8"
 
 
 [dev-dependencies]

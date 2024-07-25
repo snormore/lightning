@@ -11,16 +11,11 @@ use atomo::{
     InMemoryStorage,
     KeyIterator,
     QueryPerm,
+    SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
 };
-use atomo_merklized::{
-    KeccakHasher,
-    MerklizedAtomo,
-    MerklizedAtomoBuilder,
-    MerklizedLayout,
-    StateRootHash,
-};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, MerklizedStrategy, StateRootHash};
 use atomo_merklized_jmt::JmtMerklizedStrategy;
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
@@ -105,39 +100,39 @@ pub trait ApplicationInterface<C: Collection>:
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
 }
 
-#[derive(Clone)]
-pub struct ApplicationLayout;
+pub type DefaultMerklizedStrategy<B> = JmtMerklizedStrategy<B, DefaultSerdeBackend, sha2::Sha256>;
 
-impl MerklizedLayout for ApplicationLayout {
-    type SerdeBackend = DefaultSerdeBackend;
-    type Strategy = JmtMerklizedStrategy<Self>;
-    type KeyHasher = blake3::Hasher;
-    type ValueHasher = KeccakHasher;
-}
+type AtomoResult<P, B, S, M> = Result<MerklizedAtomo<P, B, S, M>>;
 
 #[interfaces_proc::blank]
 pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     #[blank(InMemoryStorage)]
-    type Backend: StorageBackend;
+    type Storage: StorageBackend;
 
-    #[blank(ApplicationLayout)]
-    type Layout: MerklizedLayout;
+    #[blank(DefaultSerdeBackend)]
+    type Serde: SerdeBackend;
 
-    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>) -> Self;
+    #[blank(DefaultMerklizedStrategy<Self::Storage>)]
+    type Merklized: MerklizedStrategy;
+
+    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>) -> Self;
 
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> Result<MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>>;
+    ) -> AtomoResult<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>;
 
     fn atomo_from_path(
         path: impl AsRef<Path>,
-    ) -> Result<MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>>;
+    ) -> AtomoResult<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>;
 
-    fn register_tables<B: StorageBackendConstructor>(
-        builder: MerklizedAtomoBuilder<B, Self::Layout>,
-    ) -> MerklizedAtomoBuilder<B, Self::Layout> {
+    fn register_tables<C: StorageBackendConstructor>(
+        builder: MerklizedAtomoBuilder<C, Self::Serde, Self::Merklized>,
+    ) -> MerklizedAtomoBuilder<C, Self::Serde, Self::Merklized>
+    where
+        Self::Merklized: MerklizedStrategy<Storage = C::Storage, Serde = Self::Serde>,
+    {
         builder
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")
@@ -170,10 +165,13 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_state_root(&self) -> Result<StateRootHash>;
 
     /// Get a state proof for a given table and key.
-    // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
-    // ics23 proof.
-    fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
+    fn get_state_proof<K, V>(
+        &self,
+        table: &str,
+        key: K,
+    ) -> Result<(Option<V>, ics23::CommitmentProof)>
     where
+        // TODO(snormore): Can we better encapsulate these?
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any;
 

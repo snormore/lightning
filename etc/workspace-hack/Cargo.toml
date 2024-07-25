@@ -16,6 +16,7 @@ publish = false
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8" }
+anstream = { version = "0.6" }
 arc-swap = { version = "1", default-features = false, features = ["serde"] }
 arrayvec = { version = "0.7" }
 autometrics = { version = "0.6", default-features = false, features = ["prometheus", "prometheus-exporter"] }
@@ -79,7 +80,7 @@ itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 k256 = { version = "0.13" }
 lazy_static = { version = "1", default-features = false, features = ["spin_no_std"] }
 libc = { version = "0.2", features = ["extra_traits"] }
-log = { version = "0.4", default-features = false, features = ["std"] }
+log = { version = "0.4", default-features = false, features = ["kv", "std"] }
 matrixmultiply = { version = "0.3", features = ["cgemm"] }
 memchr = { version = "2" }
 miniz_oxide = { version = "0.7", features = ["simd"] }
@@ -151,6 +152,7 @@ zeroize = { version = "1", features = ["zeroize_derive"] }
 
 [build-dependencies]
 ahash = { version = "0.8" }
+anstream = { version = "0.6" }
 arc-swap = { version = "1", default-features = false, features = ["serde"] }
 arrayvec = { version = "0.7" }
 autometrics = { version = "0.6", default-features = false, features = ["prometheus", "prometheus-exporter"] }
@@ -215,7 +217,7 @@ itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 k256 = { version = "0.13" }
 lazy_static = { version = "1", default-features = false, features = ["spin_no_std"] }
 libc = { version = "0.2", features = ["extra_traits"] }
-log = { version = "0.4", default-features = false, features = ["std"] }
+log = { version = "0.4", default-features = false, features = ["kv", "std"] }
 matrixmultiply = { version = "0.3", features = ["cgemm"] }
 memchr = { version = "2" }
 miniz_oxide = { version = "0.7", features = ["simd"] }

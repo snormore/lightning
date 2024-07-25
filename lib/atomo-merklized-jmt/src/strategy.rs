@@ -1,31 +1,17 @@
-use std::any::Any;
-use std::borrow::Borrow;
-use std::hash::Hash;
 use std::marker::PhantomData;
 
-use anyhow::{anyhow, Result};
-use atomo::batch::{Operation, VerticalBatch};
-use atomo::{SerdeBackend, StorageBackend, TableIndex, TableRef};
-use atomo_merklized::{
-    MerklizedLayout,
-    MerklizedStrategy,
-    SerializedTreeNodeKey,
-    SerializedTreeNodeValue,
-    StateKey,
-    StateRootHash,
-    StateTable,
-};
-use fxhash::FxHashMap;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use anyhow::Result;
+use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
+use atomo_merklized::{MerklizedContext, MerklizedStrategy, SimpleHasher, StateKey};
+use jmt::KeyHash;
 
-use super::JmtTreeReader;
+use crate::JmtMerklizedContext;
 
-pub struct JmtMerklizedStrategy<L: MerklizedLayout> {
-    _phantom: PhantomData<L>,
+pub struct JmtMerklizedStrategy<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
+    _phantom: PhantomData<(B, S, H)>,
 }
 
-impl<L: MerklizedLayout> JmtMerklizedStrategy<L> {
+impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedStrategy<B, S, H> {
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -33,109 +19,42 @@ impl<L: MerklizedLayout> JmtMerklizedStrategy<L> {
     }
 }
 
-impl<L: MerklizedLayout> Default for JmtMerklizedStrategy<L> {
+impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> Default
+    for JmtMerklizedStrategy<B, S, H>
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<L: MerklizedLayout> MerklizedStrategy for JmtMerklizedStrategy<L> {
-    fn get_root<B: StorageBackend, S: SerdeBackend>(
-        tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
-    ) -> Result<StateRootHash> {
-        let reader = JmtTreeReader::new(tree_table);
-        let tree = jmt::JellyfishMerkleTree::<_, L::ValueHasher>::new(&reader);
+impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedStrategy
+    for JmtMerklizedStrategy<B, S, H>
+{
+    type Storage = B;
+    type Serde = S;
+    type Hasher = H;
 
-        tree.get_root_hash(0).map(|hash| hash.0.into())
+    fn build<C: StorageBackendConstructor>(
+        builder: AtomoBuilder<C, S>,
+    ) -> Result<atomo::Atomo<atomo::UpdatePerm, C::Storage, S>> {
+        Ok(builder
+            // TODO(snormore): Fix these hard coded table names.
+            .with_table::<Vec<u8>, Vec<u8>>("%state_tree_nodes")
+            .with_table::<KeyHash, StateKey>("%state_tree_keys")
+            .with_table::<KeyHash, Vec<u8>>("%state_tree_values")
+            // TODO(snormore): This `enable_iter` is unecessary and is only here for testing right
+            // now. It should be removed.
+            .enable_iter("%state_tree_nodes")
+            .enable_iter("%state_tree_keys")
+            .build()
+            .unwrap())
     }
 
-    // TODO(snormore): Pass <K, V> in here and serialize/deserialize the key and value instead of
-    // the special Serialized* types.
-    // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
-    // ics23 proof.
-    fn get_proof<K, V, B: StorageBackend, S: SerdeBackend>(
-        tree_table: &TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
-        table: StateTable,
-        key: impl Borrow<K>,
-        value: Option<V>,
-    ) -> Result<(Option<V>, Vec<u8>)>
+    fn context<'a>(ctx: &'a TableSelector<B, S>) -> Box<dyn MerklizedContext<'a, B, S, H> + 'a>
     where
-        K: Hash + Eq + Serialize + DeserializeOwned + Any,
-        V: Serialize + DeserializeOwned + Any,
+        // TODO(snormore): Why is this needed?
+        H: 'a,
     {
-        let reader = JmtTreeReader::new(tree_table);
-        let tree = jmt::JellyfishMerkleTree::<_, L::ValueHasher>::new(&reader);
-
-        // Cache the value with the reader so it can be retrieved when `get_with_proof` is called
-        // after this.
-        let key_hash = jmt::KeyHash(
-            table
-                .key(S::serialize(key.borrow()).into())
-                .hash::<L::SerdeBackend, L::KeyHasher>()
-                .into(),
-        );
-        if let Some(value) = value {
-            reader.cache(key_hash, L::SerdeBackend::serialize(&value));
-        }
-
-        // Get the value and proof from the tree.
-        let (value, proof) = tree.get_with_proof(key_hash, 0)?;
-        let value = value.map(|value| L::SerdeBackend::deserialize(&value));
-        // TODO(snormore): Build and return the proof here in our own type instead of opaquely
-        // serializing to bytes.
-        let proof = L::SerdeBackend::serialize(&proof);
-
-        Ok((value, proof))
-    }
-
-    fn apply_changes<B: StorageBackend, S: SerdeBackend>(
-        tree_table: &mut TableRef<SerializedTreeNodeKey, SerializedTreeNodeValue, B, S>,
-        table_name_by_id: FxHashMap<TableIndex, String>,
-        batch: VerticalBatch,
-    ) -> Result<()> {
-        let reader = JmtTreeReader::new(tree_table);
-        let tree = jmt::JellyfishMerkleTree::<_, L::ValueHasher>::new(&reader);
-
-        // Build a jmt value set (batch) from the atomo batch.
-        let mut value_set: Vec<(jmt::KeyHash, Option<jmt::OwnedValue>)> = Default::default();
-        for (table_id, changes) in batch.into_raw().iter().enumerate() {
-            let table_id: TableIndex = table_id.try_into()?;
-            let table_name = table_name_by_id
-                .get(&table_id)
-                .ok_or(anyhow!("Table with index {} not found", table_id))?
-                .as_str();
-            for (key, operation) in changes.iter() {
-                let table_key = StateKey::new(table_name.to_string(), key.to_vec().into());
-                let key_hash =
-                    jmt::KeyHash(table_key.hash::<L::SerdeBackend, L::KeyHasher>().into());
-
-                match operation {
-                    Operation::Remove => {
-                        value_set.push((key_hash, None));
-                    },
-                    Operation::Insert(value) => {
-                        value_set.push((key_hash, Some(value.to_vec())));
-                    },
-                }
-            }
-        }
-
-        // Apply the jmt value set (batch) to the tree.
-        let (_new_root_hash, tree_batch) = tree.put_value_set(value_set.clone(), 0).unwrap();
-
-        // Remove stale nodes.
-        for stale_node in tree_batch.stale_node_index_batch {
-            let key = L::SerdeBackend::serialize(&stale_node.node_key);
-            tree_table.remove(key);
-        }
-
-        // Insert new nodes.
-        for (node_key, node) in tree_batch.node_batch.nodes() {
-            let key = L::SerdeBackend::serialize(node_key);
-            let value = L::SerdeBackend::serialize(node);
-            tree_table.insert(key, value);
-        }
-
-        Ok(())
+        Box::new(JmtMerklizedContext::new(ctx))
     }
 }

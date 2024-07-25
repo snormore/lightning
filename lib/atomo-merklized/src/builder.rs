@@ -1,37 +1,35 @@
 use std::any::Any;
 use std::hash::Hash;
+use std::marker::PhantomData;
 
-use atomo::{AtomoBuilder, StorageBackendConstructor, TableIndex, UpdatePerm};
-use fxhash::FxHashMap;
+use atomo::{AtomoBuilder, SerdeBackend, StorageBackendConstructor, UpdatePerm};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::types::{SerializedTreeNodeKey, SerializedTreeNodeValue};
-use crate::{MerklizedAtomo, MerklizedLayout};
+use crate::{MerklizedAtomo, MerklizedStrategy};
 
-/// The default name of the table that stores the state tree. The use of `%` as a prefix is a
-/// convention to indicate that this is a special table, but otherwise it is just a regular table,
-/// with no special treatment, except that it is used to store the state tree alongside the rest of
-/// the state.
-const DEFAULT_STATE_TREE_TABLE_NAME: &str = "%state_tree_nodes";
+type AtomoResult<P, B, S, M, E> = Result<MerklizedAtomo<P, B, S, M>, E>;
 
-/// This is a builder of `[crate::MerklizedAtomoWriter]` and `[crate::MerklizedAtomoReader]`
-/// instances, that is used to initialize which tables are used and how they are configured.
-///
-/// It wraps the `[atomo::AtomoBuilder]` for building a `[crate::MerklizedAtomoWriter]`(a wrapper
-/// of `[atomo::Atomo<UpdatePerm>]`), and can be used to build a `[crate::MerklizedAtomoReader]` (a
-/// wrapper of `[atomo::Atomo<QueryPerm>]`).
-pub struct MerklizedAtomoBuilder<C: StorageBackendConstructor, L: MerklizedLayout> {
-    inner: AtomoBuilder<C, L::SerdeBackend>,
-    tree_table_name: String,
+pub struct MerklizedAtomoBuilder<
+    C: StorageBackendConstructor,
+    S: SerdeBackend,
+    X: MerklizedStrategy<Storage = C::Storage, Serde = S>,
+> {
+    inner: AtomoBuilder<C, S>,
+    _phantom: PhantomData<X>,
 }
 
-impl<C: StorageBackendConstructor, L: MerklizedLayout> MerklizedAtomoBuilder<C, L> {
+impl<
+    C: StorageBackendConstructor,
+    S: SerdeBackend,
+    X: MerklizedStrategy<Storage = C::Storage, Serde = S>,
+> MerklizedAtomoBuilder<C, S, X>
+{
     /// Create a new builder with the given storage backend constructor.
     pub fn new(constructor: C) -> Self {
         Self {
             inner: AtomoBuilder::new(constructor),
-            tree_table_name: DEFAULT_STATE_TREE_TABLE_NAME.to_string(),
+            _phantom: PhantomData,
         }
     }
 
@@ -59,37 +57,10 @@ impl<C: StorageBackendConstructor, L: MerklizedLayout> MerklizedAtomoBuilder<C, 
         }
     }
 
-    /// Set the name of the table that will store the state tree, and return a new, updated builder.
-    /// This is a pass-through to `[crate::MerklizedAtomoWriter::with_tree_table_name]`.
-    #[inline]
-    pub fn with_tree_table_name(self, name: impl ToString) -> Self {
-        Self {
-            tree_table_name: name.to_string(),
-            ..self
-        }
-    }
-
     /// Build and return a writer for the state tree.
-    pub fn build(self) -> Result<MerklizedAtomo<UpdatePerm, C::Storage, L>, C::Error> {
-        let atomo = self
-            .inner
-            .with_table::<SerializedTreeNodeKey, SerializedTreeNodeValue>(&self.tree_table_name)
-            // TODO(snormore): This `enable_iter` is unecessary and is only here for testing right
-            // now. It should be removed.
-            .enable_iter(&self.tree_table_name)
-            .build()?;
-
-        let tables = atomo.tables();
-        let mut table_id_by_name = FxHashMap::default();
-        for (i, table) in tables.iter().enumerate() {
-            let table_id: TableIndex = i.try_into().unwrap();
-            table_id_by_name.insert(table._name.to_string(), table_id);
-        }
-
-        Ok(MerklizedAtomo::new(
-            atomo,
-            self.tree_table_name,
-            table_id_by_name,
-        ))
+    pub fn build(self) -> AtomoResult<UpdatePerm, C::Storage, S, X, C::Error> {
+        // TODO(snormore): Fix this unwrap.
+        let atomo = X::build(self.inner).unwrap();
+        Ok(MerklizedAtomo::<_, C::Storage, S, X>::new(atomo))
     }
 }

@@ -1,4 +1,8 @@
+use std::hash::Hash;
+
 use atomo::SerdeBackend;
+use digest::generic_array::GenericArray;
+use digest::{Digest, OutputSizeUser};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,9 +25,7 @@ impl<'de> serde::Deserialize<'de> for SimpleHash {
 }
 
 impl SimpleHash {
-    /// Build and return a new `SimpleHash` by hashing the given key.
-    /// TODO: This is leaking `jmt::SimpleHasher`.
-    pub fn build<H: jmt::SimpleHasher>(key: impl AsRef<[u8]>) -> Self {
+    pub fn build<H: SimpleHasher>(key: impl AsRef<[u8]>) -> Self {
         Self(H::hash(key.as_ref()))
     }
 }
@@ -76,95 +78,32 @@ impl core::fmt::Debug for SimpleHash {
 }
 
 /// State root hash of the merkle tree.
+// TODO(snormore): Should this just be an `[ics23::CommitmentRoot]`?
 pub type StateRootHash = SimpleHash;
-
-/// Serialized key of a node in the state tree.
-pub type SerializedTreeNodeKey = Vec<u8>;
-
-/// Serialized value of a node in the state tree.
-pub type SerializedTreeNodeValue = Vec<u8>;
 
 /// Hash of a leaf value key in the state tree. This is not the same as a tree node key, but rather
 /// a value in the dataset (leaf nodes) and the key that's used to look it up in the state.
 pub type StateKeyHash = SimpleHash;
 
-/// Serialized state key.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerializedStateKey(Vec<u8>);
-
-impl SerializedStateKey {
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl From<Vec<u8>> for SerializedStateKey {
-    /// Create a new `SerializedStateKey` from a byte vector.
-    fn from(key: Vec<u8>) -> Self {
-        Self(key)
-    }
-}
-
-impl From<SerializedStateKey> for Vec<u8> {
-    /// Convert a `SerializedStateKey` to a byte vector.
-    fn from(key: SerializedStateKey) -> Self {
-        key.0
-    }
-}
-
-/// Serialized state value.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerializedStateValue(Vec<u8>);
-
-impl SerializedStateValue {
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl From<Vec<u8>> for SerializedStateValue {
-    /// Create a new `SerializedStateValue` from a byte vector.
-    fn from(value: Vec<u8>) -> Self {
-        Self(value)
-    }
-}
-
-impl From<SerializedStateValue> for Vec<u8> {
-    /// Convert a `SerializedStateValue` to a byte vector.
-    fn from(value: SerializedStateValue) -> Self {
-        value.0
-    }
-}
-
-impl From<&[u8]> for SerializedStateValue {
-    fn from(value: &[u8]) -> Self {
-        Self(value.to_vec())
-    }
-}
-
 /// Encapsulation of a value (leaf node) key in the state tree, including the state table name and
 /// entry key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateKey {
-    table: String,
-    key: SerializedStateKey,
+    pub table: String,
+    key: Vec<u8>,
 }
 
 impl StateKey {
     /// Create a new `StateKey` with the given table name and key.
-    pub fn new(table: String, key: SerializedStateKey) -> Self {
+    pub fn new(table: String, key: Vec<u8>) -> Self {
         Self { table, key }
     }
 
     /// Build and return a hash for the state key.
-    /// TODO: This is leaking `jmt::SimpleHasher`.
-    pub fn hash<S: SerdeBackend, H: jmt::SimpleHasher>(&self) -> StateKeyHash {
+    pub fn hash<S: SerdeBackend, H: SimpleHasher>(&self) -> StateKeyHash {
         StateKeyHash::build::<H>(S::serialize(&self))
     }
 }
-
-// TODO(snormore): This is leaking `jmt::proof::SparseMerkleProof`.
-pub type StateProof<VH> = jmt::proof::SparseMerkleProof<VH>;
 
 /// A table in the state database.
 #[derive(Debug, Clone)]
@@ -186,7 +125,38 @@ impl StateTable {
     }
 
     /// Build and return a state key for the given serialized key.
-    pub fn key(&self, key: SerializedStateKey) -> StateKey {
+    pub fn key(&self, key: Vec<u8>) -> StateKey {
         StateKey::new(self.name.clone(), key)
+    }
+}
+
+pub trait SimpleHasher: Sized {
+    fn new() -> Self;
+
+    fn update(&mut self, data: &[u8]);
+
+    fn finalize(self) -> [u8; 32];
+
+    fn hash(data: impl AsRef<[u8]>) -> [u8; 32] {
+        let mut hasher = Self::new();
+        hasher.update(data.as_ref());
+        hasher.finalize()
+    }
+}
+
+impl<T: Digest> SimpleHasher for T
+where
+    [u8; 32]: From<GenericArray<u8, <T as OutputSizeUser>::OutputSize>>,
+{
+    fn new() -> Self {
+        <T as Digest>::new()
+    }
+
+    fn update(&mut self, data: &[u8]) {
+        self.update(data)
+    }
+
+    fn finalize(self) -> [u8; 32] {
+        self.finalize().into()
     }
 }

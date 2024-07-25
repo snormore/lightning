@@ -284,9 +284,9 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.4"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7079075b41f533b8c61d2a4d073c4676e1f8b249ff94a393b0595db304e0dd87"
+checksum = "1bec1de6f59aedf83baf9ff929c98f2ad654b97c9510f4e70cf6f661d49fd5b1"
 
 [[package]]
 name = "anstyle-parse"
@@ -737,12 +737,17 @@ dependencies = [
  "atomo",
  "atomo-merklized-jmt",
  "blake3",
+ "digest 0.10.7",
+ "env_logger 0.11.5",
  "fxhash",
  "hex",
+ "ics23",
  "jmt",
+ "log",
  "schemars",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
  "tiny-keccak",
 ]
 
@@ -753,8 +758,11 @@ dependencies = [
  "anyhow",
  "atomo",
  "atomo-merklized",
+ "digest 0.10.7",
  "fxhash",
+ "ics23",
  "jmt",
+ "log",
  "serde",
 ]
 
@@ -3427,6 +3435,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_filter"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f2c92ceda6ceec50f43169f9ee8424fe2db276791afde7b2cd8bc084cb376ab"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
 name = "env_logger"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3437,6 +3455,19 @@ dependencies = [
  "log",
  "regex",
  "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.11.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e13fa619b91fb2381732789fc5de83b45675e882f66623b7d8cb4f643017018d"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "env_filter",
+ "humantime",
+ "log",
 ]
 
 [[package]]
@@ -6066,6 +6097,7 @@ dependencies = [
  "anyhow",
  "atomo",
  "atomo-merklized",
+ "atomo-merklized-jmt",
  "atomo-rocks",
  "autometrics",
  "bincode",
@@ -6073,6 +6105,7 @@ dependencies = [
  "fleek-blake3",
  "fleek-crypto",
  "hp-fixed",
+ "ics23",
  "lazy_static",
  "lightning-interfaces",
  "lightning-metrics",
@@ -6086,6 +6119,7 @@ dependencies = [
  "resolved-pathbuf",
  "serde",
  "serde_with 3.8.1",
+ "sha2 0.10.8",
  "tempfile",
  "tokio",
  "toml 0.7.8",
@@ -6612,6 +6646,7 @@ dependencies = [
  "fn-sdk",
  "futures",
  "hp-fixed",
+ "ics23",
  "ink-quill",
  "interfaces-proc",
  "lightning-schema",
@@ -6620,6 +6655,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde-big-array",
+ "sha2 0.10.8",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -6959,6 +6995,7 @@ dependencies = [
  "hmac",
  "hp-fixed",
  "hyper 0.14.28",
+ "ics23",
  "jsonrpsee",
  "lightning-application",
  "lightning-blockstore",
@@ -7240,6 +7277,7 @@ name = "lightning-workspace-hack"
 version = "0.1.0"
 dependencies = [
  "ahash 0.8.7",
+ "anstream",
  "arc-swap",
  "arrayvec",
  "autometrics",
@@ -7433,9 +7471,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.20"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
+checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
 name = "lru"
@@ -7776,7 +7814,7 @@ dependencies = [
  "bytes",
  "cc",
  "downcast-rs",
- "env_logger",
+ "env_logger 0.9.3",
  "erasable",
  "futures",
  "lazy_static",

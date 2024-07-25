@@ -73,6 +73,7 @@ blake3 = { version = "1.5", features = ["traits-preview"] }
 fxhash = "0.2"
 hex = { version = "0.4.3", features = ["serde"] }
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+ics23 = "0.11.0"
 
 # Our libraries
 lightning-types = { path = "core/types" }

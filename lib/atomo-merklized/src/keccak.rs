@@ -1,11 +1,10 @@
-use jmt::SimpleHasher;
 use tiny_keccak::{Hasher, Keccak};
 
-/// A `[jmt::SimpleHasher]` hasher implementation that uses the keccak-256 algorithm.
+use crate::SimpleHasher;
+
 #[derive(Clone)]
 pub struct KeccakHasher(Keccak);
 
-/// TODO: This is leaking `jmt::SimpleHasher`.
 impl SimpleHasher for KeccakHasher {
     fn new() -> Self {
         KeccakHasher(Keccak::v256())

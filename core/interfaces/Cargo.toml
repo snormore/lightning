@@ -21,6 +21,7 @@ zeroize.workspace = true
 tracing.workspace = true
 schemars.workspace = true
 triomphe.workspace = true
+ics23.workspace = true
 
 # Our libraries
 lightning-schema = { path = "../schema/" }
@@ -40,6 +41,7 @@ better-shutdown.workspace = true
 fn-sdk = { path = "../../lib/sdk" }
 lightning-workspace-hack.workspace = true
 blake3 = { version = "1.5.3", features = ["std", "traits-preview"] }
+sha2 = "0.10.8"
 
 [dev-dependencies]
 criterion = { version = "0.5.0", features = ["html_reports"] }

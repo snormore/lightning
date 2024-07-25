@@ -6,6 +6,9 @@ edition.workspace = true
 anyhow.workspace = true
 atomo.workspace = true
 atomo-merklized = { path = "../atomo-merklized" }
+digest = "0.10.7"
 fxhash.workspace = true
-jmt = "0.10.0"
+ics23.workspace = true
+jmt = { version = "0.10.0", features = ["ics23"] }
+log = { version = "0.4.22", features = ["kv"] }
 serde.workspace = true

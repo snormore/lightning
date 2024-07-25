@@ -1,5 +1,6 @@
-mod reader;
+mod context;
+mod hasher;
 mod strategy;
 
-pub use reader::JmtTreeReader;
+pub use context::JmtMerklizedContext;
 pub use strategy::JmtMerklizedStrategy;

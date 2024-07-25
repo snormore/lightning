@@ -5,13 +5,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Result;
-use atomo::{KeyIterator, QueryPerm};
-use atomo_merklized::{
-    MerklizedAtomo,
-    MerklizedAtomoBuilder,
-    MerklizedResolvedTableReference,
-    StateRootHash,
-};
+use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference, SerdeBackend};
+use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, MerklizedStrategy, StateRootHash};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
@@ -35,7 +30,7 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::{ApplicationLayout, SyncQueryRunnerInterface};
+use lightning_interfaces::{DefaultMerklizedStrategy, SyncQueryRunnerInterface};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -45,36 +40,40 @@ use crate::table::StateTables;
 
 #[derive(Clone)]
 pub struct QueryRunner {
-    inner: MerklizedAtomo<QueryPerm, AtomoStorage, ApplicationLayout>,
-    metadata_table: MerklizedResolvedTableReference<Metadata, Value>,
-    account_table: MerklizedResolvedTableReference<EthAddress, AccountInfo>,
-    client_table: MerklizedResolvedTableReference<ClientPublicKey, EthAddress>,
-    node_table: MerklizedResolvedTableReference<NodeIndex, NodeInfo>,
-    pub_key_to_index: MerklizedResolvedTableReference<NodePublicKey, NodeIndex>,
-    committee_table: MerklizedResolvedTableReference<Epoch, Committee>,
-    services_table: MerklizedResolvedTableReference<ServiceId, Service>,
-    param_table: MerklizedResolvedTableReference<ProtocolParams, u128>,
-    current_epoch_served: MerklizedResolvedTableReference<NodeIndex, NodeServed>,
-    rep_measurements:
-        MerklizedResolvedTableReference<NodeIndex, Vec<ReportedReputationMeasurements>>,
-    latencies: MerklizedResolvedTableReference<(NodeIndex, NodeIndex), Duration>,
-    rep_scores: MerklizedResolvedTableReference<NodeIndex, u8>,
-    _last_epoch_served: MerklizedResolvedTableReference<NodeIndex, NodeServed>,
-    total_served_table: MerklizedResolvedTableReference<Epoch, TotalServed>,
-    _service_revenue: MerklizedResolvedTableReference<ServiceId, ServiceRevenue>,
-    _commodity_price: MerklizedResolvedTableReference<CommodityTypes, HpUfixed<6>>,
-    executed_digests_table: MerklizedResolvedTableReference<TxHash, ()>,
-    uptime_table: MerklizedResolvedTableReference<NodeIndex, u8>,
-    uri_to_node: MerklizedResolvedTableReference<Blake3Hash, BTreeSet<NodeIndex>>,
-    node_to_uri: MerklizedResolvedTableReference<NodeIndex, BTreeSet<Blake3Hash>>,
+    inner: MerklizedAtomo<
+        QueryPerm,
+        AtomoStorage,
+        DefaultSerdeBackend,
+        DefaultMerklizedStrategy<AtomoStorage>,
+    >,
+    metadata_table: ResolvedTableReference<Metadata, Value>,
+    account_table: ResolvedTableReference<EthAddress, AccountInfo>,
+    client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
+    node_table: ResolvedTableReference<NodeIndex, NodeInfo>,
+    pub_key_to_index: ResolvedTableReference<NodePublicKey, NodeIndex>,
+    committee_table: ResolvedTableReference<Epoch, Committee>,
+    services_table: ResolvedTableReference<ServiceId, Service>,
+    param_table: ResolvedTableReference<ProtocolParams, u128>,
+    current_epoch_served: ResolvedTableReference<NodeIndex, NodeServed>,
+    rep_measurements: ResolvedTableReference<NodeIndex, Vec<ReportedReputationMeasurements>>,
+    latencies: ResolvedTableReference<(NodeIndex, NodeIndex), Duration>,
+    rep_scores: ResolvedTableReference<NodeIndex, u8>,
+    _last_epoch_served: ResolvedTableReference<NodeIndex, NodeServed>,
+    total_served_table: ResolvedTableReference<Epoch, TotalServed>,
+    _service_revenue: ResolvedTableReference<ServiceId, ServiceRevenue>,
+    _commodity_price: ResolvedTableReference<CommodityTypes, HpUfixed<6>>,
+    executed_digests_table: ResolvedTableReference<TxHash, ()>,
+    uptime_table: ResolvedTableReference<NodeIndex, u8>,
+    uri_to_node: ResolvedTableReference<Blake3Hash, BTreeSet<NodeIndex>>,
+    node_to_uri: ResolvedTableReference<NodeIndex, BTreeSet<Blake3Hash>>,
 }
 
 impl SyncQueryRunnerInterface for QueryRunner {
-    type Backend = AtomoStorage;
+    type Storage = AtomoStorage;
+    type Serde = DefaultSerdeBackend;
+    type Merklized = DefaultMerklizedStrategy<Self::Storage>;
 
-    type Layout = ApplicationLayout;
-
-    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, Self::Layout>) -> Self {
+    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -105,30 +104,27 @@ impl SyncQueryRunnerInterface for QueryRunner {
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>> {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, AtomoStorage, Self::Serde, Self::Merklized>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
             .from_checkpoint(hash, checkpoint)
             .read_only();
 
-        let atomo = Self::register_tables(
-            MerklizedAtomoBuilder::<AtomoStorageBuilder, Self::Layout>::new(backend),
-        )
-        .build()?
-        .query();
+        let atomo = Self::register_tables(MerklizedAtomoBuilder::new(backend))
+            .build()?
+            .query();
 
         Ok(atomo)
     }
 
     fn atomo_from_path(
         path: impl AsRef<Path>,
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Backend, Self::Layout>> {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, AtomoStorage, DefaultSerdeBackend, Self::Merklized>>
+    {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
-        let atomo = Self::register_tables(
-            MerklizedAtomoBuilder::<AtomoStorageBuilder, Self::Layout>::new(backend),
-        )
-        .build()?
-        .query();
+        let atomo = Self::register_tables(MerklizedAtomoBuilder::new(backend))
+            .build()?
+            .query();
 
         Ok(atomo)
     }
@@ -141,16 +137,22 @@ impl SyncQueryRunnerInterface for QueryRunner {
         self.inner.get_state_root()
     }
 
-    // TODO(snormore): Return a proof type instead of a `Vec<u8>`, or something standard like an
-    // ics23 proof.
-    fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
+    fn get_state_proof<K, V>(
+        &self,
+        table: &str,
+        key: K,
+    ) -> Result<(Option<V>, ics23::CommitmentProof)>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,
     {
         self.inner.run(|ctx| {
-            let table = ctx.get_table::<K, V>(table);
-            let (value, proof) = table.get_with_proof(key);
+            let ctx = Self::Merklized::context(ctx);
+            let serialized_key = Self::Serde::serialize(&key);
+            // TODO(snormore): Serialize/deserialize should happen using the merklized type's serde
+            // backend.
+            let (value, proof) = ctx.get_state_proof(table, serialized_key)?;
+            let value = value.map(|v| Self::Serde::deserialize(&v));
             Ok((value, proof))
         })
     }
@@ -260,7 +262,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
         self.inner.run(|ctx| {
             // Create the app/execution environment
             let backend = StateTables {
-                table_selector: ctx.inner(),
+                table_selector: ctx,
             };
             let app = State::new(backend);
             app.execute_transaction(txn)
