@@ -13,17 +13,17 @@ type AtomoResult<P, B, S, M, E> = Result<MerklizedAtomo<P, B, S, M>, E>;
 pub struct MerklizedAtomoBuilder<
     C: StorageBackendConstructor,
     S: SerdeBackend,
-    X: MerklizedStrategy<Storage = C::Storage, Serde = S>,
+    M: MerklizedStrategy<Storage = C::Storage, Serde = S>,
 > {
     inner: AtomoBuilder<C, S>,
-    _phantom: PhantomData<X>,
+    _phantom: PhantomData<M>,
 }
 
 impl<
     C: StorageBackendConstructor,
     S: SerdeBackend,
-    X: MerklizedStrategy<Storage = C::Storage, Serde = S>,
-> MerklizedAtomoBuilder<C, S, X>
+    M: MerklizedStrategy<Storage = C::Storage, Serde = S>,
+> MerklizedAtomoBuilder<C, S, M>
 {
     /// Create a new builder with the given storage backend constructor.
     pub fn new(constructor: C) -> Self {
@@ -58,9 +58,9 @@ impl<
     }
 
     /// Build and return a writer for the state tree.
-    pub fn build(self) -> AtomoResult<UpdatePerm, C::Storage, S, X, C::Error> {
+    pub fn build(self) -> AtomoResult<UpdatePerm, C::Storage, S, M, C::Error> {
         // TODO(snormore): Fix this unwrap.
-        let atomo = X::build(self.inner).unwrap();
-        Ok(MerklizedAtomo::<_, C::Storage, S, X>::new(atomo))
+        let atomo = M::build(self.inner).unwrap();
+        Ok(MerklizedAtomo::<_, C::Storage, S, M>::new(atomo))
     }
 }

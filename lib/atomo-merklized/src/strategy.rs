@@ -1,7 +1,9 @@
 use anyhow::Result;
 use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
-use crate::{SimpleHasher, StateRootHash};
+use crate::{MerklizedContext, SimpleHasher};
 
 pub trait MerklizedStrategy {
     type Storage: StorageBackend;
@@ -18,25 +20,15 @@ pub trait MerklizedStrategy {
         ctx: &'a TableSelector<Self::Storage, Self::Serde>,
     ) -> Box<dyn MerklizedContext<'a, Self::Storage, Self::Serde, Self::Hasher> + 'a>
     where
-        // TODO(snormore): Why is this 'a bound needed?
         Self::Hasher: SimpleHasher + 'a;
-}
 
-pub trait MerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
-    /// Returns the root hash of the state tree.
-    fn get_state_root(&self) -> Result<StateRootHash>;
+    /// Serialize the given data using the serde backend.
+    fn serialize<T: Serialize>(data: &T) -> Vec<u8> {
+        Self::Serde::serialize(data)
+    }
 
-    /// Generates and returns a merkle proof for the given key in the state. If the key exists in
-    /// the state, the value and an existence proof is returned. If the key does not exist in the
-    /// state, `[None]` is returned along with a non-existent proof.
-    fn get_state_proof(
-        &self,
-        table: &str,
-        // TODO(snormore): Can we use generic key/value types here?
-        serialized_key: Vec<u8>,
-    ) -> Result<(Option<Vec<u8>>, ics23::CommitmentProof)>;
-
-    /// Applies the changes in the given batch to the state tree by computing updated or removed
-    /// nodes, to be committed with same state updates.
-    fn apply_state_tree_changes(&mut self) -> Result<()>;
+    /// Deserialize the given data using the serde backend.
+    fn deserialize<T: DeserializeOwned>(data: &[u8]) -> T {
+        Self::Serde::deserialize::<T>(data)
+    }
 }

@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Result;
-use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference, SerdeBackend};
+use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
 use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, MerklizedStrategy, StateRootHash};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -71,9 +71,9 @@ pub struct QueryRunner {
 impl SyncQueryRunnerInterface for QueryRunner {
     type Storage = AtomoStorage;
     type Serde = DefaultSerdeBackend;
-    type Merklized = DefaultMerklizedStrategy<Self::Storage>;
+    type Merklized = DefaultMerklizedStrategy<AtomoStorage>;
 
-    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>) -> Self {
+    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, Self::Serde, Self::Merklized>) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -118,8 +118,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn atomo_from_path(
         path: impl AsRef<Path>,
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, AtomoStorage, DefaultSerdeBackend, Self::Merklized>>
-    {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, AtomoStorage, Self::Serde, Self::Merklized>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
         let atomo = Self::register_tables(MerklizedAtomoBuilder::new(backend))
@@ -148,11 +147,9 @@ impl SyncQueryRunnerInterface for QueryRunner {
     {
         self.inner.run(|ctx| {
             let ctx = Self::Merklized::context(ctx);
-            let serialized_key = Self::Serde::serialize(&key);
-            // TODO(snormore): Serialize/deserialize should happen using the merklized type's serde
-            // backend.
+            let serialized_key = Self::Merklized::serialize(&key);
             let (value, proof) = ctx.get_state_proof(table, serialized_key)?;
-            let value = value.map(|v| Self::Serde::deserialize(&v));
+            let value = value.map(|v| Self::Merklized::deserialize(&v));
             Ok((value, proof))
         })
     }

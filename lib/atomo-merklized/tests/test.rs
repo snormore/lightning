@@ -1,5 +1,5 @@
 use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
-use atomo_merklized::{MerklizedAtomoBuilder, MerklizedStrategy, StateTable};
+use atomo_merklized::{MerklizedAtomoBuilder, MerklizedStrategy, StateKey};
 use atomo_merklized_jmt::JmtMerklizedStrategy;
 use jmt::proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR};
 
@@ -53,12 +53,12 @@ fn test_atomo() {
 fn generic_test_atomo<
     C: StorageBackendConstructor,
     S: SerdeBackend,
-    X: MerklizedStrategy<Storage = C::Storage, Serde = S>,
+    M: MerklizedStrategy<Storage = C::Storage, Serde = S>,
 >(
     builder: C,
     ics23_spec: ics23::ProofSpec,
 ) {
-    let mut db = MerklizedAtomoBuilder::<C, S, X>::new(builder)
+    let mut db = MerklizedAtomoBuilder::<C, S, M>::new(builder)
         .with_table::<String, String>("data")
         .enable_iter("data")
         .with_table::<u8, u8>("other")
@@ -88,7 +88,7 @@ fn generic_test_atomo<
         // Check data via reader.
         reader.run(|ctx| {
             let data_table = ctx.get_table::<String, String>("data");
-            let ctx = X::context(ctx);
+            let ctx = M::context(ctx);
 
             // Check data key count.
             let keys = data_table.keys().collect::<Vec<_>>();
@@ -112,24 +112,21 @@ fn generic_test_atomo<
                 let (value, proof) = ctx
                     .get_state_proof(
                         "data",
-                        S::serialize::<Vec<u8>>(&format!("key{i}").as_bytes().to_vec()),
+                        M::serialize::<Vec<u8>>(&format!("key{i}").as_bytes().to_vec()),
                     )
                     .unwrap();
                 // TODO(snormore): Fix this unwrap.
-                // TODO(snormore): Clean up the ser/deser here, it ideally should be encapsulated in
-                // the strategy/context with K/V param types.
                 assert_eq!(
-                    value.map(|v| S::deserialize::<String>(&v.to_vec())),
+                    value.map(|v| M::deserialize::<String>(&v.to_vec())),
                     Some(format!("value{i}"))
                 );
 
                 // Verify proof.
-                // TODO(snormore): Should this be encapsulated?
-                let key = S::serialize(
-                    &StateTable::new("data")
-                        .key(S::serialize(&format!("key{i}").as_bytes().to_vec())),
-                );
-                let value = S::serialize::<Vec<u8>>(&format!("value{i}").as_bytes().to_vec());
+                let key = M::serialize(&StateKey::new(
+                    "data",
+                    M::serialize(&format!("key{i}").as_bytes().to_vec()),
+                ));
+                let value = M::serialize::<Vec<u8>>(&format!("value{i}").as_bytes().to_vec());
                 assert!(ics23::verify_membership::<ics23::HostFunctionsManager>(
                     &proof,
                     &ics23_spec,

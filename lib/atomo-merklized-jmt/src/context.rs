@@ -4,13 +4,14 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use atomo::batch::Operation;
 use atomo::{SerdeBackend, StorageBackend, TableIndex, TableSelector};
-use atomo_merklized::{MerklizedContext, SimpleHasher, StateKey, StateRootHash, StateTable};
+use atomo_merklized::{MerklizedContext, SimpleHasher, StateKey, StateRootHash};
 use fxhash::FxHashMap;
 use jmt::storage::{HasPreimage, LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
 use log::trace;
 
 use crate::hasher::SimpleHasherWrapper;
+use crate::strategy::{KEYS_TABLE_NAME, NODES_TABLE_NAME, VALUES_TABLE_NAME};
 
 type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>>;
 
@@ -27,10 +28,9 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContex
     pub fn new(ctx: &'a TableSelector<B, S>) -> Self {
         let tables = ctx.tables();
 
-        // TODO(snormore): Pass in the table name prefix as a parameter.
-        let nodes_table = ctx.get_table("%state_tree_nodes");
-        let keys_table = ctx.get_table("%state_tree_keys");
-        let values_table = ctx.get_table("%state_tree_values");
+        let nodes_table = ctx.get_table(NODES_TABLE_NAME);
+        let keys_table = ctx.get_table(KEYS_TABLE_NAME);
+        let values_table = ctx.get_table(VALUES_TABLE_NAME);
 
         let mut table_id_by_name = FxHashMap::default();
         for (i, table) in tables.iter().enumerate() {
@@ -67,15 +67,14 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
     fn get_state_proof(
         &self,
         table: &str,
-        key: Vec<u8>,
+        serialized_key: Vec<u8>,
     ) -> Result<(Option<Vec<u8>>, ics23::CommitmentProof)> {
         let tree = jmt::JellyfishMerkleTree::<_, SimpleHasherWrapper<H>>::new(self);
 
-        // Get the value and proof from the tree.
-        // TODO(snormore): We don't need StateTable, just build a StateKey directly.
-        let state_key = StateTable::new(table).key(key);
+        let state_key = StateKey::new(table, serialized_key);
         let key_hash = state_key.hash::<S, H>();
         trace!(key_hash:?, state_key:?; "get_proof");
+
         let (value, proof) = tree.get_with_ics23_proof(S::serialize(&state_key), 0)?;
 
         Ok((value, proof))
@@ -95,7 +94,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
                 .ok_or(anyhow!("Table with index {} not found", table_id))?
                 .as_str();
             for (key, operation) in changes.iter() {
-                let state_key = StateKey::new(table_name.to_string(), key.to_vec());
+                let state_key = StateKey::new(table_name, key.to_vec());
                 let key_hash = jmt::KeyHash(state_key.hash::<S, H>().into());
 
                 match operation {

@@ -171,7 +171,6 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
         key: K,
     ) -> Result<(Option<V>, ics23::CommitmentProof)>
     where
-        // TODO(snormore): Can we better encapsulate these?
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any;
 

@@ -20,20 +20,20 @@ use crate::{MerklizedStrategy, StateRootHash};
 /// A merklized atomo, that can be used to query and update tables. It wraps an atomo instance and
 /// a reference to the state tree table. It is parameterized by the permission type, which can be
 /// either `UpdatePerm` or `QueryPerm`.
-pub struct MerklizedAtomo<P, B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy> {
+pub struct MerklizedAtomo<P, B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy> {
     inner: Atomo<P, B, S>,
-    _phantom: PhantomData<X>,
+    _phantom: PhantomData<M>,
 }
 
-impl<B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy> Clone
-    for MerklizedAtomo<QueryPerm, B, S, X>
+impl<B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy> Clone
+    for MerklizedAtomo<QueryPerm, B, S, M>
 {
     fn clone(&self) -> Self {
         Self::new(self.inner.clone())
     }
 }
 
-impl<P, B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy> MerklizedAtomo<P, B, S, X> {
+impl<P, B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy> MerklizedAtomo<P, B, S, M> {
     /// Create a new merklized atomo.
     pub fn new(inner: Atomo<P, B, S>) -> Self {
         Self {
@@ -44,7 +44,7 @@ impl<P, B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy> MerklizedAtomo
 
     /// Build and return a query reader for the data.
     #[inline]
-    pub fn query(&self) -> MerklizedAtomo<QueryPerm, B, S, X> {
+    pub fn query(&self) -> MerklizedAtomo<QueryPerm, B, S, M> {
         MerklizedAtomo::new(self.inner.query())
     }
 
@@ -59,8 +59,8 @@ impl<P, B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy> MerklizedAtomo
     }
 }
 
-impl<B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy<Storage = B, Serde = S>>
-    MerklizedAtomo<UpdatePerm, B, S, X>
+impl<B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy<Storage = B, Serde = S>>
+    MerklizedAtomo<UpdatePerm, B, S, M>
 {
     /// Run an update on the data.
     pub fn run<F, R>(&mut self, mutation: F) -> R
@@ -70,7 +70,7 @@ impl<B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy<Storage = B, Serde
         self.inner.run(|ctx| {
             let res = mutation(ctx);
 
-            let mut ctx = X::context(ctx);
+            let mut ctx = M::context(ctx);
             ctx.apply_state_tree_changes().unwrap();
 
             res
@@ -83,8 +83,8 @@ impl<B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy<Storage = B, Serde
     }
 }
 
-impl<B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy<Storage = B, Serde = S>>
-    MerklizedAtomo<QueryPerm, B, S, X>
+impl<B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy<Storage = B, Serde = S>>
+    MerklizedAtomo<QueryPerm, B, S, M>
 {
     /// Run a query on the database.
     pub fn run<F, R>(&self, query: F) -> R
@@ -98,7 +98,7 @@ impl<B: StorageBackend, S: SerdeBackend, X: MerklizedStrategy<Storage = B, Serde
     #[inline]
     pub fn get_state_root(&self) -> Result<StateRootHash> {
         self.run(|ctx| {
-            let ctx = X::context(ctx);
+            let ctx = M::context(ctx);
             ctx.get_state_root()
         })
     }
