@@ -70,8 +70,7 @@ impl<B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy<Storage = B, Serde
         self.inner.run(|ctx| {
             let res = mutation(ctx);
 
-            let mut ctx = M::context(ctx);
-            ctx.apply_state_tree_changes().unwrap();
+            M::context(ctx).apply_state_tree_changes().unwrap();
 
             res
         })
@@ -97,9 +96,6 @@ impl<B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy<Storage = B, Serde
     /// Return the state root hash of the state tree.
     #[inline]
     pub fn get_state_root(&self) -> Result<StateRootHash> {
-        self.run(|ctx| {
-            let ctx = M::context(ctx);
-            ctx.get_state_root()
-        })
+        self.run(|ctx| M::context(ctx).get_state_root())
     }
 }

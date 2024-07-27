@@ -165,11 +165,7 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_state_root(&self) -> Result<StateRootHash>;
 
     /// Get a state proof for a given table and key.
-    fn get_state_proof<K, V>(
-        &self,
-        table: &str,
-        key: K,
-    ) -> Result<(Option<V>, ics23::CommitmentProof)>
+    fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any;

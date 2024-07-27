@@ -59,7 +59,6 @@ impl<
 
     /// Build and return a writer for the state tree.
     pub fn build(self) -> AtomoResult<UpdatePerm, C::Storage, S, M, C::Error> {
-        // TODO(snormore): Fix this unwrap.
         let atomo = M::build(self.inner).unwrap();
         Ok(MerklizedAtomo::<_, C::Storage, S, M>::new(atomo))
     }

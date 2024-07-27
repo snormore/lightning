@@ -403,16 +403,14 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         key: Vec<u8>,
         epoch: Option<u64>,
     ) -> RpcResult<(Option<Vec<u8>>, Vec<u8>)> {
-        // TODO(snormore): Can we do something better than Vec<u8> bytes for the key and returned
-        // value?
-        let (value, _proof) = self
+        // TODO(snormore): Can we do better than bytes for key and value?
+        let (value, proof) = self
             .data
             .query_runner(epoch)
             .await?
             .get_state_proof(&table, key)
             .map_err(|e| RPCError::custom(e.to_string()))?;
-        // TODO(snormore): Make this an ics23::CommittmentProof and satisfy jsonschema needs.
-        Ok((value, Vec::new()))
+        Ok((value, proof))
     }
 
     async fn send_txn(&self, tx: TransactionRequest) -> RpcResult<()> {

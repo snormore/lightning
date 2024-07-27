@@ -104,7 +104,8 @@ impl SyncQueryRunnerInterface for QueryRunner {
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, AtomoStorage, Self::Serde, Self::Merklized>> {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>>
+    {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
             .from_checkpoint(hash, checkpoint)
             .read_only();
@@ -118,7 +119,8 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn atomo_from_path(
         path: impl AsRef<Path>,
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, AtomoStorage, Self::Serde, Self::Merklized>> {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>>
+    {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
         let atomo = Self::register_tables(MerklizedAtomoBuilder::new(backend))
@@ -136,20 +138,19 @@ impl SyncQueryRunnerInterface for QueryRunner {
         self.inner.get_state_root()
     }
 
-    fn get_state_proof<K, V>(
-        &self,
-        table: &str,
-        key: K,
-    ) -> Result<(Option<V>, ics23::CommitmentProof)>
+    fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
     where
         K: Hash + Eq + Serialize + DeserializeOwned + Any,
         V: Serialize + DeserializeOwned + Any,
     {
         self.inner.run(|ctx| {
-            let ctx = Self::Merklized::context(ctx);
             let serialized_key = Self::Merklized::serialize(&key);
-            let (value, proof) = ctx.get_state_proof(table, serialized_key)?;
+            let (value, proof) =
+                Self::Merklized::context(ctx).get_state_proof(table, serialized_key)?;
             let value = value.map(|v| Self::Merklized::deserialize(&v));
+            // TODO(snormore): We need to serialize `[ics23::CommitmentProof]` until we have
+            // jsonschema for ics23 types, which is required by our RPC.
+            let proof = Self::Merklized::serialize(&proof);
             Ok((value, proof))
         })
     }
