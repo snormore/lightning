@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use crate::{SimpleHash, SimpleHasher};
 
 /// State root hash of the merkle tree.
-// TODO(snormore): Should this just be an `[ics23::CommitmentRoot]`?
 pub type StateRootHash = SimpleHash;
 
 /// Hash of a leaf value key in the state tree. This is not the same as a tree node key, but rather
@@ -34,8 +33,6 @@ impl StateKey {
         StateKeyHash::build::<H>(S::serialize(&self))
     }
 }
-
-// TODO(snormore): Should we have an enum for the different types of proofs?
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateProof(ics23::CommitmentProof);

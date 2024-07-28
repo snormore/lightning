@@ -764,6 +764,7 @@ dependencies = [
  "ics23",
  "jmt",
  "log",
+ "lru 0.10.1",
  "serde",
 ]
 

@@ -11,4 +11,5 @@ fxhash.workspace = true
 ics23.workspace = true
 jmt = { version = "0.10.0", features = ["ics23"] }
 log = { version = "0.4.22", features = ["kv"] }
+lru.workspace = true
 serde.workspace = true

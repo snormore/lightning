@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
@@ -9,6 +10,7 @@ use fxhash::FxHashMap;
 use jmt::storage::{HasPreimage, LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
 use log::trace;
+use lru::LruCache;
 
 use crate::hasher::SimpleHasherWrapper;
 use crate::strategy::{KEYS_TABLE_NAME, NODES_TABLE_NAME};
@@ -20,6 +22,7 @@ pub struct JmtMerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: Simple
     table_name_by_id: FxHashMap<TableId, String>,
     nodes_table: SharedTableRef<'a, Vec<u8>, Vec<u8>, B, S>,
     keys_table: SharedTableRef<'a, KeyHash, StateKey, B, S>,
+    keys_cache: Arc<Mutex<LruCache<KeyHash, StateKey>>>,
     _phantom: PhantomData<H>,
 }
 
@@ -48,8 +51,24 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContex
             table_name_by_id,
             nodes_table: Arc::new(Mutex::new(nodes_table)),
             keys_table: Arc::new(Mutex::new(keys_table)),
+            keys_cache: Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(512).unwrap()))),
             _phantom: PhantomData,
         }
+    }
+
+    fn get_key(&self, key_hash: KeyHash) -> Option<StateKey> {
+        let mut keys_cache = self.keys_cache.lock().unwrap();
+
+        if let Some(state_key) = keys_cache.get(&key_hash) {
+            return Some(state_key.clone());
+        }
+
+        let state_key = self.keys_table.lock().unwrap().get(key_hash);
+        if let Some(state_key) = state_key.clone() {
+            keys_cache.put(key_hash, state_key.clone());
+        }
+
+        state_key
     }
 }
 
@@ -159,8 +178,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> TreeReader
         _max_version: Version,
         key_hash: KeyHash,
     ) -> Result<Option<OwnedValue>> {
-        // TODO(snormore): Keep a cache of these lookups.
-        let state_key = { self.keys_table.lock().unwrap().get(key_hash) };
+        let state_key = self.get_key(key_hash);
         let value = if let Some(state_key) = state_key {
             self.ctx.get_raw_value(state_key.table, &state_key.key)
         } else {
@@ -176,8 +194,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> HasPreimage
 {
     /// Gets the preimage of a key hash, if it is present in the tree.
     fn preimage(&self, key_hash: KeyHash) -> Result<Option<Vec<u8>>> {
-        // TODO(snormore): Keep a cache of these lookups.
-        let state_key = self.keys_table.lock().unwrap().get(key_hash);
+        let state_key = self.get_key(key_hash);
         trace!(key_hash:?, state_key:?; "preimage");
         Ok(state_key.map(|key| S::serialize(&key)))
     }
