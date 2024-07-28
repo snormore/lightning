@@ -13,7 +13,13 @@ use atomo::{
     StorageBackend,
     StorageBackendConstructor,
 };
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, MerklizedStrategy, StateRootHash};
+use atomo_merklized::{
+    MerklizedAtomo,
+    MerklizedAtomoBuilder,
+    MerklizedStrategy,
+    StateProof,
+    StateRootHash,
+};
 use atomo_merklized_jmt::JmtMerklizedStrategy;
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
@@ -164,7 +170,7 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_state_root(&self) -> Result<StateRootHash>;
 
     /// Get a state proof for a given key.
-    fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, Vec<u8>)>;
+    fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, StateProof)>;
 
     /// Query Account Table
     /// Returns information about an account.

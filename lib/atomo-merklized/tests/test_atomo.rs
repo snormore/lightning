@@ -145,11 +145,15 @@ fn generic_test_atomo<
                         M::Serde::serialize::<Vec<u8>>(&format!("key{i}").as_bytes().to_vec()),
                     )
                     .unwrap();
-                // TODO(snormore): Fix this unwrap.
                 assert_eq!(
                     value.map(|v| M::Serde::deserialize::<String>(&v.to_vec())),
                     Some(format!("value{i}"))
                 );
+                let proof: ics23::CommitmentProof = proof.into();
+                assert!(matches!(
+                    proof.proof,
+                    Some(ics23::commitment_proof::Proof::Exist(_))
+                ));
 
                 // Verify proof.
                 let key = M::Serde::serialize(&StateKey::new(
@@ -166,6 +170,17 @@ fn generic_test_atomo<
                     value.as_slice()
                 ))
             }
+
+            // Check non-existence proof.
+            let (value, proof) = ctx
+                .get_state_proof("data", "unknown".as_bytes().to_vec())
+                .unwrap();
+            assert!(value.is_none());
+            let proof: ics23::CommitmentProof = proof.into();
+            assert!(matches!(
+                proof.proof,
+                Some(ics23::commitment_proof::Proof::Nonexist(_))
+            ));
         });
     }
 

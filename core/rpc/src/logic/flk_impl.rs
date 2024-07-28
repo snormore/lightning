@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use atomo_merklized::StateRootHash;
+use atomo_merklized::{StateProof, StateRootHash};
 use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
@@ -402,7 +402,7 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         &self,
         key: StateProofKey,
         epoch: Option<u64>,
-    ) -> RpcResult<(Option<StateProofValue>, Vec<u8>)> {
+    ) -> RpcResult<(Option<StateProofValue>, StateProof)> {
         let (value, proof) = self
             .data
             .query_runner(epoch)

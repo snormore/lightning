@@ -1,4 +1,5 @@
 use atomo::SerdeBackend;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{SimpleHash, SimpleHasher};
@@ -31,5 +32,38 @@ impl StateKey {
     /// Build and return a hash for the state key.
     pub fn hash<S: SerdeBackend, H: SimpleHasher>(&self) -> StateKeyHash {
         StateKeyHash::build::<H>(S::serialize(&self))
+    }
+}
+
+// TODO(snormore): Should we have an enum for the different types of proofs?
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateProof(ics23::CommitmentProof);
+
+impl From<ics23::CommitmentProof> for StateProof {
+    fn from(proof: ics23::CommitmentProof) -> Self {
+        Self(proof)
+    }
+}
+
+impl From<StateProof> for ics23::CommitmentProof {
+    fn from(proof: StateProof) -> Self {
+        proof.0
+    }
+}
+
+impl JsonSchema for StateProof {
+    fn schema_name() -> String {
+        "StateProof".to_string()
+    }
+
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed(concat!(module_path!(), "::StateProof"))
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        let key = StateProof(ics23::CommitmentProof::default());
+
+        schemars::schema_for_value!(key).schema.into()
     }
 }

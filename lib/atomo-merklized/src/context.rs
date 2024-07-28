@@ -6,7 +6,7 @@ use atomo::{SerdeBackend, StorageBackend};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::{SimpleHasher, StateRootHash};
+use crate::{SimpleHasher, StateProof, StateRootHash};
 
 pub trait DataKey: Hash + Eq + Serialize + DeserializeOwned + Any {}
 
@@ -25,7 +25,7 @@ pub trait MerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHash
         &self,
         table: &str,
         serialized_key: Vec<u8>,
-    ) -> Result<(Option<Vec<u8>>, ics23::CommitmentProof)>;
+    ) -> Result<(Option<Vec<u8>>, StateProof)>;
 
     /// Applies the changes in the given batch to the state tree by computing updated or removed
     /// nodes, to be committed with same state updates.

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use atomo::batch::Operation;
 use atomo::{SerdeBackend, StorageBackend, TableId, TableSelector};
-use atomo_merklized::{MerklizedContext, SimpleHasher, StateKey, StateRootHash};
+use atomo_merklized::{MerklizedContext, SimpleHasher, StateKey, StateProof, StateRootHash};
 use fxhash::FxHashMap;
 use jmt::storage::{HasPreimage, LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
@@ -66,7 +66,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
         &self,
         table: &str,
         serialized_key: Vec<u8>,
-    ) -> Result<(Option<Vec<u8>>, ics23::CommitmentProof)> {
+    ) -> Result<(Option<Vec<u8>>, StateProof)> {
         let tree = jmt::JellyfishMerkleTree::<_, SimpleHasherWrapper<H>>::new(self);
 
         let state_key = StateKey::new(table, serialized_key);
@@ -75,7 +75,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
 
         let (value, proof) = tree.get_with_ics23_proof(S::serialize(&state_key), 0)?;
 
-        Ok((value, proof))
+        Ok((value, proof.into()))
     }
 
     fn apply_state_tree_changes(&mut self) -> Result<()> {
@@ -108,7 +108,10 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
 
                         // Insert it into the keys table.
                         trace!(key_hash:?, state_key:?; "inserting key");
-                        self.keys_table.lock().unwrap().insert(key_hash, state_key);
+                        self.keys_table
+                            .lock()
+                            .unwrap()
+                            .insert(key_hash, state_key.clone());
                     },
                 }
             }

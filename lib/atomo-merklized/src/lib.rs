@@ -12,4 +12,4 @@ pub use context::MerklizedContext;
 pub use hasher::{SimpleHash, SimpleHasher};
 pub use keccak::KeccakHasher;
 pub use strategy::MerklizedStrategy;
-pub use types::{StateKey, StateKeyHash, StateRootHash};
+pub use types::{StateKey, StateKeyHash, StateProof, StateRootHash};

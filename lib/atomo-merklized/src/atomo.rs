@@ -15,7 +15,7 @@ use atomo::{
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::{MerklizedStrategy, StateRootHash};
+use crate::{MerklizedStrategy, StateProof, StateRootHash};
 
 /// A merklized atomo, that can be used to query and update tables. It wraps an atomo instance and
 /// a reference to the state tree table. It is parameterized by the permission type, which can be
@@ -109,7 +109,7 @@ impl<B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy<Storage = B, Serde
         &self,
         table: &str,
         serialized_key: Vec<u8>,
-    ) -> Result<(Option<Vec<u8>>, ics23::CommitmentProof)> {
+    ) -> Result<(Option<Vec<u8>>, StateProof)> {
         self.run(|ctx| M::context(ctx).get_state_proof(table, serialized_key))
     }
 }

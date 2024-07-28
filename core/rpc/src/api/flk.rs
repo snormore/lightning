@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use atomo_merklized::StateRootHash;
+use atomo_merklized::{StateProof, StateRootHash};
 use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
@@ -195,7 +195,7 @@ pub trait FleekApi {
         &self,
         key: StateProofKey,
         epoch: Option<u64>,
-    ) -> RpcResult<(Option<StateProofValue>, Vec<u8>)>;
+    ) -> RpcResult<(Option<StateProofValue>, StateProof)>;
 
     #[method(name = "send_txn")]
     async fn send_txn(&self, tx: TransactionRequest) -> RpcResult<()>;
