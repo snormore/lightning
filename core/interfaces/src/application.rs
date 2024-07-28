@@ -13,14 +13,6 @@ use atomo::{
     StorageBackend,
     StorageBackendConstructor,
 };
-use atomo_merklized::{
-    MerklizedAtomo,
-    MerklizedAtomoBuilder,
-    MerklizedStrategy,
-    StateProof,
-    StateRootHash,
-};
-use atomo_merklized_jmt::JmtMerklizedStrategy;
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -39,6 +31,14 @@ use lightning_types::{
     TxHash,
     Value,
 };
+use merklized::{
+    MerklizedAtomo,
+    MerklizedAtomoBuilder,
+    MerklizedStrategy,
+    StateProof,
+    StateRootHash,
+};
+use merklized_jmt::JmtMerklizedStrategy;
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Collection;

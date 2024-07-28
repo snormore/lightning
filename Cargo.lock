@@ -730,45 +730,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atomo-merklized"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "atomo",
- "atomo-merklized-jmt",
- "atomo-rocks",
- "blake3",
- "digest 0.10.7",
- "env_logger 0.11.5",
- "hex",
- "ics23",
- "jmt",
- "log",
- "schemars",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "tempfile",
- "tiny-keccak",
-]
-
-[[package]]
-name = "atomo-merklized-jmt"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "atomo",
- "atomo-merklized",
- "digest 0.10.7",
- "fxhash",
- "ics23",
- "jmt",
- "log",
- "lru 0.10.1",
- "serde",
-]
-
-[[package]]
 name = "atomo-rocks"
 version = "0.2.0"
 dependencies = [
@@ -6098,8 +6059,6 @@ dependencies = [
  "affair",
  "anyhow",
  "atomo",
- "atomo-merklized",
- "atomo-merklized-jmt",
  "atomo-rocks",
  "autometrics",
  "bincode",
@@ -6115,6 +6074,8 @@ dependencies = [
  "lightning-test-utils",
  "lightning-utils",
  "lightning-workspace-hack",
+ "merklized",
+ "merklized-jmt",
  "multiaddr",
  "num-traits",
  "rand",
@@ -6633,8 +6594,6 @@ dependencies = [
  "affair",
  "anyhow",
  "atomo",
- "atomo-merklized",
- "atomo-merklized-jmt",
  "atomo-rocks",
  "better-shutdown",
  "blake3",
@@ -6654,6 +6613,8 @@ dependencies = [
  "lightning-schema",
  "lightning-types",
  "lightning-workspace-hack",
+ "merklized",
+ "merklized-jmt",
  "schemars",
  "serde",
  "serde-big-array",
@@ -6988,7 +6949,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "atomo",
- "atomo-merklized",
  "autometrics",
  "clap 4.5.7",
  "ethers",
@@ -7019,6 +6979,7 @@ dependencies = [
  "lightning-types",
  "lightning-utils",
  "lightning-workspace-hack",
+ "merklized",
  "once_cell",
  "rand",
  "reqwest",
@@ -7645,6 +7606,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a634b1c61a95585bd15607c6ab0c4e5b226e695ff2800ba0cdccddf208c406c"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "merklized"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "atomo",
+ "atomo-rocks",
+ "blake3",
+ "digest 0.10.7",
+ "env_logger 0.11.5",
+ "hex",
+ "ics23",
+ "jmt",
+ "log",
+ "merklized-jmt",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "tempfile",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "merklized-jmt"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "atomo",
+ "digest 0.10.7",
+ "fxhash",
+ "ics23",
+ "jmt",
+ "log",
+ "lru 0.10.1",
+ "merklized",
+ "serde",
 ]
 
 [[package]]

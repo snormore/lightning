@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use atomo_merklized::{StateProof, StateRootHash};
 use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
@@ -32,6 +31,7 @@ use lightning_interfaces::types::{
 use lightning_interfaces::PagingParams;
 use lightning_types::{StateProofKey, StateProofValue};
 use lightning_utils::application::QueryRunnerExt;
+use merklized::{StateProof, StateRootHash};
 
 use crate::api::FleekApiServer;
 use crate::error::RPCError;

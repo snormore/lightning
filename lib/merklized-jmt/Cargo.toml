@@ -1,15 +1,15 @@
 [package]
-name = "atomo-merklized-jmt"
+name = "merklized-jmt"
 edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
 atomo.workspace = true
-atomo-merklized = { path = "../atomo-merklized" }
 digest = "0.10.7"
 fxhash.workspace = true
 ics23.workspace = true
 jmt = { version = "0.10.0", features = ["ics23"] }
 log = { version = "0.4.22", features = ["kv"] }
 lru.workspace = true
+merklized = { path = "../merklized" }
 serde.workspace = true

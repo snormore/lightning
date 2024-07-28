@@ -28,9 +28,9 @@ lightning-schema = { path = "../schema/" }
 lightning-types.workspace = true
 affair.workspace = true
 atomo.workspace = true
-atomo-merklized.workspace = true
-atomo-merklized-jmt.workspace = true
 atomo-rocks.workspace = true
+merklized.workspace = true
+merklized-jmt.workspace = true
 fleek-crypto.workspace = true
 hp-fixed.workspace = true
 ink-quill.workspace = true

@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use anyhow::Result;
 use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
-use atomo_merklized::{MerklizedContext, MerklizedStrategy, SimpleHasher, StateKey};
 use jmt::KeyHash;
+use merklized::{MerklizedContext, MerklizedStrategy, SimpleHasher, StateKey};
 
 use crate::JmtMerklizedContext;
 

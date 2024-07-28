@@ -44,8 +44,8 @@ workspace-members = [
     # NOTE: Add in alphabetical order.
     "affair",
     "atomo",
-    "atomo-merklized",
-    "atomo-merklized-jmt",
+    "merklized",
+    "merklized-jmt",
     "atomo-rocks",
     "b3fs",
     "better-shutdown",

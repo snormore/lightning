@@ -5,12 +5,12 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Result};
 use atomo::batch::Operation;
 use atomo::{SerdeBackend, StorageBackend, TableId, TableSelector};
-use atomo_merklized::{MerklizedContext, SimpleHasher, StateKey, StateProof, StateRootHash};
 use fxhash::FxHashMap;
 use jmt::storage::{HasPreimage, LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
 use log::trace;
 use lru::LruCache;
+use merklized::{MerklizedContext, SimpleHasher, StateKey, StateProof, StateRootHash};
 
 use crate::hasher::SimpleHasherWrapper;
 use crate::strategy::{KEYS_TABLE_NAME, NODES_TABLE_NAME};

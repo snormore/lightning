@@ -1,4 +1,4 @@
-use atomo_merklized::SimpleHasher;
+use merklized::SimpleHasher;
 
 pub(crate) struct SimpleHasherWrapper<H: SimpleHasher>(H);
 

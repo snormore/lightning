@@ -1,8 +1,8 @@
 use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
-use atomo_merklized::{MerklizedAtomoBuilder, MerklizedStrategy, StateKey};
-use atomo_merklized_jmt::JmtMerklizedStrategy;
 use atomo_rocks::{Options, RocksBackendBuilder};
 use jmt::proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR};
+use merklized::{MerklizedAtomoBuilder, MerklizedStrategy, StateKey};
+use merklized_jmt::JmtMerklizedStrategy;
 use tempfile::tempdir;
 
 /// This is originally defined in the jmt crate but is not publicly exported, so we redefine it here

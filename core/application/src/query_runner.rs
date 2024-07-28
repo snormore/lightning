@@ -4,13 +4,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
-use atomo_merklized::{
-    MerklizedAtomo,
-    MerklizedAtomoBuilder,
-    MerklizedStrategy,
-    StateProof,
-    StateRootHash,
-};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
@@ -37,6 +30,13 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::{DefaultMerklizedStrategy, SyncQueryRunnerInterface};
+use merklized::{
+    MerklizedAtomo,
+    MerklizedAtomoBuilder,
+    MerklizedStrategy,
+    StateProof,
+    StateRootHash,
+};
 
 use crate::state::State;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};

@@ -42,7 +42,7 @@ lightning-utils = { path = "../utils" }
 alloy-primitives = "0.5.2"
 resolved-pathbuf = { path = "../../lib/resolved-pathbuf" }
 atomo.workspace = true
-atomo-merklized.workspace = true
+merklized.workspace = true
 
 futures.workspace = true
 lightning-workspace-hack.workspace = true

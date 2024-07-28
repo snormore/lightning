@@ -5,7 +5,6 @@ use std::time::Duration;
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
 use atomo::{DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
-use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -37,6 +36,7 @@ use lightning_interfaces::types::{
 };
 use lightning_interfaces::DefaultMerklizedStrategy;
 use lightning_metrics::increment_counter;
+use merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
 use tracing::warn;
 
 use crate::config::{Config, StorageConfig};

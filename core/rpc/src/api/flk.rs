@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use atomo_merklized::{StateProof, StateRootHash};
 use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
@@ -25,6 +24,7 @@ use lightning_interfaces::types::{
 use lightning_interfaces::PagingParams;
 use lightning_openrpc_macros::open_rpc;
 use lightning_types::{StateProofKey, StateProofValue};
+use merklized::{StateProof, StateRootHash};
 
 #[open_rpc(namespace = "flk", tag = "1.0.0")]
 #[rpc(client, server, namespace = "flk")]
