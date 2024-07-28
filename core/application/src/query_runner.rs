@@ -1,6 +1,4 @@
-use std::any::Any;
 use std::collections::BTreeSet;
-use std::hash::Hash;
 use std::path::Path;
 use std::time::Duration;
 
@@ -24,6 +22,8 @@ use lightning_interfaces::types::{
     Service,
     ServiceId,
     ServiceRevenue,
+    StateProofKey,
+    StateProofValue,
     TotalServed,
     TransactionRequest,
     TransactionResponse,
@@ -31,8 +31,6 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::{DefaultMerklizedStrategy, SyncQueryRunnerInterface};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use crate::state::State;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
@@ -138,16 +136,14 @@ impl SyncQueryRunnerInterface for QueryRunner {
         self.inner.get_state_root()
     }
 
-    fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
-    where
-        K: Hash + Eq + Serialize + DeserializeOwned + Any,
-        V: Serialize + DeserializeOwned + Any,
-    {
+    fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, Vec<u8>)> {
         self.inner.run(|ctx| {
-            let serialized_key = Self::Merklized::serialize(&key);
+            let (table, serialized_key) =
+                key.get_raw::<<Self::Merklized as MerklizedStrategy>::Serde>();
             let (value, proof) =
-                Self::Merklized::context(ctx).get_state_proof(table, serialized_key)?;
-            let value = value.map(|v| Self::Merklized::deserialize(&v));
+                Self::Merklized::context(ctx).get_state_proof(&table, serialized_key)?;
+            let value = value
+                .map(|value| key.value::<<Self::Merklized as MerklizedStrategy>::Serde>(value));
             // TODO(snormore): We need to serialize `[ics23::CommitmentProof]` until we have
             // jsonschema for ics23 types, which is required by our RPC.
             let proof = Self::Merklized::serialize(&proof);

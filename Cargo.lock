@@ -6984,6 +6984,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "async-trait",
+ "atomo",
  "atomo-merklized",
  "autometrics",
  "clap 4.5.7",
@@ -7231,6 +7232,7 @@ name = "lightning-types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "atomo",
  "bincode",
  "cid 0.10.1",
  "compile-time-run",

@@ -1,6 +1,4 @@
-use std::any::Any;
 use std::collections::BTreeSet;
-use std::hash::Hash;
 use std::path::Path;
 use std::time::Duration;
 
@@ -29,11 +27,12 @@ use lightning_types::{
     Metadata,
     NodeIndex,
     ServiceRevenue,
+    StateProofKey,
+    StateProofValue,
     TransactionRequest,
     TxHash,
     Value,
 };
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Collection;
@@ -164,11 +163,8 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     /// Get the state root hash.
     fn get_state_root(&self) -> Result<StateRootHash>;
 
-    /// Get a state proof for a given table and key.
-    fn get_state_proof<K, V>(&self, table: &str, key: K) -> Result<(Option<V>, Vec<u8>)>
-    where
-        K: Hash + Eq + Serialize + DeserializeOwned + Any,
-        V: Serialize + DeserializeOwned + Any;
+    /// Get a state proof for a given key.
+    fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, Vec<u8>)>;
 
     /// Query Account Table
     /// Returns information about an account.

@@ -81,7 +81,7 @@ pub struct ReportedReputationMeasurements {
 }
 
 /// Metadata, state stored in the blockchain that applies to the current block
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 pub enum Metadata {
     ChainId,
     Epoch,
@@ -98,7 +98,7 @@ pub enum Metadata {
 }
 
 /// The Value enum is a data type used to represent values in a key-value pair for a metadata table
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, schemars::JsonSchema)]
 pub enum Value {
     ChainId(u32),
     Epoch(u64),
@@ -347,7 +347,19 @@ pub struct Service {
     pub slashing: (),
 }
 
-#[derive(Debug, Hash, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize, Clone, Default)]
+#[derive(
+    Debug,
+    Hash,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    Default,
+    schemars::JsonSchema,
+)]
 pub struct Committee {
     pub members: Vec<NodeIndex>,
     pub ready_to_change: Vec<NodeIndex>,

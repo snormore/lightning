@@ -30,6 +30,7 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::PagingParams;
+use lightning_types::{StateProofKey, StateProofValue};
 use lightning_utils::application::QueryRunnerExt;
 
 use crate::api::FleekApiServer;
@@ -399,16 +400,14 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
 
     async fn get_state_proof(
         &self,
-        table: String,
-        key: Vec<u8>,
+        key: StateProofKey,
         epoch: Option<u64>,
-    ) -> RpcResult<(Option<Vec<u8>>, Vec<u8>)> {
-        // TODO(snormore): Can we do better than bytes for key and value?
+    ) -> RpcResult<(Option<StateProofValue>, Vec<u8>)> {
         let (value, proof) = self
             .data
             .query_runner(epoch)
             .await?
-            .get_state_proof(&table, key)
+            .get_state_proof(key)
             .map_err(|e| RPCError::custom(e.to_string()))?;
         Ok((value, proof))
     }

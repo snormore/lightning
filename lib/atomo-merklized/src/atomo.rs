@@ -94,8 +94,22 @@ impl<B: StorageBackend, S: SerdeBackend, M: MerklizedStrategy<Storage = B, Serde
     }
 
     /// Return the state root hash of the state tree.
+    /// This is just a helper function that opens an execution context and calls `get_state_root`
+    /// within it.
     #[inline]
     pub fn get_state_root(&self) -> Result<StateRootHash> {
         self.run(|ctx| M::context(ctx).get_state_root())
+    }
+
+    /// Return the state proof for the given table and key.
+    /// This is just a helper function that opens an execution context and calls `get_state_proof`
+    /// within it.
+    #[inline]
+    pub fn get_state_proof(
+        &self,
+        table: &str,
+        serialized_key: Vec<u8>,
+    ) -> Result<(Option<Vec<u8>>, ics23::CommitmentProof)> {
+        self.run(|ctx| M::context(ctx).get_state_proof(table, serialized_key))
     }
 }
