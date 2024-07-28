@@ -11,7 +11,7 @@ use jmt::{KeyHash, OwnedValue, Version};
 use log::trace;
 
 use crate::hasher::SimpleHasherWrapper;
-use crate::strategy::{KEYS_TABLE_NAME, NODES_TABLE_NAME, VALUES_TABLE_NAME};
+use crate::strategy::{KEYS_TABLE_NAME, NODES_TABLE_NAME};
 
 type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>>;
 
@@ -20,7 +20,6 @@ pub struct JmtMerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: Simple
     table_name_by_id: FxHashMap<TableIndex, String>,
     nodes_table: SharedTableRef<'a, Vec<u8>, Vec<u8>, B, S>,
     keys_table: SharedTableRef<'a, KeyHash, StateKey, B, S>,
-    values_table: SharedTableRef<'a, KeyHash, Vec<u8>, B, S>,
     _phantom: PhantomData<H>,
 }
 
@@ -30,12 +29,12 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContex
 
         let nodes_table = ctx.get_table(NODES_TABLE_NAME);
         let keys_table = ctx.get_table(KEYS_TABLE_NAME);
-        let values_table = ctx.get_table(VALUES_TABLE_NAME);
 
         let mut table_id_by_name = FxHashMap::default();
         for (i, table) in tables.iter().enumerate() {
             let table_id: TableIndex = i.try_into().unwrap();
-            table_id_by_name.insert(table._name.to_string(), table_id);
+            let table_name = table.name.to_string();
+            table_id_by_name.insert(table_name, table_id);
         }
 
         let table_name_by_id = table_id_by_name
@@ -49,7 +48,6 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContex
             table_name_by_id,
             nodes_table: Arc::new(Mutex::new(nodes_table)),
             keys_table: Arc::new(Mutex::new(keys_table)),
-            values_table: Arc::new(Mutex::new(values_table)),
             _phantom: PhantomData,
         }
     }
@@ -104,10 +102,6 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
                         // Remove it from the keys table.
                         trace!(key_hash:?, state_key:?; "removing key");
                         self.keys_table.lock().unwrap().remove(key_hash);
-
-                        // Remove it from the values table.
-                        trace!(key_hash:?; "removing value");
-                        self.values_table.lock().unwrap().remove(key_hash);
                     },
                     Operation::Insert(value) => {
                         value_set.push((key_hash, Some(value.to_vec())));
@@ -115,13 +109,6 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
                         // Insert it into the keys table.
                         trace!(key_hash:?, state_key:?; "inserting key");
                         self.keys_table.lock().unwrap().insert(key_hash, state_key);
-
-                        // Insert it into the values table.
-                        trace!(key_hash:?, value:?; "inserting value");
-                        self.values_table
-                            .lock()
-                            .unwrap()
-                            .insert(key_hash, value.to_vec());
                     },
                 }
             }
@@ -170,18 +157,12 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> TreeReader
         key_hash: KeyHash,
     ) -> Result<Option<OwnedValue>> {
         // TODO(snormore): Keep a cache of these lookups.
-        // let state_key = { self.keys_table.lock().unwrap().get(key_hash) };
-        // if let Some(state_key) = state_key {
-        //     // TODO(snormore): Need a way to get the table K,V metadata for this.
-        //     // let table = self.ctx.get_table(state_key.table);
-        //     trace!(key_hash:?, state_key:?; "get_value_option");
-        //     todo!("get_value_option not implemented yet")
-        // } else {
-        //     return Ok(None);
-        // }
-        // TODO(snormore): This values table is very wasteful, and we should lookup the value from
-        // the state tables directly instead.
-        let value = self.values_table.lock().unwrap().get(key_hash);
+        let state_key = { self.keys_table.lock().unwrap().get(key_hash) };
+        let value = if let Some(state_key) = state_key {
+            self.ctx.get_raw_value(state_key.table, &state_key.key)
+        } else {
+            None
+        };
         trace!(key_hash:?, value:?; "get_value_option");
         Ok(value)
     }

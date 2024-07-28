@@ -16,7 +16,7 @@ pub type StateKeyHash = SimpleHash;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateKey {
     pub table: String,
-    key: Vec<u8>,
+    pub key: Vec<u8>,
 }
 
 impl StateKey {

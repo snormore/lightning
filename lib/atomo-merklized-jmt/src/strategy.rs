@@ -9,7 +9,6 @@ use crate::JmtMerklizedContext;
 
 pub(crate) const NODES_TABLE_NAME: &str = "%state_tree_nodes";
 pub(crate) const KEYS_TABLE_NAME: &str = "%state_tree_keys";
-pub(crate) const VALUES_TABLE_NAME: &str = "%state_tree_values";
 
 pub struct JmtMerklizedStrategy<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
     _phantom: PhantomData<(B, S, H)>,
@@ -44,7 +43,6 @@ impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedStrategy
         Ok(builder
             .with_table::<Vec<u8>, Vec<u8>>(NODES_TABLE_NAME)
             .with_table::<KeyHash, StateKey>(KEYS_TABLE_NAME)
-            .with_table::<KeyHash, Vec<u8>>(VALUES_TABLE_NAME)
             .build()
             .unwrap())
     }
