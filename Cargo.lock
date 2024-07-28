@@ -736,6 +736,7 @@ dependencies = [
  "anyhow",
  "atomo",
  "atomo-merklized-jmt",
+ "atomo-rocks",
  "blake3",
  "digest 0.10.7",
  "env_logger 0.11.5",
@@ -747,6 +748,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "tempfile",
  "tiny-keccak",
 ]
 

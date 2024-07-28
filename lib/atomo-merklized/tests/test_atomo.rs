@@ -1,54 +1,84 @@
 use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
 use atomo_merklized::{MerklizedAtomoBuilder, MerklizedStrategy, StateKey};
 use atomo_merklized_jmt::JmtMerklizedStrategy;
+use atomo_rocks::{Options, RocksBackendBuilder};
 use jmt::proof::{INTERNAL_DOMAIN_SEPARATOR, LEAF_DOMAIN_SEPARATOR};
+use tempfile::tempdir;
 
 /// This is originally defined in the jmt crate but is not publicly exported, so we redefine it here
 /// until it is.
 const SPARSE_MERKLE_PLACEHOLDER_HASH: [u8; 32] = *b"SPARSE_MERKLE_PLACEHOLDER_HASH__";
 
+fn ics23_spec(hash_op: ics23::HashOp) -> ics23::ProofSpec {
+    ics23::ProofSpec {
+        leaf_spec: Some(ics23::LeafOp {
+            hash: hash_op.into(),
+            prehash_key: hash_op.into(),
+            prehash_value: hash_op.into(),
+            length: ics23::LengthOp::NoPrefix.into(),
+            prefix: LEAF_DOMAIN_SEPARATOR.to_vec(),
+        }),
+        inner_spec: Some(ics23::InnerSpec {
+            hash: hash_op.into(),
+            child_order: vec![0, 1],
+            min_prefix_length: INTERNAL_DOMAIN_SEPARATOR.len() as i32,
+            max_prefix_length: INTERNAL_DOMAIN_SEPARATOR.len() as i32,
+            child_size: 32,
+            empty_child: SPARSE_MERKLE_PLACEHOLDER_HASH.to_vec(),
+        }),
+        min_depth: 0,
+        max_depth: 64,
+        prehash_key_before_comparison: true,
+    }
+}
+
 #[test]
-fn test_atomo() {
+fn test_atomo_memdb_sha256() {
     init_logger();
 
-    fn ics23_spec(hash_op: ics23::HashOp) -> ics23::ProofSpec {
-        ics23::ProofSpec {
-            leaf_spec: Some(ics23::LeafOp {
-                hash: hash_op.into(),
-                prehash_key: hash_op.into(),
-                prehash_value: hash_op.into(),
-                length: ics23::LengthOp::NoPrefix.into(),
-                prefix: LEAF_DOMAIN_SEPARATOR.to_vec(),
-            }),
-            inner_spec: Some(ics23::InnerSpec {
-                hash: hash_op.into(),
-                child_order: vec![0, 1],
-                min_prefix_length: INTERNAL_DOMAIN_SEPARATOR.len() as i32,
-                max_prefix_length: INTERNAL_DOMAIN_SEPARATOR.len() as i32,
-                child_size: 32,
-                empty_child: SPARSE_MERKLE_PLACEHOLDER_HASH.to_vec(),
-            }),
-            min_depth: 0,
-            max_depth: 64,
-            prehash_key_before_comparison: true,
-        }
-    }
-
+    let builder = InMemoryStorage::default();
     generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizedStrategy<_, _, sha2::Sha256>>(
-        InMemoryStorage::default(),
+        builder,
         ics23_spec(ics23::HashOp::Sha256),
     );
-
-    // generic_test_atomo::<_, DefaultSerdeBackend, blake3::Hasher, JmtMerklizedStrategy<_, _, _>>(
-    //     InMemoryStorage::default(),
-    //     ics23_spec(ics23::HashOp::Blake3),
-    // );
-
-    // generic_test_atomo::<_, DefaultSerdeBackend, KeccakHasher, JmtMerklizedStrategy<_, _, _>>(
-    //     InMemoryStorage::default(),
-    //     ics23_spec(ics23::HashOp::Keccak256),
-    // );
 }
+
+#[test]
+fn test_atomo_rocksdb_sha256() {
+    init_logger();
+
+    let temp_dir = tempdir().unwrap();
+    let mut options = Options::default();
+    options.create_if_missing(true);
+    options.create_missing_column_families(true);
+    let builder = RocksBackendBuilder::new(temp_dir.path()).with_options(options);
+    generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizedStrategy<_, _, sha2::Sha256>>(
+        builder,
+        ics23_spec(ics23::HashOp::Sha256),
+    );
+}
+
+// #[test]
+// fn test_atomo_memdb_keccak256() {
+//     init_logger();
+
+//     let builder = InMemoryStorage::default();
+//     generic_test_atomo::<_, DefaultSerdeBackend, KeccakHasher, JmtMerklizedStrategy<_, _, _>>(
+//         builder,
+//         ics23_spec(ics23::HashOp::Keccak256),
+//     );
+// }
+
+// #[test]
+// fn test_atomo_memdb_blake3() {
+//     init_logger();
+
+//     let builder = InMemoryStorage::default();
+//     generic_test_atomo::<_, DefaultSerdeBackend, blake3::Hasher, JmtMerklizedStrategy<_, _, _>>(
+//         builder,
+//         ics23_spec(ics23::HashOp::Blake3),
+//     );
+// }
 
 fn generic_test_atomo<
     C: StorageBackendConstructor,
