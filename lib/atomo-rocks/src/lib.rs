@@ -11,7 +11,7 @@ use atomo::{
     DefaultSerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
-    TableIndex,
+    TableId,
 };
 use fxhash::FxHashMap;
 /// Re-export of [`rocksdb::Options`].
@@ -108,7 +108,7 @@ impl<'a> StorageBackendConstructor for RocksBackendBuilder<'a> {
 
     type Error = anyhow::Error;
 
-    fn open_table(&mut self, name: String) -> TableIndex {
+    fn open_table(&mut self, name: String) -> TableId {
         self.columns.push(name);
         (self.columns.len() - 1).try_into().unwrap()
     }
@@ -214,7 +214,7 @@ impl StorageBackend for RocksBackend {
             .expect("failed to commit batch to rocksdb");
     }
 
-    fn keys(&self, tid: TableIndex) -> Vec<atomo::batch::BoxedVec> {
+    fn keys(&self, tid: TableId) -> Vec<atomo::batch::BoxedVec> {
         let cf = self.db.cf_handle(&self.columns[tid as usize]).unwrap();
         self.db
             .iterator_cf(&cf, rocksdb::IteratorMode::Start)
@@ -225,14 +225,14 @@ impl StorageBackend for RocksBackend {
             .collect()
     }
 
-    fn get(&self, tid: TableIndex, key: &[u8]) -> Option<Vec<u8>> {
+    fn get(&self, tid: TableId, key: &[u8]) -> Option<Vec<u8>> {
         let cf = self.db.cf_handle(&self.columns[tid as usize]).unwrap();
         self.db
             .get_cf(&cf, key)
             .expect("failed to get value from rocksdb")
     }
 
-    fn contains(&self, tid: TableIndex, key: &[u8]) -> bool {
+    fn contains(&self, tid: TableId, key: &[u8]) -> bool {
         let cf = self.db.cf_handle(&self.columns[tid as usize]).unwrap();
         if self.db.key_may_exist_cf(&cf, key) {
             self.db

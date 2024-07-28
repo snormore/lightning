@@ -1,5 +1,5 @@
 use crate::batch::BoxedVec;
-use crate::db::TableIndex;
+use crate::db::TableId;
 
 pub type ImKeyCollection = im::OrdSet<BoxedVec>;
 
@@ -23,7 +23,7 @@ impl VerticalKeys {
     }
 
     #[inline(always)]
-    pub fn update<F>(&mut self, tid: TableIndex, closure: F)
+    pub fn update<F>(&mut self, tid: TableId, closure: F)
     where
         F: FnOnce(&mut ImKeyCollection),
     {
@@ -36,7 +36,7 @@ impl VerticalKeys {
     }
 
     #[inline(always)]
-    pub fn get(&self, tid: TableIndex) -> &MaybeImKeyCollection {
+    pub fn get(&self, tid: TableId) -> &MaybeImKeyCollection {
         let tid = tid as usize;
         if tid >= self.0.len() {
             return &None;

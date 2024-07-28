@@ -14,7 +14,7 @@ use crate::DefaultSerdeBackend;
 
 /// The id of a table. Currently we are limited to 256 tables which is something
 /// I believe to be reasonable limitation for the use cases we care to support.
-pub type TableIndex = u8;
+pub type TableId = u8;
 
 /// The query permission on an [`Atomo`] only allows non-mutating changes.
 pub struct QueryPerm;

@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
 use atomo::batch::Operation;
-use atomo::{SerdeBackend, StorageBackend, TableIndex, TableSelector};
+use atomo::{SerdeBackend, StorageBackend, TableId, TableSelector};
 use atomo_merklized::{MerklizedContext, SimpleHasher, StateKey, StateRootHash};
 use fxhash::FxHashMap;
 use jmt::storage::{HasPreimage, LeafNode, Node, NodeKey, TreeReader};
@@ -17,7 +17,7 @@ type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>
 
 pub struct JmtMerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
     ctx: &'a TableSelector<B, S>,
-    table_name_by_id: FxHashMap<TableIndex, String>,
+    table_name_by_id: FxHashMap<TableId, String>,
     nodes_table: SharedTableRef<'a, Vec<u8>, Vec<u8>, B, S>,
     keys_table: SharedTableRef<'a, KeyHash, StateKey, B, S>,
     _phantom: PhantomData<H>,
@@ -32,7 +32,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContex
 
         let mut table_id_by_name = FxHashMap::default();
         for (i, table) in tables.iter().enumerate() {
-            let table_id: TableIndex = i.try_into().unwrap();
+            let table_id: TableId = i.try_into().unwrap();
             let table_name = table.name.to_string();
             table_id_by_name.insert(table_name, table_id);
         }
@@ -41,7 +41,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContex
             .clone()
             .into_iter()
             .map(|(k, v)| (v, k))
-            .collect::<FxHashMap<TableIndex, String>>();
+            .collect::<FxHashMap<TableId, String>>();
 
         Self {
             ctx,
@@ -85,7 +85,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
         let mut value_set: Vec<(jmt::KeyHash, Option<jmt::OwnedValue>)> = Default::default();
         let batch = self.ctx.batch();
         for (table_id, changes) in batch.into_raw().iter().enumerate() {
-            let table_id: TableIndex = table_id.try_into()?;
+            let table_id: TableId = table_id.try_into()?;
             let table_name = self
                 .table_name_by_id
                 .get(&table_id)

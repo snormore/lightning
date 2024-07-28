@@ -6,7 +6,7 @@ use std::sync::Arc;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::db::{Atomo, TableIndex, UpdatePerm};
+use crate::db::{Atomo, TableId, UpdatePerm};
 use crate::inner::AtomoInner;
 use crate::serder::SerdeBackend;
 use crate::storage::{InMemoryStorage, StorageBackendConstructor};
@@ -55,14 +55,14 @@ impl<B: StorageBackendConstructor, S: SerdeBackend> AtomoBuilder<B, S> {
     fn with_table_internal_non_generic_part(&mut self, name: String) {
         let index = self.atomo.tables.len();
 
-        if index > (TableIndex::MAX as usize) {
+        if index > (TableId::MAX as usize) {
             panic!("Table ID overflow.");
         }
 
         if self
             .atomo
             .table_name_to_id
-            .insert(name.clone(), index as TableIndex)
+            .insert(name.clone(), index as TableId)
             .is_some()
         {
             panic!("Table {name} is already defined.");

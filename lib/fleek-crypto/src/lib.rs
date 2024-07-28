@@ -1,6 +1,6 @@
 mod address;
 pub(crate) mod base58_array;
-pub mod hex_array;
+pub(crate) mod hex_array;
 mod keys;
 mod traits;
 mod transaction;
