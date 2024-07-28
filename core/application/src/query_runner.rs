@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Result;
-use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
+use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference, SerdeBackend};
 use atomo_merklized::{MerklizedAtomo, MerklizedAtomoBuilder, MerklizedStrategy, StateRootHash};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -146,7 +146,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
                 .map(|value| key.value::<<Self::Merklized as MerklizedStrategy>::Serde>(value));
             // TODO(snormore): We need to serialize `[ics23::CommitmentProof]` until we have
             // jsonschema for ics23 types, which is required by our RPC.
-            let proof = Self::Merklized::serialize(&proof);
+            let proof = <Self::Merklized as MerklizedStrategy>::Serde::serialize(&proof);
             Ok((value, proof))
         })
     }

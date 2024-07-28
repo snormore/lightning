@@ -1,7 +1,5 @@
 use anyhow::Result;
 use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use crate::{MerklizedContext, SimpleHasher};
 
@@ -21,14 +19,4 @@ pub trait MerklizedStrategy {
     ) -> Box<dyn MerklizedContext<'a, Self::Storage, Self::Serde, Self::Hasher> + 'a>
     where
         Self::Hasher: SimpleHasher + 'a;
-
-    /// Serialize the given data using the serde backend.
-    fn serialize<T: Serialize>(data: &T) -> Vec<u8> {
-        Self::Serde::serialize(data)
-    }
-
-    /// Deserialize the given data using the serde backend.
-    fn deserialize<T: DeserializeOwned>(data: &[u8]) -> T {
-        Self::Serde::deserialize::<T>(data)
-    }
 }

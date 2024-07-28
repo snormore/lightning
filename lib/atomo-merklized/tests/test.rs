@@ -112,21 +112,22 @@ fn generic_test_atomo<
                 let (value, proof) = ctx
                     .get_state_proof(
                         "data",
-                        M::serialize::<Vec<u8>>(&format!("key{i}").as_bytes().to_vec()),
+                        M::Serde::serialize::<Vec<u8>>(&format!("key{i}").as_bytes().to_vec()),
                     )
                     .unwrap();
                 // TODO(snormore): Fix this unwrap.
                 assert_eq!(
-                    value.map(|v| M::deserialize::<String>(&v.to_vec())),
+                    value.map(|v| M::Serde::deserialize::<String>(&v.to_vec())),
                     Some(format!("value{i}"))
                 );
 
                 // Verify proof.
-                let key = M::serialize(&StateKey::new(
+                let key = M::Serde::serialize(&StateKey::new(
                     "data",
-                    M::serialize(&format!("key{i}").as_bytes().to_vec()),
+                    S::serialize(&format!("key{i}").as_bytes().to_vec()),
                 ));
-                let value = M::serialize::<Vec<u8>>(&format!("value{i}").as_bytes().to_vec());
+                let value =
+                    M::Serde::serialize::<Vec<u8>>(&format!("value{i}").as_bytes().to_vec());
                 assert!(ics23::verify_membership::<ics23::HostFunctionsManager>(
                     &proof,
                     &ics23_spec,
