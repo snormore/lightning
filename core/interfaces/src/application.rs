@@ -5,12 +5,10 @@ use std::time::Duration;
 use affair::Socket;
 use anyhow::Result;
 use atomo::{
-    Atomo,
-    AtomoBuilder,
+    DefaultSerdeBackend,
     InMemoryStorage,
     KeyIterator,
     QueryPerm,
-    SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
 };
@@ -26,10 +24,15 @@ use lightning_types::{
     Metadata,
     NodeIndex,
     ServiceRevenue,
+    StateProofKey,
+    StateProofValue,
     TransactionRequest,
     TxHash,
     Value,
 };
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::providers::jmt::JmtMerklizeProvider;
+use merklize::{MerklizeProvider, MerklizedAtomo, MerklizedAtomoBuilder, StateRootHash};
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Collection;
@@ -96,24 +99,37 @@ pub trait ApplicationInterface<C: Collection>:
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
 }
 
+type AtomoResult<P, B, S, M> = Result<MerklizedAtomo<P, B, S, M>>;
+
 #[interfaces_proc::blank]
 pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     #[blank(InMemoryStorage)]
-    type Backend: StorageBackend;
+    type Storage: StorageBackend;
 
-    fn new(atomo: Atomo<QueryPerm, Self::Backend>) -> Self;
+    #[blank(JmtMerklizeProvider<InMemoryStorage, DefaultSerdeBackend, KeccakHasher>)]
+    type Merklize: MerklizeProvider<Storage = Self::Storage>;
+
+    fn new(
+        atomo: MerklizedAtomo<QueryPerm, Self::Storage, DefaultSerdeBackend, Self::Merklize>,
+    ) -> Self;
 
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> Result<Atomo<QueryPerm, Self::Backend>>;
+    ) -> AtomoResult<QueryPerm, Self::Storage, DefaultSerdeBackend, Self::Merklize>;
 
-    fn atomo_from_path(path: impl AsRef<Path>) -> Result<Atomo<QueryPerm, Self::Backend>>;
+    fn atomo_from_path(
+        path: impl AsRef<Path>,
+    ) -> AtomoResult<QueryPerm, Self::Storage, DefaultSerdeBackend, Self::Merklize>;
 
-    fn register_tables<B: StorageBackendConstructor, S: SerdeBackend>(
-        builder: AtomoBuilder<B, S>,
-    ) -> AtomoBuilder<B, S> {
+    fn register_tables<C>(
+        builder: MerklizedAtomoBuilder<C, DefaultSerdeBackend, Self::Merklize>,
+    ) -> MerklizedAtomoBuilder<C, DefaultSerdeBackend, Self::Merklize>
+    where
+        C: StorageBackendConstructor<Storage = Self::Storage>,
+        Self::Merklize: MerklizeProvider<Storage = Self::Storage, Serde = DefaultSerdeBackend>,
+    {
         builder
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")
@@ -141,6 +157,18 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
 
     /// Query Metadata Table
     fn get_metadata(&self, key: &lightning_types::Metadata) -> Option<Value>;
+
+    /// Get the state root hash.
+    fn get_state_root(&self) -> Result<StateRootHash>;
+
+    /// Get a state proof for a given key.
+    fn get_state_proof(
+        &self,
+        key: StateProofKey,
+    ) -> Result<(
+        Option<StateProofValue>,
+        <Self::Merklize as MerklizeProvider>::Proof,
+    )>;
 
     /// Query Account Table
     /// Returns information about an account.
