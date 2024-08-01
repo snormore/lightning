@@ -16,6 +16,7 @@ hp_fixed = "0.1"
 HpFixed is a high precision signed fixed-point number backed by a BigInt.
 
 Here is a quick example showcasing how to utilize HpFixed:
+
 ```rust
 use hp_fixed::signed::HpFixed;
 
@@ -24,13 +25,13 @@ async fn main() {
     let y = HpFixed::<5>::from(20.12345);
     let z = x + y;
 
-    assert_eq!(z, HpFixed::<5>::from(30.24690)); 
+    assert_eq!(z, HpFixed::<5>::from(30.24690));
 
-    let value = HpFixed::<19>::from(std::i32::MAX as i64 + 1);
+    let value = HpFixed::<19>::from(i32::MAX as i64 + 1);
     assert_eq!(
     TryInto::<isize>::try_into(value.clone()).unwrap(),
-    std::i32::MAX as isize + 1
-);   
+    i32::MAX as isize + 1
+);
 }
 ```
 
@@ -39,31 +40,31 @@ async fn main() {
 HpUfixed is a high precision signed fixed-point number backed by a BigUint.
 
 Here is a quick example showcasing how to utilize HpUfixed:
+
 ```rust
 async fn main() {
     use hp_fixed::unsigned::HpUfixed;
     use num_bigint::BigUint;
-    
+
     let a = HpUfixed::<5>::from(10u32);
     let b = HpUfixed::<5>::from(20u32);
     let c = a + b;
-    
+
     assert_eq!(c, HpUfixed::<5>::from(30u32));
-    
-    let value = HpUfixed::<20>::from(std::u64::MAX as u128 + 1_u128);
+
+    let value = HpUfixed::<20>::from(u64::MAX as u128 + 1_u128);
     assert_eq!(
-        std::u64::MAX as u128 + 1_u128,
+        u64::MAX as u128 + 1_u128,
         value.clone().try_into().unwrap()
     );
 }
 ```
 
-
 ## Contributing
+
 Contributions to hp_fixed are welcomed. Please make sure to run the test suite before opening a pull request
 
 ## License
+
 [MIT](https://github.com/fleek-network/lightning/blob/main/lib/hp-fixed/LICENSE-MIT)
 [APACHE 2.0](https://github.com/fleek-network/lightning/blob/main/lib/hp-fixed/LICENSE-APACHE)
-
-

@@ -1,0 +1,32 @@
+[package]
+name = "merklize-tests"
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+futures.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+# Tracing and open telemetry dependencies
+opentelemetry = "0.24.0"
+opentelemetry-otlp = "0.17.0"
+opentelemetry-semantic-conventions = "0.16.0"
+opentelemetry_sdk = { version = "0.24.1", features = ["tokio", "rt-tokio"] }
+tracing.workspace = true
+tracing-opentelemetry = "0.25.0"
+tracing-subscriber.workspace = true
+
+# Lightning dependencies
+atomo.workspace = true
+atomo-rocks.workspace = true
+fleek-crypto.workspace = true
+hp-fixed.workspace = true
+ink-quill.workspace = true
+lightning-application.workspace = true
+lightning-interfaces.workspace = true
+lightning-test-utils.workspace = true
+lightning-types.workspace = true
+merklize = { path = "../merklize" }
+resolved-pathbuf.workspace = true

@@ -27,9 +27,6 @@ wtransport = { version = "0.1", features = ["dangerous-configuration"] }
 lightning-schema = { path = "../../core/schema" }
 arrayref = "0.3"
 fleek-crypto = { path = "../fleek-crypto" }
-
-# Fork with wasm-bindgen unpinned.
-# https://github.com/cloudflare/workers-rs/issues/439
 worker = { version = "0.3.1", optional = true }
 
 [features]

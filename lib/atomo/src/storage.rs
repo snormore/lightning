@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use dashmap::DashMap;
 
 use crate::batch::{BoxedVec, Operation, VerticalBatch};
+use crate::TableId;
 
 pub trait StorageBackendConstructor {
     /// The storage API.
@@ -11,7 +12,7 @@ pub trait StorageBackendConstructor {
     /// The error that can be produced while opening the database.
     type Error: Debug;
 
-    /// Called during the initialization
+    /// Called during the initialization.
     fn open_table(&mut self, name: String);
 
     /// Build the storage object and return it. If there is any error
@@ -26,13 +27,13 @@ pub trait StorageBackend {
     fn commit(&self, batch: VerticalBatch);
 
     /// Return all of the keys from a table.
-    fn keys(&self, tid: u8) -> Vec<BoxedVec>;
+    fn keys(&self, tid: TableId) -> Vec<BoxedVec>;
 
     /// Get the value associated with the given key from the provided table.
-    fn get(&self, tid: u8, key: &[u8]) -> Option<Vec<u8>>;
+    fn get(&self, tid: TableId, key: &[u8]) -> Option<Vec<u8>>;
 
     /// Returns true if the table contains the provided key.
-    fn contains(&self, tid: u8, key: &[u8]) -> bool;
+    fn contains(&self, tid: TableId, key: &[u8]) -> bool;
 
     /// Serialize the backend to a series of bytes.
     fn serialize(&self) -> Option<Vec<u8>> {
@@ -76,7 +77,7 @@ impl StorageBackend for InMemoryStorage {
     }
 
     #[inline]
-    fn keys(&self, tid: u8) -> Vec<BoxedVec> {
+    fn keys(&self, tid: TableId) -> Vec<BoxedVec> {
         let mut collection = Vec::new();
         for item in self.0[tid as usize].iter() {
             collection.push(item.key().clone());
@@ -85,12 +86,12 @@ impl StorageBackend for InMemoryStorage {
     }
 
     #[inline]
-    fn get(&self, tid: u8, key: &[u8]) -> Option<Vec<u8>> {
+    fn get(&self, tid: TableId, key: &[u8]) -> Option<Vec<u8>> {
         self.0[tid as usize].get(key).map(|v| v.to_vec())
     }
 
     #[inline]
-    fn contains(&self, tid: u8, key: &[u8]) -> bool {
+    fn contains(&self, tid: TableId, key: &[u8]) -> bool {
         self.0[tid as usize].contains_key(key)
     }
 }

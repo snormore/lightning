@@ -2,7 +2,7 @@
 
 use std::backtrace::Backtrace;
 use std::collections::BTreeMap;
-use std::panic::PanicInfo;
+use std::panic::PanicHookInfo;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -147,7 +147,7 @@ To help diagnose the problem, you can submit a crash report as an issue or via e
     writeln!(
         stderr,
         "
-We take privacy seriously, and do not automatically collect crash reports. 
+We take privacy seriously, and do not automatically collect crash reports.
 Due to this, we rely on users to submit reports.
 
 Thank you kindly!
@@ -192,7 +192,7 @@ pub struct Report {
 impl Report {
     /// Capture a new report with the information, context, and backtrace.
     #[inline(always)]
-    pub fn new(info: &PanicInfo, backtrace: &Backtrace, name: &str, version: &str) -> Self {
+    pub fn new(info: &PanicHookInfo, backtrace: &Backtrace, name: &str, version: &str) -> Self {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

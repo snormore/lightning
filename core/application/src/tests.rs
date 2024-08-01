@@ -61,7 +61,7 @@ use tempfile::{tempdir, TempDir};
 use crate::app::Application;
 use crate::config::Config;
 use crate::genesis::{Genesis, GenesisAccount, GenesisNode, GenesisPrices, GenesisService};
-use crate::query_runner::QueryRunner;
+use crate::query_runner::ApplicationQueryRunner;
 
 partial!(TestBinding {
     ConfigProviderInterface = JsonConfigProvider;
@@ -554,7 +554,10 @@ fn test_genesis() -> Genesis {
 }
 
 /// Initialize application state with provided or default configuration.
-fn init_app(temp_dir: &TempDir, config: Option<Config>) -> (ExecutionEngineSocket, QueryRunner) {
+fn init_app(
+    temp_dir: &TempDir,
+    config: Option<Config>,
+) -> (ExecutionEngineSocket, ApplicationQueryRunner) {
     let config = config.or_else(|| {
         let genesis_path = test_genesis()
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
@@ -565,7 +568,7 @@ fn init_app(temp_dir: &TempDir, config: Option<Config>) -> (ExecutionEngineSocke
 }
 
 /// Initialize application with provided configuration.
-fn do_init_app(config: Config) -> (ExecutionEngineSocket, QueryRunner) {
+fn do_init_app(config: Config) -> (ExecutionEngineSocket, ApplicationQueryRunner) {
     let node = Node::<TestBinding>::init_with_provider(
         fdi::Provider::default()
             .with(JsonConfigProvider::default().with::<Application<TestBinding>>(config)),
@@ -580,7 +583,7 @@ fn do_init_app(config: Config) -> (ExecutionEngineSocket, QueryRunner) {
 fn test_init_app(
     temp_dir: &TempDir,
     committee: Vec<GenesisNode>,
-) -> (ExecutionEngineSocket, QueryRunner) {
+) -> (ExecutionEngineSocket, ApplicationQueryRunner) {
     let mut genesis = test_genesis();
     genesis.node_info = committee;
     let genesis_path = genesis
@@ -593,7 +596,7 @@ fn test_init_app(
 fn init_app_with_genesis(
     temp_dir: &TempDir,
     genesis: &Genesis,
-) -> (ExecutionEngineSocket, QueryRunner) {
+) -> (ExecutionEngineSocket, ApplicationQueryRunner) {
     let genesis_path = genesis
         .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
         .unwrap();
@@ -605,7 +608,7 @@ fn init_app_with_params(
     temp_dir: &TempDir,
     params: Params,
     committee: Option<Vec<GenesisNode>>,
-) -> (ExecutionEngineSocket, QueryRunner) {
+) -> (ExecutionEngineSocket, ApplicationQueryRunner) {
     let mut genesis = test_genesis();
 
     if let Some(committee) = committee {
@@ -1044,7 +1047,7 @@ async fn run_transaction(
 /// Helper function that update `BTreeMap<u32, ReputationMeasurements>` with new
 /// `ReputationMeasurements` for given `NodePublicKey` Returns tuple `(peer_index, measurements)`.
 fn update_reputation_measurements(
-    query_runner: &QueryRunner,
+    query_runner: &ApplicationQueryRunner,
     map: &mut BTreeMap<u32, ReputationMeasurements>,
     peer: &NodePublicKey,
     measurements: ReputationMeasurements,
@@ -1108,7 +1111,7 @@ fn add_to_committee(
 
 /// Helper function that prepare new `committee`.
 fn prepare_new_committee(
-    query_runner: &QueryRunner,
+    query_runner: &ApplicationQueryRunner,
     committee: &[GenesisNode],
     keystore: &[GenesisCommitteeKeystore],
 ) -> (Vec<GenesisNode>, Vec<GenesisCommitteeKeystore>) {
@@ -1134,13 +1137,13 @@ fn prepare_new_committee(
 }
 
 /// Convert NodePublicKey to NodeIndex
-fn get_node_index(query_runner: &QueryRunner, pub_key: &NodePublicKey) -> NodeIndex {
+fn get_node_index(query_runner: &ApplicationQueryRunner, pub_key: &NodePublicKey) -> NodeIndex {
     query_runner.pubkey_to_index(pub_key).unwrap()
 }
 
 /// Query NodeTable
 fn do_get_node_info<T: Clone>(
-    query_runner: &QueryRunner,
+    query_runner: &ApplicationQueryRunner,
     pub_key: &NodePublicKey,
     selector: impl FnOnce(NodeInfo) -> T,
 ) -> T {
@@ -1151,43 +1154,46 @@ fn do_get_node_info<T: Clone>(
 }
 
 /// Query NodeInfo from NodeTable
-fn get_node_info(query_runner: &QueryRunner, pub_key: &NodePublicKey) -> NodeInfo {
+fn get_node_info(query_runner: &ApplicationQueryRunner, pub_key: &NodePublicKey) -> NodeInfo {
     do_get_node_info(query_runner, pub_key, |n| n)
 }
 
 /// Query Node's Nonce from NodeTable
-fn get_node_nonce(query_runner: &QueryRunner, pub_key: &NodePublicKey) -> u64 {
+fn get_node_nonce(query_runner: &ApplicationQueryRunner, pub_key: &NodePublicKey) -> u64 {
     do_get_node_info::<u64>(query_runner, pub_key, |n| n.nonce)
 }
 
 /// Query Node's Participation from NodeTable
-fn get_node_participation(query_runner: &QueryRunner, pub_key: &NodePublicKey) -> Participation {
+fn get_node_participation(
+    query_runner: &ApplicationQueryRunner,
+    pub_key: &NodePublicKey,
+) -> Participation {
     do_get_node_info::<Participation>(query_runner, pub_key, |n| n.participation)
 }
 
 /// Query Node's Stake amount
-fn get_staked(query_runner: &QueryRunner, pub_key: &NodePublicKey) -> HpUfixed<18> {
+fn get_staked(query_runner: &ApplicationQueryRunner, pub_key: &NodePublicKey) -> HpUfixed<18> {
     do_get_node_info::<HpUfixed<18>>(query_runner, pub_key, |n| n.stake.staked)
 }
 
 /// Query Node's Locked amount
-fn get_locked(query_runner: &QueryRunner, pub_key: &NodePublicKey) -> HpUfixed<18> {
+fn get_locked(query_runner: &ApplicationQueryRunner, pub_key: &NodePublicKey) -> HpUfixed<18> {
     do_get_node_info::<HpUfixed<18>>(query_runner, pub_key, |n| n.stake.locked)
 }
 
 /// Query Node's Locked amount
-fn get_locked_time(query_runner: &QueryRunner, pub_key: &NodePublicKey) -> Epoch {
+fn get_locked_time(query_runner: &ApplicationQueryRunner, pub_key: &NodePublicKey) -> Epoch {
     do_get_node_info::<Epoch>(query_runner, pub_key, |n| n.stake.locked_until)
 }
 
 /// Query Node's stake locked until
-fn get_stake_locked_until(query_runner: &QueryRunner, pub_key: &NodePublicKey) -> Epoch {
+fn get_stake_locked_until(query_runner: &ApplicationQueryRunner, pub_key: &NodePublicKey) -> Epoch {
     do_get_node_info::<Epoch>(query_runner, pub_key, |n| n.stake.stake_locked_until)
 }
 
 /// Query AccountInfo from AccountTable
 fn do_get_account_info<T: Clone>(
-    query_runner: &QueryRunner,
+    query_runner: &ApplicationQueryRunner,
     address: &EthAddress,
     selector: impl FnOnce(AccountInfo) -> T,
 ) -> Option<T> {
@@ -1195,23 +1201,23 @@ fn do_get_account_info<T: Clone>(
 }
 
 /// Query Account's Flk balance
-fn get_flk_balance(query_runner: &QueryRunner, address: &EthAddress) -> HpUfixed<18> {
+fn get_flk_balance(query_runner: &ApplicationQueryRunner, address: &EthAddress) -> HpUfixed<18> {
     do_get_account_info::<HpUfixed<18>>(query_runner, address, |a| a.flk_balance)
         .unwrap_or(HpUfixed::<18>::zero())
 }
 
 /// Query Account's bandwidth balance
-fn get_account_balance(query_runner: &QueryRunner, address: &EthAddress) -> u128 {
+fn get_account_balance(query_runner: &ApplicationQueryRunner, address: &EthAddress) -> u128 {
     do_get_account_info::<u128>(query_runner, address, |a| a.bandwidth_balance).unwrap_or(0)
 }
 
 /// Query Account's stables balance
-fn get_stables_balance(query_runner: &QueryRunner, address: &EthAddress) -> HpUfixed<6> {
+fn get_stables_balance(query_runner: &ApplicationQueryRunner, address: &EthAddress) -> HpUfixed<6> {
     do_get_account_info::<HpUfixed<6>>(query_runner, address, |a| a.stables_balance)
         .unwrap_or(HpUfixed::<6>::zero())
 }
 
-fn uri_to_providers(query_runner: &QueryRunner, uri: &Blake3Hash) -> Vec<NodeIndex> {
+fn uri_to_providers(query_runner: &ApplicationQueryRunner, uri: &Blake3Hash) -> Vec<NodeIndex> {
     query_runner
         .get_uri_providers(uri)
         .unwrap_or_default()
@@ -1219,7 +1225,7 @@ fn uri_to_providers(query_runner: &QueryRunner, uri: &Blake3Hash) -> Vec<NodeInd
         .collect()
 }
 
-fn content_registry(query_runner: &QueryRunner, node: &NodeIndex) -> Vec<Blake3Hash> {
+fn content_registry(query_runner: &ApplicationQueryRunner, node: &NodeIndex) -> Vec<Blake3Hash> {
     query_runner
         .get_content_registry(node)
         .unwrap_or_default()

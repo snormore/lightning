@@ -3,6 +3,9 @@ name = "lightning-interfaces"
 version = "0.1.0"
 edition = "2021"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
+
 [dependencies]
 fdi = { path = "../../lib/fdi" }
 interfaces-proc = { path = "./proc" }
@@ -28,6 +31,7 @@ lightning-types.workspace = true
 affair.workspace = true
 atomo.workspace = true
 atomo-rocks.workspace = true
+merklize.workspace = true
 fleek-crypto.workspace = true
 hp-fixed.workspace = true
 ink-quill.workspace = true

@@ -7,7 +7,6 @@ use fleek_crypto::{ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use ink_quill::TranscriptBuilderInput;
 use multiaddr::Multiaddr;
-use num_derive::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
 use super::ReputationMeasurements;
@@ -37,13 +36,13 @@ impl Tokens {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default, schemars::JsonSchema)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone, Default, schemars::JsonSchema)]
 pub struct NodeServed {
     pub served: CommodityServed,
     pub stables_revenue: HpUfixed<6>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default, schemars::JsonSchema)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone, Default, schemars::JsonSchema)]
 pub struct TotalServed {
     pub served: CommodityServed,
     pub reward_pool: HpUfixed<6>,
@@ -56,18 +55,7 @@ pub type CommodityServed = Vec<u128>;
 
 /// This is commodities served by different services in Fleek Network.
 /// C-like enums used here to future proof for state, if we add more commodity types
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    FromPrimitive,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[repr(u8)]
 pub enum CommodityTypes {
     Bandwidth = 0,
@@ -75,14 +63,14 @@ pub enum CommodityTypes {
     Gpu = 2,
 }
 
-#[derive(Clone, Debug, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Hash, Serialize, Deserialize, Eq, PartialEq, schemars::JsonSchema)]
 pub struct ReportedReputationMeasurements {
     pub reporting_node: NodeIndex,
     pub measurements: ReputationMeasurements,
 }
 
 /// Metadata, state stored in the blockchain that applies to the current block
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 pub enum Metadata {
     ChainId,
     Epoch,
@@ -100,7 +88,7 @@ pub enum Metadata {
 }
 
 /// The Value enum is a data type used to represent values in a key-value pair for a metadata table
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, schemars::JsonSchema)]
 pub enum Value {
     ChainId(u32),
     Epoch(u64),
@@ -378,7 +366,19 @@ pub struct Service {
     pub slashing: (),
 }
 
-#[derive(Debug, Hash, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize, Clone, Default)]
+#[derive(
+    Debug,
+    Hash,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    Default,
+    schemars::JsonSchema,
+)]
 pub struct Committee {
     pub members: Vec<NodeIndex>,
     pub ready_to_change: Vec<NodeIndex>,

@@ -412,6 +412,7 @@ mod tests {
     use super::*;
 
     #[derive(Default)]
+    #[allow(dead_code)]
     struct CounterWorker {
         current: u64,
     }
