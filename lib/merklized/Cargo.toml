@@ -1,0 +1,49 @@
+[package]
+name = "merklized"
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+atomo.workspace = true
+digest = "0.10.7"
+fxhash = { version = "0.2", optional = true }
+hex.workspace = true
+ics23.workspace = true
+jmt = { git = "https://github.com/snormore/jmt.git", rev = "6ccb7dbe7693f18ed21fcf6ff5f9be104a60be86", features = [
+    "ics23",
+], optional = true }
+log = { version = "0.4.22", features = ["kv"] }
+lru = { version = "0.12.3", optional = true }
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+tiny-keccak = { version = "2.0.2", features = ["keccak"], optional = true }
+blake3 = { version = "1.5", optional = true }
+sha2 = { version = "0.10.8", optional = true }
+
+[dev-dependencies]
+atomo-rocks.workspace = true
+axum.workspace = true
+env_logger = { version = "0.11.5", features = ["unstable-kv"] }
+fleek-crypto.workspace = true
+futures.workspace = true
+hp-fixed.workspace = true
+ink-quill.workspace = true
+lightning-application.workspace = true
+lightning-interfaces.workspace = true
+lightning-test-utils.workspace = true
+lightning-types.workspace = true
+rand.workspace = true
+resolved-pathbuf.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+[features]
+default = ["hashers", "strategies"]
+hashers = ["hasher-sha2", "hasher-keccak", "hasher-blake3"]
+strategies = ["strategy-jmt"]
+
+hasher-blake3 = ["dep:blake3"]                      # Compile with blake3 hashers
+hasher-sha2 = ["dep:sha2"]                          # Compile with sha2/sha2 hashers
+hasher-keccak = ["dep:tiny-keccak"]                 # Compile with keccak hashers
+strategy-jmt = ["dep:fxhash", "dep:jmt", "dep:lru"] # Compile with JMT strategy
