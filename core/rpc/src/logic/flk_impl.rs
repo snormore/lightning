@@ -29,7 +29,9 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::PagingParams;
+use lightning_types::{StateProofKey, StateProofValue};
 use lightning_utils::application::QueryRunnerExt;
+use merklized::{StateProof, StateRootHash};
 
 use crate::api::FleekApiServer;
 use crate::error::RPCError;
@@ -385,6 +387,29 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
             _ => 0,
         };
         Ok((sub_dag_index, self.data.query_runner.get_epoch_info().epoch))
+    }
+
+    async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<StateRootHash> {
+        Ok(self
+            .data
+            .query_runner(epoch)
+            .await?
+            .get_state_root()
+            .map_err(|e| RPCError::custom(e.to_string()))?)
+    }
+
+    async fn get_state_proof(
+        &self,
+        key: StateProofKey,
+        epoch: Option<u64>,
+    ) -> RpcResult<(Option<StateProofValue>, StateProof)> {
+        let (value, proof) = self
+            .data
+            .query_runner(epoch)
+            .await?
+            .get_state_proof(key)
+            .map_err(|e| RPCError::custom(e.to_string()))?;
+        Ok((value, proof))
     }
 
     async fn send_txn(&self, tx: TransactionRequest) -> RpcResult<()> {
