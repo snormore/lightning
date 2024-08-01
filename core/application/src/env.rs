@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
-use atomo::{Atomo, AtomoBuilder, DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
+use atomo::{DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -34,7 +34,9 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
+use lightning_interfaces::DefaultMerklizedStrategy;
 use lightning_metrics::increment_counter;
+use merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
 use tracing::warn;
 
 use crate::config::{Config, StorageConfig};
@@ -45,7 +47,7 @@ use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
 pub struct Env<P, B: StorageBackend> {
-    pub inner: Atomo<P, B>,
+    pub inner: MerklizedAtomo<P, B, DefaultSerdeBackend, DefaultMerklizedStrategy<B>>,
 }
 
 impl Env<UpdatePerm, AtomoStorage> {
@@ -83,7 +85,7 @@ impl Env<UpdatePerm, AtomoStorage> {
             StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
         };
 
-        let mut atomo = AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
+        let mut atomo = MerklizedAtomoBuilder::new(storage);
         atomo = atomo
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")
@@ -138,7 +140,7 @@ impl Env<UpdatePerm, AtomoStorage> {
 
 impl<B: StorageBackend> Env<UpdatePerm, B> {
     #[autometrics::autometrics]
-    async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
+    pub async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
     where
         F: FnOnce() -> P,
         P: IncrementalPutInterface,

@@ -2,14 +2,8 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Duration;
 
-use atomo::{
-    Atomo,
-    AtomoBuilder,
-    DefaultSerdeBackend,
-    KeyIterator,
-    QueryPerm,
-    ResolvedTableReference,
-};
+use anyhow::Result;
+use atomo::{DefaultSerdeBackend, KeyIterator, QueryPerm, ResolvedTableReference};
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
@@ -27,13 +21,22 @@ use lightning_interfaces::types::{
     Service,
     ServiceId,
     ServiceRevenue,
+    StateProofKey,
+    StateProofValue,
     TotalServed,
     TransactionRequest,
     TransactionResponse,
     TxHash,
     Value,
 };
-use lightning_interfaces::SyncQueryRunnerInterface;
+use lightning_interfaces::{DefaultMerklizedStrategy, SyncQueryRunnerInterface};
+use merklized::{
+    MerklizedAtomo,
+    MerklizedAtomoBuilder,
+    MerklizedStrategy,
+    StateProof,
+    StateRootHash,
+};
 
 use crate::state::State;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
@@ -41,7 +44,12 @@ use crate::table::StateTables;
 
 #[derive(Clone)]
 pub struct QueryRunner {
-    inner: Atomo<QueryPerm, AtomoStorage>,
+    inner: MerklizedAtomo<
+        QueryPerm,
+        AtomoStorage,
+        DefaultSerdeBackend,
+        DefaultMerklizedStrategy<AtomoStorage>,
+    >,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
     client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
@@ -65,9 +73,11 @@ pub struct QueryRunner {
 }
 
 impl SyncQueryRunnerInterface for QueryRunner {
-    type Backend = AtomoStorage;
+    type Storage = AtomoStorage;
+    type Serde = DefaultSerdeBackend;
+    type Merklized = DefaultMerklizedStrategy<AtomoStorage>;
 
-    fn new(atomo: Atomo<QueryPerm, AtomoStorage>) -> Self {
+    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, Self::Serde, Self::Merklized>) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -98,34 +108,50 @@ impl SyncQueryRunnerInterface for QueryRunner {
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>>
+    {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
             .from_checkpoint(hash, checkpoint)
             .read_only();
 
-        let atomo = Self::register_tables(
-            AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(backend),
-        )
-        .build()?
-        .query();
+        let atomo = Self::register_tables(MerklizedAtomoBuilder::new(backend))
+            .build()?
+            .query();
 
         Ok(atomo)
     }
 
-    fn atomo_from_path(path: impl AsRef<Path>) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
+    fn atomo_from_path(
+        path: impl AsRef<Path>,
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>>
+    {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
-        let atomo = Self::register_tables(
-            AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(backend),
-        )
-        .build()?
-        .query();
+        let atomo = Self::register_tables(MerklizedAtomoBuilder::new(backend))
+            .build()?
+            .query();
 
         Ok(atomo)
     }
 
     fn get_metadata(&self, key: &Metadata) -> Option<Value> {
         self.inner.run(|ctx| self.metadata_table.get(ctx).get(key))
+    }
+
+    fn get_state_root(&self) -> Result<StateRootHash> {
+        self.inner.get_state_root()
+    }
+
+    fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, StateProof)> {
+        self.inner.run(|ctx| {
+            let (table, serialized_key) =
+                key.raw::<<Self::Merklized as MerklizedStrategy>::Serde>();
+            let (value, proof) =
+                Self::Merklized::context(ctx).get_state_proof(&table, serialized_key)?;
+            let value = value
+                .map(|value| key.value::<<Self::Merklized as MerklizedStrategy>::Serde>(value));
+            Ok((value, proof))
+        })
     }
 
     #[inline]

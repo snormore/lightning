@@ -16,6 +16,7 @@ publish = false
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8" }
+anstream = { version = "0.6" }
 arc-swap = { version = "1", default-features = false, features = ["serde"] }
 arrayvec = { version = "0.7" }
 autometrics = { version = "0.6", default-features = false, features = ["prometheus", "prometheus-exporter"] }
@@ -24,6 +25,8 @@ axum-ca01ad9e24f5d932 = { package = "axum", version = "0.7", features = ["macros
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13", features = ["alloc"] }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
+blake2 = { version = "0.10" }
+blake3 = { version = "1" }
 block-buffer = { version = "0.9", default-features = false, features = ["block-padding"] }
 block-padding = { version = "0.3", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["extern_crate_alloc"] }
@@ -46,6 +49,7 @@ crypto-common = { version = "0.1", default-features = false, features = ["getran
 curve25519-dalek-ng = { version = "4", features = ["serde"] }
 data-encoding = { version = "2" }
 der = { version = "0.7", default-features = false, features = ["derive", "oid", "pem", "std"] }
+digest = { version = "0.10", features = ["mac", "oid", "std"] }
 ecdsa = { version = "0.16", features = ["pem", "signing", "std", "verifying"] }
 either = { version = "1" }
 elliptic-curve = { version = "0.13", features = ["ecdh", "hash2curve", "hazmat", "pem", "std"] }
@@ -66,7 +70,7 @@ hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13" }
 hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["raw"] }
 hdrhistogram = { version = "7" }
-hex = { version = "0.4" }
+hex = { version = "0.4", features = ["serde"] }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false, features = ["reset", "std"] }
 hyper-582f2526e08bb6a0 = { package = "hyper", version = "0.14", features = ["full"] }
@@ -81,7 +85,7 @@ itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 k256 = { version = "0.13" }
 lazy_static = { version = "1", default-features = false, features = ["spin_no_std"] }
 libc = { version = "0.2", features = ["extra_traits"] }
-log = { version = "0.4", default-features = false, features = ["std"] }
+log = { version = "0.4", default-features = false, features = ["kv", "std"] }
 matrixmultiply = { version = "0.3", features = ["cgemm"] }
 memchr = { version = "2" }
 miniz_oxide = { version = "0.7", features = ["simd"] }
@@ -119,6 +123,7 @@ regex-syntax = { version = "0.8" }
 reqwest = { version = "0.11", features = ["blocking", "brotli", "gzip", "json", "rustls-tls", "socks", "stream"] }
 ring-9067fe90e8c1f593 = { package = "ring", version = "0.17", features = ["std"] }
 ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
+ripemd = { version = "0.1" }
 rocksdb = { version = "0.21", features = ["multi-threaded-cf"] }
 ruint = { version = "1", features = ["num-bigint", "primitive-types", "serde"] }
 rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
@@ -136,6 +141,7 @@ simdutf8 = { version = "0.1", features = ["aarch64_neon"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 socket2 = { version = "0.5", default-features = false, features = ["all"] }
 spki = { version = "0.7", default-features = false, features = ["pem", "std"] }
+subtle = { version = "2", default-features = false, features = ["i128"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
 time = { version = "0.3", features = ["formatting", "local-offset", "macros", "parsing"] }
 tokio = { version = "1", features = ["full", "test-util", "tracing"] }
@@ -143,6 +149,7 @@ tokio-rustls = { version = "0.24" }
 tokio-stream = { version = "0.1", features = ["net", "sync"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "time"] }
 toml_datetime = { version = "0.6", default-features = false, features = ["serde"] }
+toml_edit = { version = "0.21", features = ["serde"] }
 tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.3", features = ["full"] }
 tracing = { version = "0.1", features = ["log"] }
@@ -158,6 +165,7 @@ zeroize = { version = "1", features = ["zeroize_derive"] }
 
 [build-dependencies]
 ahash = { version = "0.8" }
+anstream = { version = "0.6" }
 arc-swap = { version = "1", default-features = false, features = ["serde"] }
 arrayvec = { version = "0.7" }
 autometrics = { version = "0.6", default-features = false, features = ["prometheus", "prometheus-exporter"] }
@@ -166,6 +174,8 @@ axum-ca01ad9e24f5d932 = { package = "axum", version = "0.7", features = ["macros
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13", features = ["alloc"] }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
+blake2 = { version = "0.10" }
+blake3 = { version = "1" }
 block-buffer = { version = "0.9", default-features = false, features = ["block-padding"] }
 block-padding = { version = "0.3", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["extern_crate_alloc"] }
@@ -189,6 +199,7 @@ crypto-common = { version = "0.1", default-features = false, features = ["getran
 curve25519-dalek-ng = { version = "4", features = ["serde"] }
 data-encoding = { version = "2" }
 der = { version = "0.7", default-features = false, features = ["derive", "oid", "pem", "std"] }
+digest = { version = "0.10", features = ["mac", "oid", "std"] }
 ecdsa = { version = "0.16", features = ["pem", "signing", "std", "verifying"] }
 either = { version = "1" }
 elliptic-curve = { version = "0.13", features = ["ecdh", "hash2curve", "hazmat", "pem", "std"] }
@@ -209,7 +220,7 @@ hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13" }
 hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["raw"] }
 hdrhistogram = { version = "7" }
-hex = { version = "0.4" }
+hex = { version = "0.4", features = ["serde"] }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false, features = ["reset", "std"] }
 hyper-582f2526e08bb6a0 = { package = "hyper", version = "0.14", features = ["full"] }
@@ -224,7 +235,7 @@ itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 k256 = { version = "0.13" }
 lazy_static = { version = "1", default-features = false, features = ["spin_no_std"] }
 libc = { version = "0.2", features = ["extra_traits"] }
-log = { version = "0.4", default-features = false, features = ["std"] }
+log = { version = "0.4", default-features = false, features = ["kv", "std"] }
 matrixmultiply = { version = "0.3", features = ["cgemm"] }
 memchr = { version = "2" }
 miniz_oxide = { version = "0.7", features = ["simd"] }
@@ -245,6 +256,7 @@ plotters = { version = "0.3" }
 portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 primitive-types = { version = "0.12", features = ["byteorder", "rlp", "rustc-hex", "scale-info", "serde_no_std"] }
+proc-macro-error = { version = "1" }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 prost-5ef9efb8ec2df382 = { package = "prost", version = "0.12" }
 prost-a6292c17cd707f01 = { package = "prost", version = "0.11" }
@@ -262,6 +274,7 @@ regex-syntax = { version = "0.8" }
 reqwest = { version = "0.11", features = ["blocking", "brotli", "gzip", "json", "rustls-tls", "socks", "stream"] }
 ring-9067fe90e8c1f593 = { package = "ring", version = "0.17", features = ["std"] }
 ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
+ripemd = { version = "0.1" }
 rocksdb = { version = "0.21", features = ["multi-threaded-cf"] }
 ruint = { version = "1", features = ["num-bigint", "primitive-types", "serde"] }
 rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
@@ -279,6 +292,7 @@ simdutf8 = { version = "0.1", features = ["aarch64_neon"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 socket2 = { version = "0.5", default-features = false, features = ["all"] }
 spki = { version = "0.7", default-features = false, features = ["pem", "std"] }
+subtle = { version = "2", default-features = false, features = ["i128"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
 time = { version = "0.3", features = ["formatting", "local-offset", "macros", "parsing"] }
@@ -287,6 +301,7 @@ tokio-rustls = { version = "0.24" }
 tokio-stream = { version = "0.1", features = ["net", "sync"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "time"] }
 toml_datetime = { version = "0.6", default-features = false, features = ["serde"] }
+toml_edit = { version = "0.21", features = ["serde"] }
 tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.3", features = ["full"] }
 tracing = { version = "0.1", features = ["log"] }
