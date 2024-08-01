@@ -16,8 +16,8 @@ mod table;
 pub type DefaultSerdeBackend = serder::BincodeSerde;
 
 pub use builder::AtomoBuilder;
-pub use db::{Atomo, QueryPerm, UpdatePerm};
+pub use db::{Atomo, QueryPerm, TableId, UpdatePerm};
 pub use key_iterator::KeyIterator;
 pub use serder::{BincodeSerde, SerdeBackend};
 pub use storage::{InMemoryStorage, StorageBackend, StorageBackendConstructor};
-pub use table::{ResolvedTableReference, TableRef, TableSelector};
+pub use table::{ResolvedTableReference, TableMeta, TableRef, TableSelector};

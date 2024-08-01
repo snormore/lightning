@@ -147,7 +147,7 @@ To help diagnose the problem, you can submit a crash report as an issue or via e
     writeln!(
         stderr,
         "
-We take privacy seriously, and do not automatically collect crash reports. 
+We take privacy seriously, and do not automatically collect crash reports.
 Due to this, we rely on users to submit reports.
 
 Thank you kindly!

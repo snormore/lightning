@@ -254,6 +254,7 @@ impl<C: Collection> BlockstoreServerInner<C> {
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 enum Message {
     Request {
         hash: Blake3Hash,
