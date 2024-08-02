@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use anyhow::Result;
 use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
+use jmt::storage::{Node, NodeKey};
 use jmt::KeyHash;
 
 use super::ics23::ics23_proof_spec;
@@ -47,7 +48,7 @@ impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedStrategy
         builder: AtomoBuilder<C, S>,
     ) -> Result<atomo::Atomo<atomo::UpdatePerm, C::Storage, S>> {
         Ok(builder
-            .with_table::<Vec<u8>, Vec<u8>>(NODES_TABLE_NAME)
+            .with_table::<NodeKey, Node>(NODES_TABLE_NAME)
             .with_table::<KeyHash, StateKey>(KEYS_TABLE_NAME)
             .build()
             .unwrap())
@@ -78,16 +79,8 @@ mod tests {
     use crate::hashers::sha2::Sha256Hasher;
     use crate::DefaultMerklizedStrategy;
 
-    fn init_logger() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default())
-            .is_test(true)
-            .format_timestamp(None)
-            .try_init();
-    }
-
     #[test]
     fn test_atomo_memdb_sha256() {
-        init_logger();
         type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
         type M = DefaultMerklizedStrategy<InMemoryStorage, H>;
@@ -100,7 +93,6 @@ mod tests {
 
     #[test]
     fn test_atomo_rocksdb_sha256() {
-        init_logger();
         type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
         type M = DefaultMerklizedStrategy<RocksBackend, H>;
