@@ -3,7 +3,7 @@ use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendCo
 use merklized::hashers::keccak::KeccakHasher;
 use merklized::strategies::jmt::JmtMerklizedStrategy;
 use merklized::{MerklizedAtomoBuilder, MerklizedStrategy};
-use opentelemetry::trace::TraceError;
+use opentelemetry::trace::{TraceError, TracerProvider};
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{runtime, trace as sdktrace, Resource};
@@ -16,7 +16,8 @@ use tracing_subscriber::Registry;
 #[tokio::main]
 async fn main() -> Result<()> {
     let service_name = "merklized-tracing-example";
-    let tracer = init_tracer_provider(service_name.to_string())?;
+    let provider = init_tracer_provider(service_name.to_string())?;
+    let tracer = provider.tracer(service_name);
 
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
     let subscriber = Registry::default().with(telemetry);
@@ -87,7 +88,7 @@ fn run<B: StorageBackendConstructor, M: MerklizedStrategy<Storage = B::Storage>>
     });
 }
 
-fn init_tracer_provider(service_name: String) -> Result<sdktrace::Tracer, TraceError> {
+fn init_tracer_provider(service_name: String) -> Result<sdktrace::TracerProvider, TraceError> {
     opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_exporter(

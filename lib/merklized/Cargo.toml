@@ -30,11 +30,11 @@ tempfile.workspace = true
 tokio.workspace = true
 
 # Tracing and open telemetry dependencies (dev)
-opentelemetry = "0.23.0"
-opentelemetry-otlp = "0.16.0"
+opentelemetry = "0.24.0"
+opentelemetry-otlp = "0.17.0"
 opentelemetry-semantic-conventions = "0.16.0"
-opentelemetry_sdk = { version = "0.23.0", features = ["tokio", "rt-tokio"] }
-tracing-opentelemetry = "0.24.0"
+opentelemetry_sdk = { version = "0.24.1", features = ["tokio", "rt-tokio"] }
+tracing-opentelemetry = "0.25.0"
 tracing-subscriber.workspace = true
 
 # Lightning dependencies (dev)
