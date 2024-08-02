@@ -1,4 +1,4 @@
-use atomo::{DefaultSerdeBackend, InMemoryStorage, StorageBackendConstructor};
+use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
 use merklized::hashers::sha2::Sha256Hasher;
 use merklized::strategies::jmt::JmtMerklizedStrategy;
 use merklized::{MerklizedAtomoBuilder, MerklizedStrategy};
@@ -40,7 +40,7 @@ fn run<B: StorageBackendConstructor, M: MerklizedStrategy<Storage = B::Storage>>
 
         // Get a proof of existence for some value in the state.
         let (value, proof) = ctx
-            .get_state_proof("data", "key".as_bytes().to_vec())
+            .get_state_proof("data", M::Serde::serialize(&"key"))
             .unwrap();
         println!("value: {:?}", value);
         println!("proof: {:?}", proof);

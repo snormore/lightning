@@ -9,16 +9,12 @@ use tempfile::tempdir;
 
 #[test]
 fn test_atomo_memdb_sha256() {
-    init_logger();
-
     let builder = InMemoryStorage::default();
     generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizedStrategy<_, _, Sha256Hasher>>(builder);
 }
 
 #[test]
 fn test_atomo_rocksdb_sha256() {
-    init_logger();
-
     let temp_dir = tempdir().unwrap();
     let mut options = Options::default();
     options.create_if_missing(true);
@@ -29,16 +25,12 @@ fn test_atomo_rocksdb_sha256() {
 
 #[test]
 fn test_atomo_memdb_keccak256() {
-    init_logger();
-
     let builder = InMemoryStorage::default();
     generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizedStrategy<_, _, KeccakHasher>>(builder);
 }
 
 #[test]
 fn test_atomo_rocksdb_keccak256() {
-    init_logger();
-
     let temp_dir = tempdir().unwrap();
     let mut options = Options::default();
     options.create_if_missing(true);
@@ -49,16 +41,12 @@ fn test_atomo_rocksdb_keccak256() {
 
 #[test]
 fn test_atomo_memdb_blake3() {
-    init_logger();
-
     let builder = InMemoryStorage::default();
     generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizedStrategy<_, _, Blake3Hasher>>(builder);
 }
 
 #[test]
 fn test_atomo_rocksdb_blake3() {
-    init_logger();
-
     let temp_dir = tempdir().unwrap();
     let mut options = Options::default();
     options.create_if_missing(true);
@@ -240,12 +228,4 @@ fn generic_test_atomo<
     //         new_state_root,
     //     ));
     // });
-}
-
-#[allow(dead_code)]
-pub fn init_logger() {
-    let _ = env_logger::Builder::from_env(env_logger::Env::default())
-        .is_test(true)
-        .format_timestamp(None)
-        .try_init();
 }
