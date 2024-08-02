@@ -1,2 +1,5 @@
 [build]
 rustflags = ["--cfg", "tokio_unstable"]
+
+[env]
+# https://github.com/rust-lang/rust-analyzer/issues/17739
