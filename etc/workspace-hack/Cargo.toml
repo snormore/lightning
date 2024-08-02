@@ -21,6 +21,7 @@ arrayvec = { version = "0.7" }
 autometrics = { version = "0.6", default-features = false, features = ["prometheus", "prometheus-exporter"] }
 axum-3b31131e45eafb45 = { package = "axum", version = "0.6", features = ["headers", "http2", "ws"] }
 axum-ca01ad9e24f5d932 = { package = "axum", version = "0.7", features = ["macros"] }
+axum-core = { version = "0.4", default-features = false, features = ["tracing"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13", features = ["alloc"] }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
@@ -75,10 +76,12 @@ hmac = { version = "0.12", default-features = false, features = ["reset", "std"]
 hyper-582f2526e08bb6a0 = { package = "hyper", version = "0.14", features = ["full"] }
 hyper-dff4ba8e3ae991db = { package = "hyper", version = "1", features = ["full"] }
 hyper-rustls = { version = "0.24", features = ["http2"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
 image = { version = "0.24" }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde", "std"] }
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 inout = { version = "0.1", default-features = false, features = ["std"] }
+itertools-5ef9efb8ec2df382 = { package = "itertools", version = "0.12" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 k256 = { version = "0.13" }
@@ -127,6 +130,7 @@ rocksdb = { version = "0.21", features = ["multi-threaded-cf"] }
 ruint = { version = "1", features = ["num-bigint", "primitive-types", "serde"] }
 rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 rustls-pki-types = { version = "1", features = ["std"] }
+rustls-webpki = { version = "0.102" }
 schemars = { version = "0.8", features = ["either"] }
 scopeguard = { version = "1" }
 sec1 = { version = "0.7", features = ["pem", "std", "subtle"] }
@@ -137,7 +141,7 @@ sha1 = { version = "0.10", features = ["oid"] }
 sha2 = { version = "0.10", features = ["oid"] }
 sha3 = { version = "0.10" }
 simdutf8 = { version = "0.1", features = ["aarch64_neon"] }
-smallvec = { version = "1", default-features = false, features = ["union"] }
+smallvec = { version = "1", default-features = false, features = ["const_new", "union"] }
 socket2 = { version = "0.5", default-features = false, features = ["all"] }
 spki = { version = "0.7", default-features = false, features = ["pem", "std"] }
 subtle = { version = "2", default-features = false, features = ["i128"] }
@@ -149,7 +153,6 @@ tokio-stream = { version = "0.1", features = ["net", "sync"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "time"] }
 toml_datetime = { version = "0.6", default-features = false, features = ["serde"] }
 toml_edit = { version = "0.21", features = ["serde"] }
-tonic = { version = "0.11" }
 tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.3", features = ["full"] }
 tracing = { version = "0.1", features = ["log"] }
@@ -170,6 +173,7 @@ arrayvec = { version = "0.7" }
 autometrics = { version = "0.6", default-features = false, features = ["prometheus", "prometheus-exporter"] }
 axum-3b31131e45eafb45 = { package = "axum", version = "0.6", features = ["headers", "http2", "ws"] }
 axum-ca01ad9e24f5d932 = { package = "axum", version = "0.7", features = ["macros"] }
+axum-core = { version = "0.4", default-features = false, features = ["tracing"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13", features = ["alloc"] }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "2", default-features = false, features = ["std"] }
@@ -225,10 +229,12 @@ hmac = { version = "0.12", default-features = false, features = ["reset", "std"]
 hyper-582f2526e08bb6a0 = { package = "hyper", version = "0.14", features = ["full"] }
 hyper-dff4ba8e3ae991db = { package = "hyper", version = "1", features = ["full"] }
 hyper-rustls = { version = "0.24", features = ["http2"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
 image = { version = "0.24" }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde", "std"] }
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 inout = { version = "0.1", default-features = false, features = ["std"] }
+itertools-5ef9efb8ec2df382 = { package = "itertools", version = "0.12" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 k256 = { version = "0.13" }
@@ -278,6 +284,7 @@ rocksdb = { version = "0.21", features = ["multi-threaded-cf"] }
 ruint = { version = "1", features = ["num-bigint", "primitive-types", "serde"] }
 rustls = { version = "0.21", features = ["dangerous_configuration", "quic"] }
 rustls-pki-types = { version = "1", features = ["std"] }
+rustls-webpki = { version = "0.102" }
 schemars = { version = "0.8", features = ["either"] }
 scopeguard = { version = "1" }
 sec1 = { version = "0.7", features = ["pem", "std", "subtle"] }
@@ -288,7 +295,7 @@ sha1 = { version = "0.10", features = ["oid"] }
 sha2 = { version = "0.10", features = ["oid"] }
 sha3 = { version = "0.10" }
 simdutf8 = { version = "0.1", features = ["aarch64_neon"] }
-smallvec = { version = "1", default-features = false, features = ["union"] }
+smallvec = { version = "1", default-features = false, features = ["const_new", "union"] }
 socket2 = { version = "0.5", default-features = false, features = ["all"] }
 spki = { version = "0.7", default-features = false, features = ["pem", "std"] }
 subtle = { version = "2", default-features = false, features = ["i128"] }
@@ -301,7 +308,6 @@ tokio-stream = { version = "0.1", features = ["net", "sync"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io", "time"] }
 toml_datetime = { version = "0.6", default-features = false, features = ["serde"] }
 toml_edit = { version = "0.21", features = ["serde"] }
-tonic = { version = "0.11" }
 tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.3", features = ["full"] }
 tracing = { version = "0.1", features = ["log"] }
