@@ -37,7 +37,7 @@ use lightning_interfaces::types::{
 use lightning_interfaces::DefaultMerklizedStrategy;
 use lightning_metrics::increment_counter;
 use merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
-use tracing::warn;
+use tracing::{trace_span, warn};
 
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
@@ -52,6 +52,9 @@ pub struct Env<P, B: StorageBackend> {
 
 impl Env<UpdatePerm, AtomoStorage> {
     pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
+        let span = trace_span!("env.new");
+        let _enter = span.enter();
+
         let storage = match config.storage {
             StorageConfig::RocksDb => {
                 let db_path = config
@@ -145,6 +148,9 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
         F: FnOnce() -> P,
         P: IncrementalPutInterface,
     {
+        let span = trace_span!("env.run");
+        let _enter = span.enter();
+
         let response = self.inner.run(move |ctx| {
             // Create the app/execution environment
             let backend = StateTables {
@@ -257,6 +263,9 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
     /// Will return true if database was empty and genesis needed to be loaded or false if there was
     /// already state loaded and it didn't load genesis
     pub fn apply_genesis_block(&mut self, config: &Config) -> Result<bool> {
+        let span = trace_span!("env.apply_genesis_block");
+        let _enter = span.enter();
+
         self.inner.run(|ctx| {
             let mut metadata_table = ctx.get_table::<Metadata, Value>("metadata");
 

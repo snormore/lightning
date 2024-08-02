@@ -1,14 +1,14 @@
 #![feature(test)]
 extern crate test;
 
-mod utils;
+mod generic_utils;
 
 use atomo::StorageBackendConstructor;
+use generic_utils::{rocksdb_builder, DATA_COUNT_COMPLEX, DATA_COUNT_MEDIUM, DATA_COUNT_SIMPLE};
 use merklized::hashers::keccak::KeccakHasher;
 use merklized::{DefaultMerklizedStrategy, MerklizedAtomoBuilder, MerklizedStrategy};
 use tempfile::tempdir;
 use test::Bencher;
-use utils::{rocksdb_builder, DATA_COUNT_COMPLEX, DATA_COUNT_MEDIUM, DATA_COUNT_SIMPLE};
 
 #[bench]
 fn bench_generic_get_state_root_rocksdb_jmt_keccak256_simple(b: &mut Bencher) {
