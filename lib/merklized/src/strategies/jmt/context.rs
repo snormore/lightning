@@ -8,8 +8,8 @@ use atomo::{SerdeBackend, StorageBackend, TableId, TableSelector};
 use fxhash::FxHashMap;
 use jmt::storage::{HasPreimage, LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
-use log::trace;
 use lru::LruCache;
+use tracing::{trace, trace_span};
 
 use super::hasher::SimpleHasherWrapper;
 use super::strategy::{KEYS_TABLE_NAME, NODES_TABLE_NAME};
@@ -24,7 +24,7 @@ type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>
 pub struct JmtMerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
     ctx: &'a TableSelector<B, S>,
     table_name_by_id: FxHashMap<TableId, String>,
-    nodes_table: SharedTableRef<'a, Vec<u8>, Vec<u8>, B, S>,
+    nodes_table: SharedTableRef<'a, NodeKey, Node, B, S>,
     keys_table: SharedTableRef<'a, KeyHash, StateKey, B, S>,
     keys_cache: Arc<Mutex<LruCache<KeyHash, StateKey>>>,
     _phantom: PhantomData<H>,
@@ -103,7 +103,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
 
         let state_key = StateKey::new(table, serialized_key);
         let key_hash = state_key.hash::<S, H>();
-        trace!(key_hash:?, state_key:?; "get_state_proof");
+        trace!(?key_hash, ?state_key, "get_state_proof");
 
         let (value, proof) = tree.get_with_ics23_proof(
             S::serialize(&state_key),
@@ -118,58 +118,85 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
     /// the state tree to reflect the changes in the atomo batch. It reads data from the state tree,
     /// so an execution context is needed to ensure consistency.
     fn apply_state_tree_changes(&mut self) -> Result<()> {
+        let span = trace_span!("apply_state_tree_changes");
+        let _enter = span.enter();
+
         let tree = jmt::JellyfishMerkleTree::<_, SimpleHasherWrapper<H>>::new(self);
 
         // Build a jmt value set (batch) from the atomo batch.
         let mut value_set: Vec<(jmt::KeyHash, Option<jmt::OwnedValue>)> = Default::default();
-        let batch = self.ctx.batch();
-        for (table_id, changes) in batch.into_raw().iter().enumerate() {
-            let table_id: TableId = table_id.try_into()?;
-            let table_name = self
-                .table_name_by_id
-                .get(&table_id)
-                .ok_or(anyhow!("Table with index {} not found", table_id))?
-                .as_str();
-            for (key, operation) in changes.iter() {
-                let state_key = StateKey::new(table_name, key.to_vec());
-                let key_hash = jmt::KeyHash(state_key.hash::<S, H>().into());
+        {
+            let span = trace_span!("build_value_set");
+            let _enter = span.enter();
 
-                match operation {
-                    Operation::Remove => {
-                        value_set.push((key_hash, None));
+            let batch = self.ctx.batch();
+            for (table_id, changes) in batch.into_raw().iter().enumerate() {
+                let table_id: TableId = table_id.try_into()?;
+                let table_name = self
+                    .table_name_by_id
+                    .get(&table_id)
+                    .ok_or(anyhow!("Table with index {} not found", table_id))?
+                    .as_str();
+                for (key, operation) in changes.iter() {
+                    let state_key = StateKey::new(table_name, key.to_vec());
+                    let key_hash = jmt::KeyHash(state_key.hash::<S, H>().into());
 
-                        // Remove it from the keys table.
-                        trace!(key_hash:?, state_key:?; "removing key");
-                        self.keys_table.lock().unwrap().remove(key_hash);
-                    },
-                    Operation::Insert(value) => {
-                        value_set.push((key_hash, Some(value.to_vec())));
+                    match operation {
+                        Operation::Remove => {
+                            // let span = trace_span!("remove_key_value");
+                            // let _enter = span.enter();
 
-                        // Insert it into the keys table.
-                        trace!(key_hash:?, state_key:?; "inserting key");
-                        self.keys_table
-                            .lock()
-                            .unwrap()
-                            .insert(key_hash, state_key.clone());
-                    },
+                            value_set.push((key_hash, None));
+
+                            // Remove it from the keys table.
+                            trace!(?key_hash, ?state_key, "removing key");
+                            self.keys_table.lock().unwrap().remove(key_hash);
+                        },
+                        Operation::Insert(value) => {
+                            // let span = trace_span!("insert_key_value");
+                            // let _enter = span.enter();
+
+                            value_set.push((key_hash, Some(value.to_vec())));
+
+                            // Insert it into the keys table.
+                            trace!(?key_hash, ?state_key, "inserting key");
+                            self.keys_table
+                                .lock()
+                                .unwrap()
+                                .insert(key_hash, state_key.clone());
+                        },
+                    }
                 }
             }
         }
 
         // Apply the jmt value set (batch) to the tree.
-        let (_new_root_hash, tree_batch) = tree.put_value_set(value_set.clone(), 0).unwrap();
+        let tree_batch = {
+            let span = trace_span!("put_value_set");
+            let _enter = span.enter();
+
+            let (_new_root_hash, tree_batch) = tree.put_value_set(value_set.clone(), 0).unwrap();
+            tree_batch
+        };
 
         // Remove stale nodes.
-        for stale_node in tree_batch.stale_node_index_batch {
-            let key = S::serialize(&stale_node.node_key);
-            self.nodes_table.lock().unwrap().remove(key);
+        {
+            let span = trace_span!("remove_stale_nodes");
+            let _enter = span.enter();
+
+            for stale_node in tree_batch.stale_node_index_batch {
+                self.nodes_table.lock().unwrap().remove(stale_node.node_key);
+            }
         }
 
         // Insert new nodes.
-        for (node_key, node) in tree_batch.node_batch.nodes() {
-            let key = S::serialize(node_key);
-            let value = S::serialize(node);
-            self.nodes_table.lock().unwrap().insert(key, value);
+        {
+            let span = trace_span!("insert_new_nodes");
+            let _enter = span.enter();
+
+            for (node_key, node) in tree_batch.node_batch.nodes() {
+                self.nodes_table.lock().unwrap().insert(node_key, node);
+            }
         }
 
         Ok(())
@@ -181,11 +208,10 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> TreeReader
 {
     /// Get the node for the given node key, if it is present in the tree.
     fn get_node_option(&self, node_key: &NodeKey) -> Result<Option<Node>> {
-        let key = S::serialize(node_key);
-        let value = self.nodes_table.lock().unwrap().get(key);
-        trace!(node_key:?, value:?; "get_node_option");
+        let value = self.nodes_table.lock().unwrap().get(node_key);
+        trace!(?node_key, ?value, "get_node_option");
         match value {
-            Some(value) => Ok(Some(S::deserialize(&value))),
+            Some(value) => Ok(Some(value)),
             None => {
                 if node_key.nibble_path().is_empty() {
                     // If the nibble path is empty, it's a root node and we should return a null
@@ -216,7 +242,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> TreeReader
         } else {
             None
         };
-        trace!(key_hash:?, value:?; "get_value_option");
+        trace!(?key_hash, ?value, "get_value_option");
         Ok(value)
     }
 }
@@ -227,7 +253,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> HasPreimage
     /// Gets the preimage of a key hash, if it is present in the tree.
     fn preimage(&self, key_hash: KeyHash) -> Result<Option<Vec<u8>>> {
         let state_key = self.get_key(key_hash);
-        trace!(key_hash:?, state_key:?; "preimage");
+        trace!(?key_hash, ?state_key, "preimage");
         Ok(state_key.map(|key| S::serialize(&key)))
     }
 }
@@ -247,19 +273,12 @@ mod tests {
     use crate::hashers::sha2::Sha256Hasher;
     use crate::DefaultMerklizedStrategy;
 
-    fn init_logger() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default())
-            .is_test(true)
-            .format_timestamp(None)
-            .try_init();
-    }
-
     fn build_atomo<C: StorageBackendConstructor, S: SerdeBackend>(
         builder: C,
     ) -> Atomo<UpdatePerm, C::Storage, S> {
         AtomoBuilder::<_, S>::new(builder)
             .with_table::<String, String>("data")
-            .with_table::<Vec<u8>, Vec<u8>>(NODES_TABLE_NAME)
+            .with_table::<NodeKey, Node>(NODES_TABLE_NAME)
             .with_table::<KeyHash, StateKey>(KEYS_TABLE_NAME)
             .build()
             .unwrap()
@@ -267,7 +286,6 @@ mod tests {
 
     #[test]
     fn test_apply_state_tree_changes_with_updates() {
-        init_logger();
         type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
 
@@ -319,7 +337,6 @@ mod tests {
 
     #[test]
     fn test_apply_state_tree_changes_with_no_changes() {
-        init_logger();
         type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
 
@@ -367,7 +384,6 @@ mod tests {
 
     #[test]
     fn test_get_state_root_with_empty_state() {
-        init_logger();
         type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
 
@@ -387,7 +403,6 @@ mod tests {
 
     #[test]
     fn test_get_state_root_with_updates() {
-        init_logger();
         type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
 
@@ -448,7 +463,6 @@ mod tests {
 
     #[test]
     fn test_get_state_proof_of_membership() {
-        init_logger();
         type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
         type M = DefaultMerklizedStrategy<InMemoryStorage, H>;
