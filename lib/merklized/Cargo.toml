@@ -23,22 +23,14 @@ tracing.workspace = true
 
 [dev-dependencies]
 atomo-rocks.workspace = true
-env_logger = { version = "0.11.5", features = ["unstable-kv"] }
-hp-fixed.workspace = true
-ink-quill.workspace = true
-lightning-application.workspace = true
-lightning-interfaces.workspace = true
-lightning-test-utils.workspace = true
-lightning-types.workspace = true
-opentelemetry = "0.24.0"
-opentelemetry-otlp = "0.17.0"
+opentelemetry = { version = "0.23.0" }
+opentelemetry-otlp = { version = "0.16.0" }
 opentelemetry-semantic-conventions = "0.16.0"
-opentelemetry_sdk = { version = "0.24.1", features = ["tokio", "rt-tokio"] }
+opentelemetry_sdk = { version = "0.23.0", features = ["tokio", "rt-tokio"] }
 rand.workspace = true
-resolved-pathbuf.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
-tracing-opentelemetry = "0.25.0"
+tracing-opentelemetry = "0.24.0"
 tracing-subscriber.workspace = true
 
 [features]
