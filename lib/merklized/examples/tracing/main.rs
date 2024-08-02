@@ -21,6 +21,8 @@ async fn main() -> Result<()> {
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
     let subscriber = Registry::default().with(telemetry);
 
+    tracing_subscriber::fmt::init();
+
     tracing::subscriber::with_default(subscriber, || {
         let span = trace_span!("main");
         let _enter = span.enter();
