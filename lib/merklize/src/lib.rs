@@ -5,7 +5,7 @@ mod hasher;
 pub mod hashers;
 mod proof;
 mod provider;
-pub mod strategies;
+pub mod providers;
 mod types;
 
 pub use atomo::MerklizedAtomo;

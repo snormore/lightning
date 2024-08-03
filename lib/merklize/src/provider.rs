@@ -12,7 +12,7 @@ use crate::{MerklizedContext, SimpleHasher};
 
 #[cfg(feature = "provider-jmt")]
 pub type DefaultMerklizeProvider<B, H> =
-    crate::strategies::jmt::JmtMerklizeProvider<B, DefaultSerdeBackend, H>;
+    crate::providers::jmt::JmtMerklizeProvider<B, DefaultSerdeBackend, H>;
 
 #[cfg(feature = "hasher-blake3")]
 pub type DefaultMerklizeProviderWithHasherBlake3<B> =

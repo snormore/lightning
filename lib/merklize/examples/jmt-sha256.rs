@@ -1,6 +1,6 @@
 use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
 use merklize::hashers::sha2::Sha256Hasher;
-use merklize::strategies::jmt::JmtMerklizeProvider;
+use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::{MerklizeProvider, MerklizedAtomoBuilder};
 
 pub fn main() {

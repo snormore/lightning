@@ -1,7 +1,7 @@
 use anyhow::Result;
 use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
 use merklize::hashers::keccak::KeccakHasher;
-use merklize::strategies::jmt::JmtMerklizeProvider;
+use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::{MerklizeProvider, MerklizedAtomoBuilder};
 use opentelemetry::trace::{TraceError, TracerProvider};
 use opentelemetry::KeyValue;

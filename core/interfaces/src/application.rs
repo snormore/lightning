@@ -9,7 +9,6 @@ use atomo::{
     InMemoryStorage,
     KeyIterator,
     QueryPerm,
-    SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
 };
@@ -105,8 +104,6 @@ pub trait ApplicationInterface<C: Collection>:
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
 }
 
-pub type DefaultMerklizeProvider<B> = DefaultMerklizeProviderWithHasherKeccak<B>;
-
 type AtomoResult<P, B, S, M> = Result<MerklizedAtomo<P, B, S, M>>;
 
 #[interfaces_proc::blank]
@@ -114,29 +111,29 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     #[blank(InMemoryStorage)]
     type Storage: StorageBackend;
 
-    #[blank(DefaultSerdeBackend)]
-    type Serde: SerdeBackend;
+    #[blank(DefaultMerklizeProviderWithHasherKeccak<InMemoryStorage>)]
+    type Merklize: MerklizeProvider<Storage = Self::Storage>;
 
-    #[blank(DefaultMerklizeProvider<Self::Storage>)]
-    type Merklize: MerklizeProvider;
-
-    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklize>) -> Self;
+    fn new(
+        atomo: MerklizedAtomo<QueryPerm, Self::Storage, DefaultSerdeBackend, Self::Merklize>,
+    ) -> Self;
 
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> AtomoResult<QueryPerm, Self::Storage, Self::Serde, Self::Merklize>;
+    ) -> AtomoResult<QueryPerm, Self::Storage, DefaultSerdeBackend, Self::Merklize>;
 
     fn atomo_from_path(
         path: impl AsRef<Path>,
-    ) -> AtomoResult<QueryPerm, Self::Storage, Self::Serde, Self::Merklize>;
+    ) -> AtomoResult<QueryPerm, Self::Storage, DefaultSerdeBackend, Self::Merklize>;
 
-    fn register_tables<C: StorageBackendConstructor>(
-        builder: MerklizedAtomoBuilder<C, Self::Serde, Self::Merklize>,
-    ) -> MerklizedAtomoBuilder<C, Self::Serde, Self::Merklize>
+    fn register_tables<C>(
+        builder: MerklizedAtomoBuilder<C, DefaultSerdeBackend, Self::Merklize>,
+    ) -> MerklizedAtomoBuilder<C, DefaultSerdeBackend, Self::Merklize>
     where
-        Self::Merklize: MerklizeProvider<Storage = C::Storage, Serde = Self::Serde>,
+        C: StorageBackendConstructor<Storage = Self::Storage>,
+        Self::Merklize: MerklizeProvider<Storage = Self::Storage, Serde = DefaultSerdeBackend>,
     {
         builder
             .with_table::<Metadata, Value>("metadata")

@@ -13,7 +13,7 @@ use tracing::{trace, trace_span};
 
 use super::hasher::SimpleHasherWrapper;
 use super::provider::{KEYS_TABLE_NAME, NODES_TABLE_NAME};
-use crate::strategies::jmt::ics23::ics23_proof_spec;
+use crate::providers::jmt::ics23::ics23_proof_spec;
 use crate::{MerklizedContext, SimpleHasher, StateKey, StateProof, StateRootHash};
 
 type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>>;

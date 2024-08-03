@@ -34,11 +34,11 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::DefaultMerklizeProvider;
 use lightning_metrics::increment_counter;
-use merklize::{MerklizedAtomo, MerklizedAtomoBuilder};
+use merklize::{MerklizeProvider, MerklizedAtomo, MerklizedAtomoBuilder};
 use tracing::{trace_span, warn};
 
+use crate::app::ApplicationMerklizeProvider;
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
 use crate::query_runner::QueryRunner;
@@ -46,11 +46,14 @@ use crate::state::State;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
-pub struct Env<P, B: StorageBackend> {
-    pub inner: MerklizedAtomo<P, B, DefaultSerdeBackend, DefaultMerklizeProvider<B>>,
+pub struct Env<P, B: StorageBackend, M: MerklizeProvider> {
+    pub inner: MerklizedAtomo<P, B, DefaultSerdeBackend, M>,
 }
 
-impl Env<UpdatePerm, AtomoStorage> {
+impl<M> Env<UpdatePerm, AtomoStorage, M>
+where
+    M: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
+{
     pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
         let span = trace_span!("env.new");
         let _enter = span.enter();
@@ -136,12 +139,18 @@ impl Env<UpdatePerm, AtomoStorage> {
         })
     }
 
-    pub fn query_runner(&self) -> QueryRunner {
+    pub fn query_runner(&self) -> QueryRunner<M>
+    where
+        M: MerklizeProvider + Clone + Send + Sync + 'static,
+    {
         QueryRunner::new(self.inner.query())
     }
 }
 
-impl<B: StorageBackend> Env<UpdatePerm, B> {
+impl<B: StorageBackend, M> Env<UpdatePerm, B, M>
+where
+    M: MerklizeProvider<Storage = B, Serde = DefaultSerdeBackend>,
+{
     #[autometrics::autometrics]
     pub async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
     where
@@ -252,7 +261,7 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
     }
 
     /// Returns an identical environment but with query permissions
-    pub fn query_socket(&self) -> Env<QueryPerm, B> {
+    pub fn query_socket(&self) -> Env<QueryPerm, B, M> {
         Env {
             inner: self.inner.query(),
         }
@@ -489,7 +498,7 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
     }
 }
 
-impl Default for Env<UpdatePerm, AtomoStorage> {
+impl Default for Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider> {
     fn default() -> Self {
         Self::new(&Config::default(), None).unwrap()
     }
@@ -497,12 +506,15 @@ impl Default for Env<UpdatePerm, AtomoStorage> {
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: Env<UpdatePerm, AtomoStorage>,
+    env: Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider>,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: Env<UpdatePerm, AtomoStorage>, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(
+        env: Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider>,
+        blockstore: C::BlockstoreInterface,
+    ) -> Self {
         Self { env, blockstore }
     }
 }
@@ -529,7 +541,8 @@ mod env_tests {
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
             .unwrap();
         let config = Config::test(genesis_path);
-        let mut env = Env::<_, AtomoStorage>::new(&config, None).unwrap();
+        let mut env =
+            Env::<_, AtomoStorage, ApplicationMerklizeProvider>::new(&config, None).unwrap();
 
         assert!(env.apply_genesis_block(&config).unwrap());
 

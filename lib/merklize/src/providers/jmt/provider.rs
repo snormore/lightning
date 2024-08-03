@@ -12,6 +12,7 @@ use crate::{MerklizeProvider, MerklizedContext, SimpleHasher, StateKey};
 pub(crate) const NODES_TABLE_NAME: &str = "%state_tree_nodes";
 pub(crate) const KEYS_TABLE_NAME: &str = "%state_tree_keys";
 
+#[derive(Debug, Clone)]
 /// A merklize provider that uses a Jellyfish Merkle Tree (JMT) implementation ([`jmt`]) to manage
 /// the database-backed state tree.
 pub struct JmtMerklizeProvider<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
@@ -32,8 +33,11 @@ impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> Default for JmtMerkliz
     }
 }
 
-impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizeProvider
-    for JmtMerklizeProvider<B, S, H>
+impl<B, S, H> MerklizeProvider for JmtMerklizeProvider<B, S, H>
+where
+    B: StorageBackend,
+    S: SerdeBackend,
+    H: SimpleHasher,
 {
     type Storage = B;
     type Serde = S;

@@ -3,7 +3,7 @@ use atomo_rocks::{Options, RocksBackendBuilder};
 use merklize::hashers::blake3::Blake3Hasher;
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
-use merklize::strategies::jmt::JmtMerklizeProvider;
+use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::{MerklizeProvider, MerklizedAtomoBuilder, StateRootHash};
 use tempfile::tempdir;
 

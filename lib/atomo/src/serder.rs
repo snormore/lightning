@@ -14,6 +14,7 @@ pub trait SerdeBackend: 'static {
 }
 
 /// The bincode serializer from the [`bincode`] crate.
+#[derive(Debug, Clone)]
 pub struct BincodeSerde;
 
 impl SerdeBackend for BincodeSerde {

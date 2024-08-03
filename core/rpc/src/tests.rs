@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use anyhow::Result;
-use atomo::InMemoryStorage;
 use fleek_crypto::{
     AccountOwnerSecretKey,
     ConsensusSecretKey,
@@ -12,10 +11,10 @@ use fleek_crypto::{
 };
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use lightning_application::app::Application;
+use lightning_application::app::{Application, ApplicationMerklizeProvider};
 use lightning_application::config::Config as AppConfig;
 use lightning_application::genesis::{Genesis, GenesisAccount, GenesisNode, GenesisNodeServed};
-use lightning_application::query_runner::QueryRunner;
+use lightning_application::query_runner::ApplicationQueryRunner;
 use lightning_blockstore::blockstore::Blockstore;
 use lightning_blockstore::config::Config as BlockstoreConfig;
 use lightning_blockstore_server::BlockstoreServer;
@@ -32,7 +31,6 @@ use lightning_interfaces::types::{
     TotalServed,
     Value,
 };
-use lightning_interfaces::DefaultMerklizeProvider;
 use lightning_notifier::Notifier;
 use lightning_origin_demuxer::OriginDemuxer;
 use lightning_pool::PoolProvider;
@@ -86,7 +84,7 @@ impl TestNode {
     fn rpc(&self) -> fdi::Ref<Rpc<TestBinding>> {
         self.inner.provider.get()
     }
-    fn query_runner(&self) -> fdi::Ref<QueryRunner> {
+    fn query_runner(&self) -> fdi::Ref<ApplicationQueryRunner> {
         self.inner.provider.get()
     }
 }
@@ -1233,7 +1231,7 @@ async fn test_rpc_get_state_proof() -> Result<()> {
     // Verify proof.
     let root_hash = FleekApiClient::get_state_root(&client, None).await?;
     assert!(
-        proof.verify_membership::<_, _, DefaultMerklizeProvider<InMemoryStorage>>(
+        proof.verify_membership::<_, _, ApplicationMerklizeProvider>(
             state_key.table(),
             owner_eth_address,
             AccountInfo {

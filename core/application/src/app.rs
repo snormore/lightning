@@ -7,14 +7,19 @@ use anyhow::{anyhow, Result};
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::spawn_worker;
 use lightning_interfaces::types::{ChainId, NodeInfo};
+use merklize::DefaultMerklizeProviderWithHasherKeccak;
 use tracing::{error, info};
 
 use crate::config::{Config, StorageConfig};
 use crate::env::{Env, UpdateWorker};
-use crate::query_runner::QueryRunner;
+use crate::query_runner::ApplicationQueryRunner;
+use crate::storage::AtomoStorage;
+
+pub type ApplicationMerklizeProvider = DefaultMerklizeProviderWithHasherKeccak<AtomoStorage>;
+
 pub struct Application<C: Collection> {
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
-    query_runner: QueryRunner,
+    query_runner: ApplicationQueryRunner,
     collection: PhantomData<C>,
 }
 
@@ -67,7 +72,7 @@ impl<C: Collection> fdi::BuildGraph for Application<C> {
 
 impl<C: Collection> ApplicationInterface<C> for Application<C> {
     /// The type for the sync query executor.
-    type SyncExecutor = QueryRunner;
+    type SyncExecutor = ApplicationQueryRunner;
 
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
@@ -102,7 +107,10 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut counter = 0;
 
         loop {
-            match Env::new(config, Some((checkpoint_hash, &checkpoint))) {
+            match Env::<_, AtomoStorage, ApplicationMerklizeProvider>::new(
+                config,
+                Some((checkpoint_hash, &checkpoint)),
+            ) {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"

@@ -59,19 +59,22 @@ use lightning_types::{
     UpdateRequest,
     Value,
 };
-use merklize::{DefaultMerklizeProviderWithHasherKeccak, MerklizedAtomoBuilder};
+use merklize::{MerklizeProvider, MerklizedAtomoBuilder};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
 
-pub fn create_rocksdb_env(temp_dir: &TempDir) -> Env<UpdatePerm, AtomoStorage> {
+pub fn create_rocksdb_env<M>(temp_dir: &TempDir) -> Env<UpdatePerm, AtomoStorage, M>
+where
+    M: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
+{
     let mut options = Options::default();
     options.create_if_missing(true);
     options.create_missing_column_families(true);
 
     let storage = AtomoStorageBuilder::new(Some(temp_dir.path())).with_options(options);
 
-    create_merklize_app_env(storage, PathBuf::from(temp_dir.path()))
+    create_merklize_app_env::<_, M>(storage, PathBuf::from(temp_dir.path()))
 }
 
 pub fn new_complex_block() -> (Block, u64, Vec<EthAddress>, Vec<NodePublicKey>) {
@@ -136,12 +139,15 @@ pub fn new_complex_block() -> (Block, u64, Vec<EthAddress>, Vec<NodePublicKey>) 
 }
 
 #[allow(dead_code)]
-pub fn query_complex_block(
-    env: &mut Env<UpdatePerm, impl StorageBackend>,
+pub fn query_complex_block<B, M>(
+    env: &mut Env<UpdatePerm, B, M>,
     stake_amount: u64,
     eth_addresses: Vec<EthAddress>,
     node_public_keys: Vec<NodePublicKey>,
-) {
+) where
+    B: StorageBackend,
+    M: MerklizeProvider<Storage = B, Serde = DefaultSerdeBackend>,
+{
     let account_table = env.inner.resolve::<EthAddress, AccountInfo>("account");
     let node_table = env.inner.resolve::<NodeIndex, NodeInfo>("node");
     let pubkey_to_index = env
@@ -172,52 +178,51 @@ pub fn query_complex_block(
     }
 }
 
-pub fn create_merklize_app_env<C: StorageBackendConstructor>(
+pub fn create_merklize_app_env<C: StorageBackendConstructor, M>(
     storage: C,
     db_path: PathBuf,
-) -> Env<UpdatePerm, <C as StorageBackendConstructor>::Storage> {
-    let db = MerklizedAtomoBuilder::<
-        _,
-        DefaultSerdeBackend,
-        DefaultMerklizeProviderWithHasherKeccak<C::Storage>,
-    >::new(storage)
-    .with_table::<Metadata, Value>("metadata")
-    .with_table::<EthAddress, AccountInfo>("account")
-    .with_table::<ClientPublicKey, EthAddress>("client_keys")
-    .with_table::<NodeIndex, NodeInfo>("node")
-    .with_table::<ConsensusPublicKey, NodeIndex>("consensus_key_to_index")
-    .with_table::<NodePublicKey, NodeIndex>("pub_key_to_index")
-    .with_table::<(NodeIndex, NodeIndex), Duration>("latencies")
-    .with_table::<Epoch, Committee>("committee")
-    .with_table::<ServiceId, Service>("service")
-    .with_table::<ProtocolParams, u128>("parameter")
-    .with_table::<NodeIndex, Vec<ReportedReputationMeasurements>>("rep_measurements")
-    .with_table::<NodeIndex, u8>("rep_scores")
-    .with_table::<NodeIndex, u8>("submitted_rep_measurements")
-    .with_table::<NodeIndex, NodeServed>("current_epoch_served")
-    .with_table::<NodeIndex, NodeServed>("last_epoch_served")
-    .with_table::<Epoch, TotalServed>("total_served")
-    .with_table::<CommodityTypes, HpUfixed<6>>("commodity_prices")
-    .with_table::<ServiceId, ServiceRevenue>("service_revenue")
-    .with_table::<TxHash, ()>("executed_digests")
-    .with_table::<NodeIndex, u8>("uptime")
-    .with_table::<Blake3Hash, BTreeSet<NodeIndex>>("uri_to_node")
-    .with_table::<NodeIndex, BTreeSet<Blake3Hash>>("node_to_uri")
-    .enable_iter("consensus_key_to_index")
-    .enable_iter("pub_key_to_index")
-    .enable_iter("current_epoch_served")
-    .enable_iter("rep_measurements")
-    .enable_iter("submitted_rep_measurements")
-    .enable_iter("rep_scores")
-    .enable_iter("latencies")
-    .enable_iter("node")
-    .enable_iter("executed_digests")
-    .enable_iter("uptime")
-    .enable_iter("service_revenue")
-    .enable_iter("uri_to_node")
-    .enable_iter("node_to_uri")
-    .build()
-    .unwrap();
+) -> Env<UpdatePerm, C::Storage, M>
+where
+    M: MerklizeProvider<Storage = C::Storage, Serde = DefaultSerdeBackend>,
+{
+    let db = MerklizedAtomoBuilder::<_, M::Serde, M>::new(storage)
+        .with_table::<Metadata, Value>("metadata")
+        .with_table::<EthAddress, AccountInfo>("account")
+        .with_table::<ClientPublicKey, EthAddress>("client_keys")
+        .with_table::<NodeIndex, NodeInfo>("node")
+        .with_table::<ConsensusPublicKey, NodeIndex>("consensus_key_to_index")
+        .with_table::<NodePublicKey, NodeIndex>("pub_key_to_index")
+        .with_table::<(NodeIndex, NodeIndex), Duration>("latencies")
+        .with_table::<Epoch, Committee>("committee")
+        .with_table::<ServiceId, Service>("service")
+        .with_table::<ProtocolParams, u128>("parameter")
+        .with_table::<NodeIndex, Vec<ReportedReputationMeasurements>>("rep_measurements")
+        .with_table::<NodeIndex, u8>("rep_scores")
+        .with_table::<NodeIndex, u8>("submitted_rep_measurements")
+        .with_table::<NodeIndex, NodeServed>("current_epoch_served")
+        .with_table::<NodeIndex, NodeServed>("last_epoch_served")
+        .with_table::<Epoch, TotalServed>("total_served")
+        .with_table::<CommodityTypes, HpUfixed<6>>("commodity_prices")
+        .with_table::<ServiceId, ServiceRevenue>("service_revenue")
+        .with_table::<TxHash, ()>("executed_digests")
+        .with_table::<NodeIndex, u8>("uptime")
+        .with_table::<Blake3Hash, BTreeSet<NodeIndex>>("uri_to_node")
+        .with_table::<NodeIndex, BTreeSet<Blake3Hash>>("node_to_uri")
+        .enable_iter("consensus_key_to_index")
+        .enable_iter("pub_key_to_index")
+        .enable_iter("current_epoch_served")
+        .enable_iter("rep_measurements")
+        .enable_iter("submitted_rep_measurements")
+        .enable_iter("rep_scores")
+        .enable_iter("latencies")
+        .enable_iter("node")
+        .enable_iter("executed_digests")
+        .enable_iter("uptime")
+        .enable_iter("service_revenue")
+        .enable_iter("uri_to_node")
+        .enable_iter("node_to_uri")
+        .build()
+        .unwrap();
 
     let mut env = Env { inner: db };
     let app_config = AppConfig {
