@@ -1,8 +1,11 @@
 mod utils;
 
 use anyhow::Result;
+use atomo::DefaultSerdeBackend;
 use futures::executor::block_on;
-use lightning_application::app::ApplicationMerklizeProvider;
+use lightning_application::storage::AtomoStorage;
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::providers::jmt::JmtMerklizeProvider;
 use opentelemetry::trace::{TraceError, TracerProvider};
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
@@ -12,7 +15,7 @@ use tempfile::tempdir;
 use tracing::trace_span;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
-use utils::{create_rocksdb_env, new_complex_block, DummyPutter};
+use utils::{create_rocksdb_env, new_complex_block, BaselineMerklizeProvider, DummyPutter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -30,11 +33,29 @@ async fn main() -> Result<()> {
             let span = trace_span!("main");
             let _enter = span.enter();
 
-            let temp_dir = tempdir().unwrap();
-            let mut env = create_rocksdb_env::<ApplicationMerklizeProvider>(&temp_dir);
-            let (block, _stake_amount, _eth_addresses, _node_public_keys) = new_complex_block();
+            {
+                let span = trace_span!("baseline");
+                let _enter = span.enter();
 
-            env.run(block.clone(), || DummyPutter {}).await;
+                let temp_dir = tempdir().unwrap();
+                let mut env = create_rocksdb_env::<BaselineMerklizeProvider>(&temp_dir);
+                let (block, _stake_amount, _eth_addresses, _node_public_keys) = new_complex_block();
+
+                env.run(block.clone(), || DummyPutter {}).await;
+            }
+
+            {
+                let span = trace_span!("jmt");
+                let _enter = span.enter();
+
+                let temp_dir = tempdir().unwrap();
+                let mut env = create_rocksdb_env::<
+                    JmtMerklizeProvider<AtomoStorage, DefaultSerdeBackend, KeccakHasher>,
+                >(&temp_dir);
+                let (block, _stake_amount, _eth_addresses, _node_public_keys) = new_complex_block();
+
+                env.run(block.clone(), || DummyPutter {}).await;
+            }
         });
     });
 
