@@ -32,7 +32,7 @@ use lightning_interfaces::types::{
     TotalServed,
     Value,
 };
-use lightning_interfaces::DefaultMerklizedStrategy;
+use lightning_interfaces::DefaultMerklizeProvider;
 use lightning_notifier::Notifier;
 use lightning_origin_demuxer::OriginDemuxer;
 use lightning_pool::PoolProvider;
@@ -52,6 +52,7 @@ use crate::config::Config as RpcConfig;
 use crate::Rpc;
 
 #[derive(Serialize, Deserialize, Debug)]
+#[allow(dead_code)]
 struct RpcSuccessResponse<T> {
     jsonrpc: String,
     id: usize,
@@ -1232,7 +1233,7 @@ async fn test_rpc_get_state_proof() -> Result<()> {
     // Verify proof.
     let root_hash = FleekApiClient::get_state_root(&client, None).await?;
     assert!(
-        proof.verify_membership::<_, _, DefaultMerklizedStrategy<InMemoryStorage>>(
+        proof.verify_membership::<_, _, DefaultMerklizeProvider<InMemoryStorage>>(
             state_key.table(),
             owner_eth_address,
             AccountInfo {

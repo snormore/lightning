@@ -6,7 +6,6 @@ use fleek_crypto::{ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use ink_quill::TranscriptBuilderInput;
 use multiaddr::Multiaddr;
-use num_derive::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
 use super::ReputationMeasurements;
@@ -55,18 +54,7 @@ pub type CommodityServed = Vec<u128>;
 
 /// This is commodities served by different services in Fleek Network.
 /// C-like enums used here to future proof for state, if we add more commodity types
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    FromPrimitive,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[repr(u8)]
 pub enum CommodityTypes {
     Bandwidth = 0,

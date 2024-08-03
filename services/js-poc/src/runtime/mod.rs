@@ -113,7 +113,7 @@ impl NetPermissions for Permissions {
 
 impl Runtime {
     /// Create a new runtime
-    pub fn new(mut location: Url, depth: u8) -> Result<Self> {
+    pub fn new(location: Url, depth: u8) -> Result<Self> {
         let tape = Tape::new(location.clone());
         let mut deno = JsRuntime::new(RuntimeOptions {
             extensions: vec![

@@ -835,6 +835,7 @@ where
 pub enum AsyncTaskResult<C: ConnectionInterface> {
     /// Connection attempt succeeded.
     ConnectionSuccess {
+        #[allow(dead_code)]
         incoming: bool,
         conn: C,
     },

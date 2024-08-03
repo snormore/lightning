@@ -34,9 +34,9 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::DefaultMerklizedStrategy;
+use lightning_interfaces::DefaultMerklizeProvider;
 use lightning_metrics::increment_counter;
-use merklized::{MerklizedAtomo, MerklizedAtomoBuilder};
+use merklize::{MerklizedAtomo, MerklizedAtomoBuilder};
 use tracing::{trace_span, warn};
 
 use crate::config::{Config, StorageConfig};
@@ -47,7 +47,7 @@ use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
 pub struct Env<P, B: StorageBackend> {
-    pub inner: MerklizedAtomo<P, B, DefaultSerdeBackend, DefaultMerklizedStrategy<B>>,
+    pub inner: MerklizedAtomo<P, B, DefaultSerdeBackend, DefaultMerklizeProvider<B>>,
 }
 
 impl Env<UpdatePerm, AtomoStorage> {

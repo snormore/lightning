@@ -58,11 +58,11 @@ pub enum OriginProvider {
     HTTP,
 }
 
-impl ToString for OriginProvider {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for OriginProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OriginProvider::IPFS => String::from("ipfs"),
-            OriginProvider::HTTP => String::from("http"),
+            OriginProvider::IPFS => write!(f, "ipfs"),
+            OriginProvider::HTTP => write!(f, "http"),
         }
     }
 }

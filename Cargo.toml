@@ -88,7 +88,7 @@ resolved-pathbuf = { path = "lib/resolved-pathbuf" }
 panic-report = { path = "lib/panic-report" }
 better-shutdown = { path = "lib/better-shutdown" }
 fleek-blake3 = "1.5"
-merklized = { path = "lib/merklized" }
+merklize = { path = "lib/merklize" }
 
 # This ensures that while building within the workspace, the real workspace-hack is used. When
 # building outside of the workspace, such as via a Git or path dependency, the [patch] directive

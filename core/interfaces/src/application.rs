@@ -31,11 +31,11 @@ use lightning_types::{
     TxHash,
     Value,
 };
-use merklized::{
-    DefaultMerklizedStrategyWithHasherKeccak,
+use merklize::{
+    DefaultMerklizeProviderWithHasherKeccak,
+    MerklizeProvider,
     MerklizedAtomo,
     MerklizedAtomoBuilder,
-    MerklizedStrategy,
     StateProof,
     StateRootHash,
 };
@@ -105,7 +105,7 @@ pub trait ApplicationInterface<C: Collection>:
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
 }
 
-pub type DefaultMerklizedStrategy<B> = DefaultMerklizedStrategyWithHasherKeccak<B>;
+pub type DefaultMerklizeProvider<B> = DefaultMerklizeProviderWithHasherKeccak<B>;
 
 type AtomoResult<P, B, S, M> = Result<MerklizedAtomo<P, B, S, M>>;
 
@@ -117,26 +117,26 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     #[blank(DefaultSerdeBackend)]
     type Serde: SerdeBackend;
 
-    #[blank(DefaultMerklizedStrategy<Self::Storage>)]
-    type Merklized: MerklizedStrategy;
+    #[blank(DefaultMerklizeProvider<Self::Storage>)]
+    type Merklize: MerklizeProvider;
 
-    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>) -> Self;
+    fn new(atomo: MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklize>) -> Self;
 
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> AtomoResult<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>;
+    ) -> AtomoResult<QueryPerm, Self::Storage, Self::Serde, Self::Merklize>;
 
     fn atomo_from_path(
         path: impl AsRef<Path>,
-    ) -> AtomoResult<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>;
+    ) -> AtomoResult<QueryPerm, Self::Storage, Self::Serde, Self::Merklize>;
 
     fn register_tables<C: StorageBackendConstructor>(
-        builder: MerklizedAtomoBuilder<C, Self::Serde, Self::Merklized>,
-    ) -> MerklizedAtomoBuilder<C, Self::Serde, Self::Merklized>
+        builder: MerklizedAtomoBuilder<C, Self::Serde, Self::Merklize>,
+    ) -> MerklizedAtomoBuilder<C, Self::Serde, Self::Merklize>
     where
-        Self::Merklized: MerklizedStrategy<Storage = C::Storage, Serde = Self::Serde>,
+        Self::Merklize: MerklizeProvider<Storage = C::Storage, Serde = Self::Serde>,
     {
         builder
             .with_table::<Metadata, Value>("metadata")

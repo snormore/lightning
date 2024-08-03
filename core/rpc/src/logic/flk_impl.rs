@@ -31,7 +31,7 @@ use lightning_interfaces::types::{
 use lightning_interfaces::PagingParams;
 use lightning_types::{StateProofKey, StateProofValue};
 use lightning_utils::application::QueryRunnerExt;
-use merklized::{StateProof, StateRootHash};
+use merklize::{StateProof, StateRootHash};
 
 use crate::api::FleekApiServer;
 use crate::error::RPCError;

@@ -156,6 +156,7 @@ impl<C> Store for Blockstore<C>
 where
     C: Collection,
 {
+    #[allow(dead_code)]
     async fn fetch(&self, location: &str, key: &Blake3Hash, tag: Option<usize>) -> Option<Block> {
         let filename = match tag {
             Some(tag) => format!("{tag}-{}", Hash::from(*key).to_hex()),
@@ -166,6 +167,7 @@ where
         fs::read(path).await.ok()
     }
 
+    #[allow(dead_code)]
     async fn insert(
         &mut self,
         location: &str,

@@ -29,11 +29,11 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::{DefaultMerklizedStrategy, SyncQueryRunnerInterface};
-use merklized::{
+use lightning_interfaces::{DefaultMerklizeProvider, SyncQueryRunnerInterface};
+use merklize::{
+    MerklizeProvider,
     MerklizedAtomo,
     MerklizedAtomoBuilder,
-    MerklizedStrategy,
     StateProof,
     StateRootHash,
 };
@@ -48,7 +48,7 @@ pub struct QueryRunner {
         QueryPerm,
         AtomoStorage,
         DefaultSerdeBackend,
-        DefaultMerklizedStrategy<AtomoStorage>,
+        DefaultMerklizeProvider<AtomoStorage>,
     >,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
@@ -75,9 +75,9 @@ pub struct QueryRunner {
 impl SyncQueryRunnerInterface for QueryRunner {
     type Storage = AtomoStorage;
     type Serde = DefaultSerdeBackend;
-    type Merklized = DefaultMerklizedStrategy<AtomoStorage>;
+    type Merklize = DefaultMerklizeProvider<AtomoStorage>;
 
-    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, Self::Serde, Self::Merklized>) -> Self {
+    fn new(atomo: MerklizedAtomo<QueryPerm, AtomoStorage, Self::Serde, Self::Merklize>) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -108,8 +108,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
         path: impl AsRef<Path>,
         hash: [u8; 32],
         checkpoint: &[u8],
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>>
-    {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklize>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
             .from_checkpoint(hash, checkpoint)
             .read_only();
@@ -123,8 +122,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn atomo_from_path(
         path: impl AsRef<Path>,
-    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklized>>
-    {
+    ) -> anyhow::Result<MerklizedAtomo<QueryPerm, Self::Storage, Self::Serde, Self::Merklize>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
         let atomo = Self::register_tables(MerklizedAtomoBuilder::new(backend))
@@ -144,12 +142,11 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, StateProof)> {
         self.inner.run(|ctx| {
-            let (table, serialized_key) =
-                key.raw::<<Self::Merklized as MerklizedStrategy>::Serde>();
+            let (table, serialized_key) = key.raw::<<Self::Merklize as MerklizeProvider>::Serde>();
             let (value, proof) =
-                Self::Merklized::context(ctx).get_state_proof(&table, serialized_key)?;
-            let value = value
-                .map(|value| key.value::<<Self::Merklized as MerklizedStrategy>::Serde>(value));
+                Self::Merklize::context(ctx).get_state_proof(&table, serialized_key)?;
+            let value =
+                value.map(|value| key.value::<<Self::Merklize as MerklizeProvider>::Serde>(value));
             Ok((value, proof))
         })
     }

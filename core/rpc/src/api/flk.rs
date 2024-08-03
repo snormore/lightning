@@ -24,7 +24,7 @@ use lightning_interfaces::types::{
 use lightning_interfaces::PagingParams;
 use lightning_openrpc_macros::open_rpc;
 use lightning_types::{StateProofKey, StateProofValue};
-use merklized::{StateProof, StateRootHash};
+use merklize::{StateProof, StateRootHash};
 
 #[open_rpc(namespace = "flk", tag = "1.0.0")]
 #[rpc(client, server, namespace = "flk")]
