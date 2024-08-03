@@ -1,16 +1,7 @@
-use std::any::Any;
-use std::hash::Hash;
-
 use anyhow::Result;
 use atomo::{SerdeBackend, StorageBackend};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use crate::{SimpleHasher, StateProof, StateRootHash};
-
-pub trait DataKey: Hash + Eq + Serialize + DeserializeOwned + Any {}
-
-pub trait DataValue: Serialize + DeserializeOwned + Any {}
 
 /// A trait for a merklized context that can be used to interact with a merklized state tree. This
 /// generally wraps and should require an atomo execution context (table selector).
