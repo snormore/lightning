@@ -835,7 +835,6 @@ where
 pub enum AsyncTaskResult<C: ConnectionInterface> {
     /// Connection attempt succeeded.
     ConnectionSuccess {
-        incoming: bool,
         conn: C,
     },
     /// Connection attempt failed.
