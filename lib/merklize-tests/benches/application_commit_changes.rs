@@ -1,9 +1,10 @@
 #![feature(test)]
 extern crate test;
 
-mod application_utils;
-
-use application_utils::{
+use futures::executor::block_on;
+use lightning_application::storage::AtomoStorage;
+use merklize::DefaultMerklizeProviderWithHasherKeccak;
+use merklize_tests::application::{
     create_rocksdb_env,
     new_complex_block,
     new_medium_block,
@@ -11,9 +12,6 @@ use application_utils::{
     BaselineMerklizeProvider,
     DummyPutter,
 };
-use futures::executor::block_on;
-use lightning_application::storage::AtomoStorage;
-use merklize::DefaultMerklizeProviderWithHasherKeccak;
 use tempfile::tempdir;
 use test::Bencher;
 

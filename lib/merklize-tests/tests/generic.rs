@@ -8,54 +8,54 @@ use merklize::{MerklizeProvider, MerklizedAtomoBuilder, StateRootHash};
 use tempfile::tempdir;
 
 #[test]
-fn test_atomo_memdb_sha256() {
+fn test_generic_memdb_sha256() {
     let builder = InMemoryStorage::default();
-    generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, Sha256Hasher>>(builder);
+    test_generic::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, Sha256Hasher>>(builder);
 }
 
 #[test]
-fn test_atomo_rocksdb_sha256() {
+fn test_generic_jmt_rocksdb_sha256() {
     let temp_dir = tempdir().unwrap();
     let mut options = Options::default();
     options.create_if_missing(true);
     options.create_missing_column_families(true);
     let builder = RocksBackendBuilder::new(temp_dir.path()).with_options(options);
-    generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, Sha256Hasher>>(builder);
+    test_generic::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, Sha256Hasher>>(builder);
 }
 
 #[test]
-fn test_atomo_memdb_keccak256() {
+fn test_generic_jmt_memdb_keccak256() {
     let builder = InMemoryStorage::default();
-    generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, KeccakHasher>>(builder);
+    test_generic::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, KeccakHasher>>(builder);
 }
 
 #[test]
-fn test_atomo_rocksdb_keccak256() {
+fn test_generic_jmt_rocksdb_keccak256() {
     let temp_dir = tempdir().unwrap();
     let mut options = Options::default();
     options.create_if_missing(true);
     options.create_missing_column_families(true);
     let builder = RocksBackendBuilder::new(temp_dir.path()).with_options(options);
-    generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, KeccakHasher>>(builder);
+    test_generic::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, KeccakHasher>>(builder);
 }
 
 #[test]
-fn test_atomo_memdb_blake3() {
+fn test_generic_jmt_memdb_blake3() {
     let builder = InMemoryStorage::default();
-    generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, Blake3Hasher>>(builder);
+    test_generic::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, Blake3Hasher>>(builder);
 }
 
 #[test]
-fn test_atomo_rocksdb_blake3() {
+fn test_generic_jmt_rocksdb_blake3() {
     let temp_dir = tempdir().unwrap();
     let mut options = Options::default();
     options.create_if_missing(true);
     options.create_missing_column_families(true);
     let builder = RocksBackendBuilder::new(temp_dir.path()).with_options(options);
-    generic_test_atomo::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, Blake3Hasher>>(builder);
+    test_generic::<_, DefaultSerdeBackend, JmtMerklizeProvider<_, _, Blake3Hasher>>(builder);
 }
 
-fn generic_test_atomo<
+fn test_generic<
     C: StorageBackendConstructor,
     S: SerdeBackend,
     M: MerklizeProvider<Storage = C::Storage, Serde = S>,

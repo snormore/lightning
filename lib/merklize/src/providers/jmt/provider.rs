@@ -74,17 +74,17 @@ where
 mod tests {
 
     use atomo::{DefaultSerdeBackend, InMemoryStorage};
-    use atomo_rocks::{Options, RocksBackend, RocksBackendBuilder};
-    use tempfile::tempdir;
 
     use super::*;
+    use crate::hashers::blake3::Blake3Hasher;
+    use crate::hashers::keccak::KeccakHasher;
     use crate::hashers::sha2::Sha256Hasher;
     use crate::DefaultMerklizeProvider;
 
     #[test]
-    fn test_atomo_memdb_sha256() {
+    fn test_jmt_provider_blake3() {
         type S = DefaultSerdeBackend;
-        type H = Sha256Hasher;
+        type H = Blake3Hasher;
         type M = DefaultMerklizeProvider<InMemoryStorage, H>;
 
         let builder = InMemoryStorage::default();
@@ -94,16 +94,24 @@ mod tests {
     }
 
     #[test]
-    fn test_atomo_rocksdb_sha256() {
+    fn test_jmt_provider_keccak256() {
+        type S = DefaultSerdeBackend;
+        type H = KeccakHasher;
+        type M = DefaultMerklizeProvider<InMemoryStorage, H>;
+
+        let builder = InMemoryStorage::default();
+        let db = M::atomo(AtomoBuilder::<_, S>::new(builder).with_table::<String, String>("data"))
+            .unwrap();
+        let _query = db.query();
+    }
+
+    #[test]
+    fn test_jmt_provider_sha256() {
         type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
-        type M = DefaultMerklizeProvider<RocksBackend, H>;
+        type M = DefaultMerklizeProvider<InMemoryStorage, H>;
 
-        let temp_dir = tempdir().unwrap();
-        let mut options = Options::default();
-        options.create_if_missing(true);
-        options.create_missing_column_families(true);
-        let builder = RocksBackendBuilder::new(temp_dir.path()).with_options(options);
+        let builder = InMemoryStorage::default();
         let db = M::atomo(AtomoBuilder::<_, S>::new(builder).with_table::<String, String>("data"))
             .unwrap();
         let _query = db.query();

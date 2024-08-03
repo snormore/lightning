@@ -284,6 +284,8 @@ mod tests {
             .unwrap()
     }
 
+    // TODO(snormore): Adds tests that remove, re-insert, and update values.
+
     #[test]
     fn test_apply_state_tree_changes_with_updates() {
         type S = DefaultSerdeBackend;
