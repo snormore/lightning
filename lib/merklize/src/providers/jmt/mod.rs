@@ -3,5 +3,5 @@ mod hasher;
 mod ics23;
 mod provider;
 
-pub use context::JmtMerklizedContext;
+pub use context::JmtMerklizeContext;
 pub use provider::JmtMerklizeProvider;

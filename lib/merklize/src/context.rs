@@ -5,7 +5,7 @@ use crate::{SimpleHasher, StateProof, StateRootHash};
 
 /// A trait for a merklize context that can be used to interact with a merklize state tree. This
 /// generally wraps and should require an atomo execution context (table selector).
-pub trait MerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
+pub trait MerklizeContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
     /// Returns the root hash of the state tree.
     fn get_state_root(&self) -> Result<StateRootHash>;
 

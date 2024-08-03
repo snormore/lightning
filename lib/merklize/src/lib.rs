@@ -10,7 +10,7 @@ mod types;
 
 pub use atomo::MerklizedAtomo;
 pub use builder::MerklizedAtomoBuilder;
-pub use context::MerklizedContext;
+pub use context::MerklizeContext;
 pub use hasher::{SimpleHash, SimpleHasher};
 pub use proof::StateProof;
 pub use provider::{

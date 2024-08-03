@@ -2,8 +2,7 @@ mod utils;
 
 use anyhow::Result;
 use futures::executor::block_on;
-use lightning_application::storage::AtomoStorage;
-use merklize::DefaultMerklizeProviderWithHasherKeccak;
+use lightning_application::app::ApplicationMerklizeProvider;
 use opentelemetry::trace::{TraceError, TracerProvider};
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
@@ -32,9 +31,7 @@ async fn main() -> Result<()> {
             let _enter = span.enter();
 
             let temp_dir = tempdir().unwrap();
-            let mut env = create_rocksdb_env::<DefaultMerklizeProviderWithHasherKeccak<AtomoStorage>>(
-                &temp_dir,
-            );
+            let mut env = create_rocksdb_env::<ApplicationMerklizeProvider>(&temp_dir);
             let (block, _stake_amount, _eth_addresses, _node_public_keys) = new_complex_block();
 
             env.run(block.clone(), || DummyPutter {}).await;

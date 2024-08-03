@@ -14,14 +14,14 @@ use tracing::{trace, trace_span};
 use super::hasher::SimpleHasherWrapper;
 use super::provider::{KEYS_TABLE_NAME, NODES_TABLE_NAME};
 use crate::providers::jmt::ics23::ics23_proof_spec;
-use crate::{MerklizedContext, SimpleHasher, StateKey, StateProof, StateRootHash};
+use crate::{MerklizeContext, SimpleHasher, StateKey, StateProof, StateRootHash};
 
 type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>>;
 
 /// A merklize context that can be used to read and update tables of data, wrapping an
 /// `[atomo::TableSelector]` instance to provide similar functionality, but with additional
 /// merklize state tree features.
-pub struct JmtMerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
+pub struct JmtMerklizeContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
     ctx: &'a TableSelector<B, S>,
     table_name_by_id: FxHashMap<TableId, String>,
     nodes_table: SharedTableRef<'a, NodeKey, Node, B, S>,
@@ -30,7 +30,7 @@ pub struct JmtMerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: Simple
     _phantom: PhantomData<H>,
 }
 
-impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContext<'a, B, S, H> {
+impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizeContext<'a, B, S, H> {
     /// Create a new merklize context for the given table selector, initializing state tree tables
     /// and other necessary data for the context functionality.
     pub fn new(ctx: &'a TableSelector<B, S>) -> Self {
@@ -81,8 +81,8 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContex
     }
 }
 
-impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'a, B, S, H>
-    for JmtMerklizedContext<'a, B, S, H>
+impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizeContext<'a, B, S, H>
+    for JmtMerklizeContext<'a, B, S, H>
 {
     /// Get the state root hash of the state tree.
     fn get_state_root(&self) -> Result<StateRootHash> {
@@ -204,7 +204,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizedContext<'
 }
 
 impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> TreeReader
-    for JmtMerklizedContext<'a, B, S, H>
+    for JmtMerklizeContext<'a, B, S, H>
 {
     /// Get the node for the given node key, if it is present in the tree.
     fn get_node_option(&self, node_key: &NodeKey) -> Result<Option<Node>> {
@@ -248,7 +248,7 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> TreeReader
 }
 
 impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> HasPreimage
-    for JmtMerklizedContext<'a, B, S, H>
+    for JmtMerklizeContext<'a, B, S, H>
 {
     /// Gets the preimage of a key hash, if it is present in the tree.
     fn preimage(&self, key_hash: KeyHash) -> Result<Option<Vec<u8>>> {
@@ -304,7 +304,7 @@ mod tests {
 
             table.insert("key1".to_string(), "value1".to_string());
 
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .apply_state_tree_changes()
                 .unwrap();
         });
@@ -322,7 +322,7 @@ mod tests {
 
             table.insert("key2".to_string(), "value2".to_string());
 
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .apply_state_tree_changes()
                 .unwrap();
         });
@@ -351,7 +351,7 @@ mod tests {
 
         // Open run context and apply state tree changes, but don't make any state changes before.
         db.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .apply_state_tree_changes()
                 .unwrap();
         });
@@ -369,7 +369,7 @@ mod tests {
 
             table.insert("key2".to_string(), "value2".to_string());
 
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .apply_state_tree_changes()
                 .unwrap();
         });
@@ -391,7 +391,7 @@ mod tests {
         let query = db.query();
 
         let state_root = query.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .get_state_root()
                 .unwrap()
         });
@@ -412,7 +412,7 @@ mod tests {
         // Check the state root hash.
         let empty_state_root = "5350415253455f4d45524b4c455f504c414345484f4c4445525f484153485f5f";
         let initial_state_root = query.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .get_state_root()
                 .unwrap()
         });
@@ -425,14 +425,14 @@ mod tests {
 
             table.insert("key1".to_string(), "value1".to_string());
 
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .apply_state_tree_changes()
                 .unwrap();
         });
 
         // Check the state root hash.
         let new_state_root = query.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .get_state_root()
                 .unwrap()
         });
@@ -446,14 +446,14 @@ mod tests {
 
             table.insert("key2".to_string(), "value2".to_string());
 
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .apply_state_tree_changes()
                 .unwrap();
         });
 
         // Check the state root hash.
         let new_state_root = query.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .get_state_root()
                 .unwrap()
         });
@@ -472,7 +472,7 @@ mod tests {
 
         // Get a proof of non-membership with empty state, should fail.
         let res = query.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .get_state_proof("data", S::serialize(&"key1".to_string()))
         });
         assert!(res.is_err());
@@ -487,21 +487,21 @@ mod tests {
 
             table.insert("key1".to_string(), "value1".to_string());
 
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .apply_state_tree_changes()
                 .unwrap();
         });
 
         // Get state root for proof verification.
         let state_root = query.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .get_state_root()
                 .unwrap()
         });
 
         // Get and verify proof of membership.
         let (value, proof) = query.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .get_state_proof("data", S::serialize(&"key1".to_string()))
                 .unwrap()
         });
@@ -522,7 +522,7 @@ mod tests {
 
         // Get and verify proof of non-membership of unknown key.
         let (value, proof) = query.run(|ctx| {
-            JmtMerklizedContext::<_, _, H>::new(ctx)
+            JmtMerklizeContext::<_, _, H>::new(ctx)
                 .get_state_proof("data", S::serialize(&"unknown".to_string()))
                 .unwrap()
         });

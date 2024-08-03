@@ -8,7 +8,7 @@ use atomo::{
     TableSelector,
 };
 
-use crate::{MerklizedContext, SimpleHasher};
+use crate::{MerklizeContext, SimpleHasher};
 
 #[cfg(feature = "provider-jmt")]
 pub type DefaultMerklizeProvider<B, H> =
@@ -41,7 +41,7 @@ pub trait MerklizeProvider {
     /// Initialize and return a new execution context using this provider.
     fn context<'a>(
         ctx: &'a TableSelector<Self::Storage, Self::Serde>,
-    ) -> Box<dyn MerklizedContext<'a, Self::Storage, Self::Serde, Self::Hasher> + 'a>
+    ) -> Box<dyn MerklizeContext<'a, Self::Storage, Self::Serde, Self::Hasher> + 'a>
     where
         Self::Hasher: SimpleHasher + 'a;
 

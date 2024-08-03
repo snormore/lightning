@@ -3,6 +3,7 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use anyhow::{anyhow, Result};
 use atomo::{DefaultSerdeBackend, StorageBackend, StorageBackendConstructor, UpdatePerm};
 use atomo_rocks::Options;
 use fleek_crypto::{
@@ -59,10 +60,65 @@ use lightning_types::{
     UpdateRequest,
     Value,
 };
-use merklize::{MerklizeProvider, MerklizedAtomoBuilder};
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::{MerklizeContext, MerklizeProvider, MerklizedAtomoBuilder, SimpleHasher};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
+
+/// A merklize provider that can be used to compare against as a baseline, since it does not
+/// provide any merklization or state tree functionality.
+pub struct BaselineMerklizeProvider {}
+
+impl MerklizeProvider for BaselineMerklizeProvider {
+    type Storage = AtomoStorage;
+    type Serde = DefaultSerdeBackend;
+    type Hasher = KeccakHasher;
+
+    fn atomo<C: StorageBackendConstructor>(
+        builder: atomo::AtomoBuilder<C, Self::Serde>,
+    ) -> Result<atomo::Atomo<atomo::UpdatePerm, C::Storage, Self::Serde>> {
+        builder.build().map_err(|e| anyhow!("{:?}", e))
+    }
+
+    fn context<'a>(
+        _ctx: &'a atomo::TableSelector<Self::Storage, Self::Serde>,
+    ) -> Box<dyn MerklizeContext<'a, Self::Storage, Self::Serde, Self::Hasher> + 'a>
+    where
+        Self::Hasher: SimpleHasher + 'a,
+    {
+        Box::new(BaselineMerklizeContext {})
+    }
+
+    fn ics23_proof_spec() -> ics23::ProofSpec {
+        unimplemented!("Baseline provider does not implement ICS23 proof specs.")
+    }
+}
+
+/// A merklize context that can be used to compare against as a baseline, since it does not
+/// provide any merklization or state tree functionality.
+pub struct BaselineMerklizeContext {}
+
+impl<'a> MerklizeContext<'a, AtomoStorage, DefaultSerdeBackend, KeccakHasher>
+    for BaselineMerklizeContext
+{
+    fn apply_state_tree_changes(&mut self) -> Result<()> {
+        // Do nothing.
+        Ok(())
+    }
+
+    fn get_state_proof(
+        &self,
+        _table: &str,
+        _serialized_key: Vec<u8>,
+    ) -> Result<(Option<Vec<u8>>, merklize::StateProof)> {
+        unimplemented!("Baseline context does not implement state proofs.")
+    }
+
+    fn get_state_root(&self) -> Result<merklize::StateRootHash> {
+        unimplemented!("Baseline context does not implement state roots.")
+    }
+}
 
 pub fn create_rocksdb_env<M>(temp_dir: &TempDir) -> Env<UpdatePerm, AtomoStorage, M>
 where

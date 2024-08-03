@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
 use jmt::storage::{Node, NodeKey};
 use jmt::KeyHash;
 
 use super::ics23::ics23_proof_spec;
-use super::JmtMerklizedContext;
-use crate::{MerklizeProvider, MerklizedContext, SimpleHasher, StateKey};
+use super::JmtMerklizeContext;
+use crate::{MerklizeContext, MerklizeProvider, SimpleHasher, StateKey};
 
 pub(crate) const NODES_TABLE_NAME: &str = "%state_tree_nodes";
 pub(crate) const KEYS_TABLE_NAME: &str = "%state_tree_keys";
@@ -49,19 +49,19 @@ where
     fn atomo<C: StorageBackendConstructor>(
         builder: AtomoBuilder<C, S>,
     ) -> Result<atomo::Atomo<atomo::UpdatePerm, C::Storage, S>> {
-        Ok(builder
+        builder
             .with_table::<NodeKey, Node>(NODES_TABLE_NAME)
             .with_table::<KeyHash, StateKey>(KEYS_TABLE_NAME)
             .build()
-            .unwrap())
+            .map_err(|e| anyhow!("Failed to build atomo instance: {:?}", e))
     }
 
     /// Create a new merklize context for the given table selector.
-    fn context<'a>(ctx: &'a TableSelector<B, S>) -> Box<dyn MerklizedContext<'a, B, S, H> + 'a>
+    fn context<'a>(ctx: &'a TableSelector<B, S>) -> Box<dyn MerklizeContext<'a, B, S, H> + 'a>
     where
         H: SimpleHasher + 'a,
     {
-        Box::new(JmtMerklizedContext::new(ctx))
+        Box::new(JmtMerklizeContext::new(ctx))
     }
 
     /// Return the ICS23 proof spec for the merklize provider, customized to the specific hasher.
