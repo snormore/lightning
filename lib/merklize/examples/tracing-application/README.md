@@ -1,6 +1,6 @@
 # Merklize Tracing Application Example
 
-An example of using the `merklized` crate with tracing via the lightning application.
+An example of using the `merklize` crate with tracing via the lightning application.
 
 ## Usage
 

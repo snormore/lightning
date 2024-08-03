@@ -17,8 +17,8 @@ use serde::Serialize;
 
 use crate::{MerklizeProvider, StateProof, StateRootHash};
 
-/// A merklized atomo that can be used to read and update tables of data, wrapping an
-/// `[atomo::Atomo]` instance to provide similar functionality, but with additional merklized state
+/// A merklize atomo that can be used to read and update tables of data, wrapping an
+/// `[atomo::Atomo]` instance to provide similar functionality, but with additional merklize state
 /// tree features.
 ///
 /// Most methods are passthroughs to the inner atomo instance, but the `run` method on the
@@ -45,7 +45,7 @@ impl<B: StorageBackend, S: SerdeBackend, M: MerklizeProvider> Clone
 }
 
 impl<P, B: StorageBackend, S: SerdeBackend, M: MerklizeProvider> MerklizedAtomo<P, B, S, M> {
-    /// Create a new merklized atomo.
+    /// Create a new merklize atomo.
     pub fn new(inner: Atomo<P, B, S>) -> Self {
         Self {
             inner,
@@ -56,7 +56,7 @@ impl<P, B: StorageBackend, S: SerdeBackend, M: MerklizeProvider> MerklizedAtomo<
     /// Build and return a query reader for the data.
     /// This is a passthrough to the inner atomo instance, but wraps the result in
     /// `[merklize::MerklizedAtomo<QueryPerm>]` so that it can also provide additional
-    /// merklized state tree features.
+    /// merklize state tree features.
     #[inline]
     pub fn query(&self) -> MerklizedAtomo<QueryPerm, B, S, M> {
         MerklizedAtomo::new(self.inner.query())

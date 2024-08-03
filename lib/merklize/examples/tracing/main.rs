@@ -12,10 +12,9 @@ use tracing::trace_span;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
 
-/// An example of using the `[merklized]` crate with tracing.
 #[tokio::main]
 async fn main() -> Result<()> {
-    let service_name = "merklized-tracing-example";
+    let service_name = "merklize-tracing-example";
     let provider = init_tracer_provider(service_name.to_string())?;
     let tracer = provider.tracer(service_name);
 
@@ -72,7 +71,7 @@ fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(
         let value = table.get("key1".to_string()).unwrap();
         println!("value(key1): {:?}", value);
 
-        // Get the merklized context.
+        // Get the merklize context.
         let ctx = M::context(ctx);
 
         // Get the state root hash.

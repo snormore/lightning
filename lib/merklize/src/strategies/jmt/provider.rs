@@ -39,7 +39,7 @@ impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizeProvider
     type Serde = S;
     type Hasher = H;
 
-    /// Build a new merklized atomo instance with the given storage backend constructor. This will
+    /// Build a new merklize atomo instance with the given storage backend constructor. This will
     /// create the necessary tables for the state tree nodes and keys, then build and return the
     /// atomo instance.
     fn atomo<C: StorageBackendConstructor>(
@@ -52,7 +52,7 @@ impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizeProvider
             .unwrap())
     }
 
-    /// Create a new merklized context for the given table selector.
+    /// Create a new merklize context for the given table selector.
     fn context<'a>(ctx: &'a TableSelector<B, S>) -> Box<dyn MerklizedContext<'a, B, S, H> + 'a>
     where
         H: SimpleHasher + 'a,

@@ -27,7 +27,7 @@ pub type DefaultMerklizeProviderWithHasherSha256<B> =
     DefaultMerklizeProvider<B, crate::hashers::sha2::Sha256Hasher>;
 
 /// A trait for a merklize provider that can be used to build a `[atomo::Atomo]` instance, and
-/// provide a merklized execution context.
+/// provide a merklize execution context.
 pub trait MerklizeProvider {
     type Storage: StorageBackend;
     type Serde: SerdeBackend;

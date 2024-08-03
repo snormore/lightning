@@ -15,7 +15,7 @@ use utils::{create_rocksdb_env, new_complex_block, DummyPutter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let service_name = "merklized-tracing-application-example";
+    let service_name = "merklize-tracing-application-example";
     let provider = init_tracer_provider(service_name.to_string())?;
     let tracer = provider.tracer(service_name);
 

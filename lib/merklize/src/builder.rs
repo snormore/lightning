@@ -10,12 +10,12 @@ use crate::{MerklizeProvider, MerklizedAtomo};
 
 type AtomoResult<P, B, S, M, E> = Result<MerklizedAtomo<P, B, S, M>, E>;
 
-/// A builder for a merklized atomo instance, wrapping `[atomo::AtomoBuilder]`, to provide similar
+/// A builder for a merklize atomo instance, wrapping `[atomo::AtomoBuilder]`, to provide similar
 /// functionality, but for building `[merklize::MerklizedAtomo]` instances instead of
 /// `[atomo::Atomo]` instances.
 ///
 /// Most methods are passthroughs to the inner atomo builder, but the build method is augmented to
-/// first build the atomo instance and then wrap it in a merklized atomo instance.
+/// first build the atomo instance and then wrap it in a merklize atomo instance.
 pub struct MerklizedAtomoBuilder<
     C: StorageBackendConstructor,
     S: SerdeBackend,

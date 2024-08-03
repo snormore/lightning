@@ -1,6 +1,6 @@
 # Merklize Tracing Example
 
-An example of using the `merklized` crate with tracing.
+An example of using the `merklize` crate with tracing.
 
 ## Usage
 

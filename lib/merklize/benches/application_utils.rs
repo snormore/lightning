@@ -71,7 +71,7 @@ pub fn create_rocksdb_env(temp_dir: &TempDir) -> Env<UpdatePerm, AtomoStorage> {
 
     let storage = AtomoStorageBuilder::new(Some(temp_dir.path())).with_options(options);
 
-    create_merklized_app_env(storage, PathBuf::from(temp_dir.path()))
+    create_merklize_app_env(storage, PathBuf::from(temp_dir.path()))
 }
 
 pub fn new_simple_block() -> (Block, u64, EthAddress) {
@@ -251,7 +251,7 @@ pub fn query_complex_block(
     }
 }
 
-pub fn create_merklized_app_env<C: StorageBackendConstructor>(
+pub fn create_merklize_app_env<C: StorageBackendConstructor>(
     storage: C,
     db_path: PathBuf,
 ) -> Env<UpdatePerm, <C as StorageBackendConstructor>::Storage> {

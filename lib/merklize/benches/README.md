@@ -3,7 +3,7 @@
 ## Usage
 
 ```sh
-cd 001-state-tree/rs/merklized
+cd 001-state-tree/rs/merklize
 cargo bench
 ```
 

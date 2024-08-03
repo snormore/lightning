@@ -15,7 +15,7 @@ use tempfile::tempdir;
 use test::Bencher;
 
 #[bench]
-fn bench_application_commit_changes_rocksdb_merklized_simple(b: &mut Bencher) {
+fn bench_application_commit_changes_rocksdb_merklize_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
     let mut env = create_rocksdb_env(&temp_dir);
     let (block, _stake_amount, _eth_addresses) = new_simple_block();
@@ -23,7 +23,7 @@ fn bench_application_commit_changes_rocksdb_merklized_simple(b: &mut Bencher) {
 }
 
 #[bench]
-fn bench_application_commit_changes_rocksdb_merklized_medium(b: &mut Bencher) {
+fn bench_application_commit_changes_rocksdb_merklize_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
     let mut env = create_rocksdb_env(&temp_dir);
     let (block, _stake_amount, _eth_addresses) = new_medium_block();
@@ -31,7 +31,7 @@ fn bench_application_commit_changes_rocksdb_merklized_medium(b: &mut Bencher) {
 }
 
 #[bench]
-fn bench_application_commit_changes_rocksdb_merklized_complex(b: &mut Bencher) {
+fn bench_application_commit_changes_rocksdb_merklize_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
     let mut env = create_rocksdb_env(&temp_dir);
     let (block, _stake_amount, _eth_addresses, _node_public_keys) = new_complex_block();

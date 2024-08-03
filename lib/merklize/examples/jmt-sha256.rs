@@ -31,7 +31,7 @@ fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(
         let value = table.get("key".to_string()).unwrap();
         println!("value: {:?}", value);
 
-        // Get the merklized context.
+        // Get the merklize context.
         let ctx = M::context(ctx);
 
         // Get the state root hash.

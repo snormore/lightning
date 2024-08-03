@@ -31,7 +31,7 @@ fn bench_generic_commit_changes_rocksdb_baseline_complex(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_keccak256_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -41,7 +41,7 @@ fn bench_generic_commit_changes_rocksdb_jmt_keccak256_simple(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_blake3_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -51,7 +51,7 @@ fn bench_generic_commit_changes_rocksdb_jmt_blake3_simple(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_sha256_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -61,7 +61,7 @@ fn bench_generic_commit_changes_rocksdb_jmt_sha256_simple(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_keccak256_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -71,7 +71,7 @@ fn bench_generic_commit_changes_rocksdb_jmt_keccak256_medium(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_blake3_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -81,7 +81,7 @@ fn bench_generic_commit_changes_rocksdb_jmt_blake3_medium(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_sha256_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -91,7 +91,7 @@ fn bench_generic_commit_changes_rocksdb_jmt_sha256_medium(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_keccak256_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
@@ -101,7 +101,7 @@ fn bench_generic_commit_changes_rocksdb_jmt_keccak256_complex(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_blake3_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
@@ -111,7 +111,7 @@ fn bench_generic_commit_changes_rocksdb_jmt_blake3_complex(b: &mut Bencher) {
 #[bench]
 fn bench_generic_commit_changes_rocksdb_jmt_sha256_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_merklized_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
+    generic_merklize_bench_commit_changes::<_, DefaultMerklizeProvider<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
@@ -139,7 +139,7 @@ fn generic_baseline_bench_commit_changes<C: StorageBackendConstructor>(
     })
 }
 
-fn generic_merklized_bench_commit_changes<C: StorageBackendConstructor, M>(
+fn generic_merklize_bench_commit_changes<C: StorageBackendConstructor, M>(
     b: &mut Bencher,
     builder: C,
     data_count: usize,

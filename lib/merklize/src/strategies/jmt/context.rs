@@ -18,9 +18,9 @@ use crate::{MerklizedContext, SimpleHasher, StateKey, StateProof, StateRootHash}
 
 type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>>;
 
-/// A merklized context that can be used to read and update tables of data, wrapping an
+/// A merklize context that can be used to read and update tables of data, wrapping an
 /// `[atomo::TableSelector]` instance to provide similar functionality, but with additional
-/// merklized state tree features.
+/// merklize state tree features.
 pub struct JmtMerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
     ctx: &'a TableSelector<B, S>,
     table_name_by_id: FxHashMap<TableId, String>,
@@ -31,7 +31,7 @@ pub struct JmtMerklizedContext<'a, B: StorageBackend, S: SerdeBackend, H: Simple
 }
 
 impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> JmtMerklizedContext<'a, B, S, H> {
-    /// Create a new merklized context for the given table selector, initializing state tree tables
+    /// Create a new merklize context for the given table selector, initializing state tree tables
     /// and other necessary data for the context functionality.
     pub fn new(ctx: &'a TableSelector<B, S>) -> Self {
         let tables = ctx.tables();
