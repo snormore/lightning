@@ -21,7 +21,7 @@ urlencoding = "2.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Deno core + webapi extensions
-deno_core = "0.301"
+deno_core = "0.299"
 deno_webidl = "0.164"
 deno_console = "0.164"
 deno_url = "0.164"
@@ -42,7 +42,7 @@ serde.workspace = true
 serde_json.workspace = true
 base64 = "0.22"
 hex = "0.4"
-deno_core = "0.301"
+deno_core = "0.299"
 deno_webidl = "0.164"
 deno_console = "0.164"
 deno_url = "0.164"

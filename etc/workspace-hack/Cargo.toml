@@ -7,6 +7,7 @@ name = "lightning-workspace-hack"
 version = "0.1.0"
 description = "workspace-hack package, managed by hakari"
 license = "MIT"
+edition = "2021"
 # You can choose to publish this crate: see https://docs.rs/cargo-hakari/latest/cargo_hakari/publishing.
 publish = false
 
@@ -81,7 +82,6 @@ image = { version = "0.24" }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde", "std"] }
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 inout = { version = "0.1", default-features = false, features = ["std"] }
-itertools-5ef9efb8ec2df382 = { package = "itertools", version = "0.12" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 k256 = { version = "0.13" }
@@ -232,7 +232,6 @@ image = { version = "0.24" }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde", "std"] }
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 inout = { version = "0.1", default-features = false, features = ["std"] }
-itertools-5ef9efb8ec2df382 = { package = "itertools", version = "0.12" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 k256 = { version = "0.13" }

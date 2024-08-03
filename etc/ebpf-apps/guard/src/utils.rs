@@ -4,6 +4,7 @@ use bytes::Bytes;
 use tokio::io::Interest;
 use tokio::net::UnixStream;
 
+#[allow(dead_code)]
 pub async fn write(socket: &UnixStream, bytes: Bytes) -> io::Result<()> {
     let mut bytes_to_write = 0;
     loop {
