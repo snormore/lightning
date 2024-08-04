@@ -1,5 +1,5 @@
 use atomo::{DefaultSerdeBackend, SerdeBackend, UpdatePerm};
-use fleek_crypto::{EthAddress, NodePublicKey};
+use fleek_crypto::{AccountOwnerSecretKey, EthAddress, NodePublicKey, SecretKey};
 use lightning_application::env::Env;
 use lightning_application::storage::AtomoStorage;
 use lightning_types::{AccountInfo, NodeIndex, NodeInfo};
@@ -45,6 +45,8 @@ async fn test_application<M>(env: &mut Env<UpdatePerm, AtomoStorage, M>)
 where
     M: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
 {
+    let _ = tracing_subscriber::fmt::try_init();
+
     let (block, _stake_amount, eth_addresses, node_public_keys) = new_complex_block();
 
     env.run(block.clone(), || DummyPutter {}).await;
@@ -82,31 +84,35 @@ where
 
     // Check proof of non-existence for an account that does not exist.
     // TODO(snormore): Figure out why this test fails.
-    // let non_existent_eth_address: EthAddress = {
-    //     let secret_key = AccountOwnerSecretKey::generate();
-    //     let public_key = secret_key.to_pk();
-    //     public_key.into()
-    // };
-    // query.run(|ctx| {
-    //     let accounts_table = ctx.get_table::<EthAddress, AccountInfo>("account");
+    let non_existent_eth_address: EthAddress = {
+        let secret_key = AccountOwnerSecretKey::generate();
+        let public_key = secret_key.to_pk();
+        public_key.into()
+    };
+    query.run(|ctx| {
+        let accounts_table = ctx.get_table::<EthAddress, AccountInfo>("account");
 
-    //     // Verify that the account does not exist.
-    //     assert!(accounts_table.get(non_existent_eth_address).is_none());
+        // Verify that the account does not exist.
+        assert!(accounts_table.get(non_existent_eth_address).is_none());
 
-    //     // Generate proof of non-existence.
-    //     let ctx = M::context(ctx);
-    //     let (value, proof) = ctx
-    //         .get_state_proof("account", M::Serde::serialize(&non_existent_eth_address))
-    //         .unwrap();
-    //     assert!(value.is_none());
+        // Generate proof of non-existence.
+        let ctx = M::context(ctx);
+        let (value, proof) = ctx
+            .get_state_proof("account", M::Serde::serialize(&non_existent_eth_address))
+            .unwrap();
+        assert!(value.is_none());
 
-    //     // Verify proof of non-existence.
-    //     assert!(proof.verify_non_membership::<EthAddress, M>(
-    //         "account",
-    //         non_existent_eth_address,
-    //         state_root
-    //     ));
-    // });
+        println!("state_root: {:?}", state_root);
+        println!("value: {:?}", value);
+        // println!("proof: {:?}", proof);
+
+        // Verify proof of non-existence.
+        assert!(proof.verify_non_membership::<EthAddress, M>(
+            "account",
+            non_existent_eth_address,
+            query.get_state_root().unwrap()
+        ));
+    });
 
     // Check that all nodes are present in the state tree.
     for node_public_key in node_public_keys.iter() {

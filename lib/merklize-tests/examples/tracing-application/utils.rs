@@ -393,7 +393,7 @@ impl<'a> MerklizeContext<'a, AtomoStorage, DefaultSerdeBackend, KeccakHasher>
         &self,
         _table: &str,
         _serialized_key: Vec<u8>,
-    ) -> Result<(Option<Vec<u8>>, merklize::StateProof)> {
+    ) -> Result<(Option<Vec<u8>>, merklize::StateProof<KeccakHasher>)> {
         unimplemented!("Baseline context does not implement state proofs.")
     }
 

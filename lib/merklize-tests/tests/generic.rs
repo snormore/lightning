@@ -122,16 +122,16 @@ fn test_generic<
                 Some(format!("value{i}"))
             );
 
-            println!("{}", serde_json::ser::to_string_pretty(&proof).unwrap());
+            // println!("{}", serde_json::ser::to_string_pretty(&proof).unwrap());
 
             // Verify proof.
-            {
-                let proof: ics23::CommitmentProof = proof.clone().into();
-                assert!(matches!(
-                    proof.proof,
-                    Some(ics23::commitment_proof::Proof::Exist(_))
-                ));
-            }
+            // {
+            //     let proof: ics23::CommitmentProof = proof.clone().into();
+            //     assert!(matches!(
+            //         proof.proof,
+            //         Some(ics23::commitment_proof::Proof::Exist(_))
+            //     ));
+            // }
             assert!(proof.verify_membership::<String, String, M>(
                 "data",
                 format!("key{i}").to_string(),
@@ -145,13 +145,13 @@ fn test_generic<
             .get_state_proof("data", S::serialize(&"unknown".to_string()))
             .unwrap();
         assert!(value.is_none());
-        {
-            let proof: ics23::CommitmentProof = proof.clone().into();
-            assert!(matches!(
-                proof.proof,
-                Some(ics23::commitment_proof::Proof::Nonexist(_))
-            ));
-        }
+        // {
+        //     let proof: ics23::CommitmentProof = proof.clone().into();
+        //     assert!(matches!(
+        //         proof.proof,
+        //         Some(ics23::commitment_proof::Proof::Nonexist(_))
+        //     ));
+        // }
         assert!(proof.verify_non_membership::<String, M>(
             "data",
             "unknown".to_string(),

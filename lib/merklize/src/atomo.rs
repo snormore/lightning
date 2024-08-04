@@ -129,7 +129,7 @@ impl<B: StorageBackend, S: SerdeBackend, M: MerklizeProvider<Storage = B, Serde 
         &self,
         table: &str,
         serialized_key: Vec<u8>,
-    ) -> Result<(Option<Vec<u8>>, StateProof)> {
+    ) -> Result<(Option<Vec<u8>>, StateProof<M::Hasher>)> {
         self.run(|ctx| M::context(ctx).get_state_proof(table, serialized_key))
     }
 }

@@ -39,10 +39,10 @@ fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(
         println!("state root: {:?}", root_hash);
 
         // Get a proof of existence for some value in the state.
-        let (value, proof) = ctx
+        let (value, _proof) = ctx
             .get_state_proof("data", M::Serde::serialize(&"key"))
             .unwrap();
         println!("value: {:?}", value);
-        println!("proof: {:?}", proof);
+        // println!("proof: {:?}", proof);
     });
 }

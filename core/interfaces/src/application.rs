@@ -24,8 +24,6 @@ use lightning_types::{
     Metadata,
     NodeIndex,
     ServiceRevenue,
-    StateProofKey,
-    StateProofValue,
     TransactionRequest,
     TxHash,
     Value,
@@ -35,7 +33,6 @@ use merklize::{
     MerklizeProvider,
     MerklizedAtomo,
     MerklizedAtomoBuilder,
-    StateProof,
     StateRootHash,
 };
 use serde::{Deserialize, Serialize};
@@ -167,7 +164,8 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_state_root(&self) -> Result<StateRootHash>;
 
     /// Get a state proof for a given key.
-    fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, StateProof)>;
+    // fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>,
+    // StateProof)>;
 
     /// Query Account Table
     /// Returns information about an account.

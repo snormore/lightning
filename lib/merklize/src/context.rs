@@ -16,7 +16,7 @@ pub trait MerklizeContext<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHashe
         &self,
         table: &str,
         serialized_key: Vec<u8>,
-    ) -> Result<(Option<Vec<u8>>, StateProof)>;
+    ) -> Result<(Option<Vec<u8>>, StateProof<H>)>;
 
     /// Applies the changes in the given batch to the state tree by computing updated or removed
     /// nodes, to be committed with same state updates.

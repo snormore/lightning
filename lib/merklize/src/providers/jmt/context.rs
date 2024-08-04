@@ -13,7 +13,6 @@ use tracing::{trace, trace_span};
 
 use super::hasher::SimpleHasherWrapper;
 use super::provider::{KEYS_TABLE_NAME, NODES_TABLE_NAME};
-use crate::providers::jmt::ics23::ics23_proof_spec;
 use crate::{MerklizeContext, SimpleHasher, StateKey, StateProof, StateRootHash};
 
 type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>>;
@@ -98,20 +97,23 @@ impl<'a, B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MerklizeContext<'a
         &self,
         table: &str,
         serialized_key: Vec<u8>,
-    ) -> Result<(Option<Vec<u8>>, StateProof)> {
+    ) -> Result<(Option<Vec<u8>>, StateProof<H>)> {
         let tree = jmt::JellyfishMerkleTree::<_, SimpleHasherWrapper<H>>::new(self);
 
         let state_key = StateKey::new(table, serialized_key);
         let key_hash = state_key.hash::<S, H>();
         trace!(?key_hash, ?state_key, "get_state_proof");
 
-        let (value, proof) = tree.get_with_ics23_proof(
-            S::serialize(&state_key),
-            0,
-            ics23_proof_spec(H::ICS23_HASH_OP),
-        )?;
+        // let (value, proof) = tree.get_with_ics23_proof(
+        //     S::serialize(&state_key),
+        //     0,
+        //     ics23_proof_spec(H::ICS23_HASH_OP),
+        // )?;
 
-        Ok((value, proof.into()))
+        let (value, proof) = tree.get_with_proof(jmt::KeyHash(key_hash.into()), 0)?;
+
+        // Ok((value, proof.into()))
+        Ok((value, StateProof::new(proof)))
     }
 
     /// Apply the state tree changes based on the state changes in the atomo batch. This will update
@@ -508,13 +510,13 @@ mod tests {
                 .unwrap()
         });
         assert_eq!(value, Some(S::serialize(&"value1".to_string())));
-        {
-            let proof: ics23::CommitmentProof = proof.clone().into();
-            assert!(matches!(
-                proof.proof,
-                Some(ics23::commitment_proof::Proof::Exist(_))
-            ));
-        }
+        // {
+        //     let proof: ics23::CommitmentProof = proof.clone().into();
+        //     assert!(matches!(
+        //         proof.proof,
+        //         Some(ics23::commitment_proof::Proof::Exist(_))
+        //     ));
+        // }
         assert!(proof.verify_membership::<String, String, M>(
             "data",
             "key1".to_string(),
@@ -529,13 +531,13 @@ mod tests {
                 .unwrap()
         });
         assert_eq!(value, None);
-        {
-            let proof: ics23::CommitmentProof = proof.clone().into();
-            assert!(matches!(
-                proof.proof,
-                Some(ics23::commitment_proof::Proof::Nonexist(_))
-            ));
-        }
+        // {
+        //     let proof: ics23::CommitmentProof = proof.clone().into();
+        //     assert!(matches!(
+        //         proof.proof,
+        //         Some(ics23::commitment_proof::Proof::Nonexist(_))
+        //     ));
+        // }
         assert!(proof.verify_non_membership::<String, M>(
             "data",
             "unknown".to_string(),

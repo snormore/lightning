@@ -21,8 +21,6 @@ use lightning_interfaces::types::{
     Service,
     ServiceId,
     ServiceRevenue,
-    StateProofKey,
-    StateProofValue,
     TotalServed,
     TransactionRequest,
     TransactionResponse,
@@ -30,13 +28,7 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
-use merklize::{
-    MerklizeProvider,
-    MerklizedAtomo,
-    MerklizedAtomoBuilder,
-    StateProof,
-    StateRootHash,
-};
+use merklize::{MerklizeProvider, MerklizedAtomo, MerklizedAtomoBuilder, StateRootHash};
 
 use crate::app::ApplicationMerklizeProvider;
 use crate::state::State;
@@ -144,16 +136,16 @@ where
         self.inner.get_state_root()
     }
 
-    fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, StateProof)> {
-        self.inner.run(|ctx| {
-            let (table, serialized_key) = key.raw::<<Self::Merklize as MerklizeProvider>::Serde>();
-            let (value, proof) =
-                Self::Merklize::context(ctx).get_state_proof(&table, serialized_key)?;
-            let value =
-                value.map(|value| key.value::<<Self::Merklize as MerklizeProvider>::Serde>(value));
-            Ok((value, proof))
-        })
-    }
+    // fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>,
+    // StateProof)> {     self.inner.run(|ctx| {
+    //         let (table, serialized_key) = key.raw::<<Self::Merklize as
+    // MerklizeProvider>::Serde>();         let (value, proof) =
+    //             Self::Merklize::context(ctx).get_state_proof(&table, serialized_key)?;
+    //         let value =
+    //             value.map(|value| key.value::<<Self::Merklize as
+    // MerklizeProvider>::Serde>(value));         Ok((value, proof))
+    //     })
+    // }
 
     #[inline]
     fn get_account_info<V>(

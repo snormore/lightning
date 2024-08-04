@@ -1,7 +1,7 @@
 use crate::SimpleHasher;
 
 /// A wrapper around a `[SimpleHasher]` that provides a `[jmt::SimpleHasher]` implementation.
-pub(crate) struct SimpleHasherWrapper<H: SimpleHasher>(H);
+pub struct SimpleHasherWrapper<H: SimpleHasher>(H);
 
 impl<H: SimpleHasher> jmt::SimpleHasher for SimpleHasherWrapper<H> {
     fn new() -> Self {
