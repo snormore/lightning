@@ -58,6 +58,8 @@ workspace-members = [
     "fn-sdk",
     "hp-fixed",
     "ink-quill",
+    "merklize",
+    "merklize-tests",
     "once-ptr",
     "panic-report",
     "resolved-pathbuf",
