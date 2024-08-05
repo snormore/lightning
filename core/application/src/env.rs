@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::time::Duration;
 
@@ -35,7 +36,10 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_metrics::increment_counter;
-use tracing::warn;
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::providers::mpt::MptMerklizeProvider;
+use merklize::MerklizeProvider;
+use tracing::{trace_span, warn};
 
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
@@ -44,12 +48,26 @@ use crate::state_executor::StateExecutor;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
-pub struct Env<P, B: StorageBackend> {
+pub type ApplicationMerklizeProvider = ApplicationMerklizeProviderWithStorage<AtomoStorage>;
+
+pub type ApplicationMerklizeProviderWithStorage<B> =
+    MptMerklizeProvider<B, DefaultSerdeBackend, KeccakHasher>;
+
+pub type ApplicationEnv = Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider>;
+
+pub struct Env<P, B: StorageBackend, M: MerklizeProvider> {
     pub inner: Atomo<P, B>,
+    _phantom: PhantomData<M>,
 }
 
-impl Env<UpdatePerm, AtomoStorage> {
+impl<M> Env<UpdatePerm, AtomoStorage, M>
+where
+    M: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
+{
     pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
+        let span = trace_span!("new");
+        let _enter = span.enter();
+
         let storage = match config.storage {
             StorageConfig::RocksDb => {
                 let db_path = config
@@ -126,8 +144,11 @@ impl Env<UpdatePerm, AtomoStorage> {
                 .enable_iter("pub_key_to_index");
         }
 
+        atomo = M::with_tables(atomo);
+
         Ok(Self {
             inner: atomo.build()?,
+            _phantom: PhantomData,
         })
     }
 
@@ -136,13 +157,19 @@ impl Env<UpdatePerm, AtomoStorage> {
     }
 }
 
-impl<B: StorageBackend> Env<UpdatePerm, B> {
+impl<B: StorageBackend, M> Env<UpdatePerm, B, M>
+where
+    M: MerklizeProvider<Storage = B, Serde = DefaultSerdeBackend>,
+{
     #[autometrics::autometrics]
-    async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
+    pub async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
     where
         F: FnOnce() -> P,
         P: IncrementalPutInterface,
     {
+        let span = trace_span!("run");
+        let _enter = span.enter();
+
         let response = self.inner.run(move |ctx| {
             // Create the app/execution environment
             let backend = StateTables {
@@ -199,14 +226,19 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
                 response.txn_receipts.push(receipt);
             }
 
+            // Set the last executed block hash and sub dag index
             // if epoch changed a new committee starts and subdag starts back at 0
             let (new_sub_dag_index, new_sub_dag_round) = if response.change_epoch {
                 (0, 0)
             } else {
                 (block.sub_dag_index, block.sub_dag_round)
             };
-            // Set the last executed block hash and sub dag index
-            app.set_last_block(block.digest, new_sub_dag_index, new_sub_dag_round);
+            app.set_last_block(response.block_hash, new_sub_dag_index, new_sub_dag_round);
+
+            // Update the state tree with the new changes.
+            M::update_state_tree_from_context(ctx)
+                .context("Failed to update state tree")
+                .unwrap();
 
             // Return the response
             response
@@ -244,9 +276,10 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
     }
 
     /// Returns an identical environment but with query permissions
-    pub fn query_socket(&self) -> Env<QueryPerm, B> {
+    pub fn query_socket(&self) -> Env<QueryPerm, B, M> {
         Env {
             inner: self.inner.query(),
+            _phantom: PhantomData,
         }
     }
 
@@ -255,6 +288,9 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
     /// Will return true if database was empty and genesis needed to be loaded or false if there was
     /// already state loaded and it didn't load genesis
     pub fn apply_genesis_block(&mut self, config: &Config) -> Result<bool> {
+        let span = trace_span!("apply_genesis_block");
+        let _enter = span.enter();
+
         self.inner.run(|ctx| {
             let mut metadata_table = ctx.get_table::<Metadata, Value>("metadata");
 
@@ -461,8 +497,13 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
                 }
             }
 
-        metadata_table.insert(Metadata::Epoch, Value::Epoch(0));
-        Ok(true)
+            metadata_table.insert(Metadata::Epoch, Value::Epoch(0));
+
+            // Update the state tree with the new changes.
+            M::update_state_tree_from_context(ctx)
+                .context("Failed to update state tree")?;
+
+            Ok(true)
         })
     }
 
@@ -474,11 +515,16 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
             };
             let app = StateExecutor::new(backend);
             app.set_last_epoch_hash(state_hash);
+
+            // We intentionally do NOT update the state tree here, since the last epoch hash
+            // should not be reflected in the state tree.
+            // TODO(snormore): Move `Metadata::LastEpochHash` to a different table that's excluded
+            // from the state tree.
         })
     }
 }
 
-impl Default for Env<UpdatePerm, AtomoStorage> {
+impl Default for ApplicationEnv {
     fn default() -> Self {
         Self::new(&Config::default(), None).unwrap()
     }
@@ -486,12 +532,12 @@ impl Default for Env<UpdatePerm, AtomoStorage> {
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: Env<UpdatePerm, AtomoStorage>,
+    env: ApplicationEnv,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: Env<UpdatePerm, AtomoStorage>, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(env: ApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
@@ -518,7 +564,7 @@ mod env_tests {
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
             .unwrap();
         let config = Config::test(genesis_path);
-        let mut env = Env::<_, AtomoStorage>::new(&config, None).unwrap();
+        let mut env = ApplicationEnv::new(&config, None).unwrap();
 
         assert!(env.apply_genesis_block(&config).unwrap());
 
