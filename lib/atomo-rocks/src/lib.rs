@@ -18,6 +18,7 @@ pub use serialization::{build_db_from_checkpoint, serialize_db};
 pub type AtomoBuilderWithRocks<'a, S = DefaultSerdeBackend> =
     AtomoBuilder<RocksBackendBuilder<'a>, S>;
 
+#[derive(Clone)]
 /// Builder for a new [`rocksdb::DB`] backend.
 ///
 /// # Example
