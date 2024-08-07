@@ -8,7 +8,7 @@ use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::providers::mpt::MptMerklizeProvider;
 use merklize::{MerklizeProvider, MerklizedAtomoBuilder};
-use merklize_tests::generic::{
+use merklize_test_utils::generic::{
     rocksdb_builder,
     DATA_COUNT_COMPLEX,
     DATA_COUNT_MEDIUM,

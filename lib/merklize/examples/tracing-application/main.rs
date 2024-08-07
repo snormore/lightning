@@ -4,7 +4,7 @@ use futures::executor::block_on;
 use lightning_application::storage::AtomoStorage;
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
-use merklize_tests::application::{
+use merklize_test_utils::application::{
     create_rocksdb_env,
     new_complex_block,
     BaselineMerklizeProvider,

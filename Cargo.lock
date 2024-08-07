@@ -7993,8 +7993,11 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "atomo",
+ "atomo-rocks",
  "blake3",
  "digest 0.10.7",
+ "fleek-crypto",
+ "futures",
  "fxhash",
  "hash-db",
  "hash256-std-hasher",
@@ -8002,20 +8005,31 @@ dependencies = [
  "ics23",
  "jmt",
  "keccak-hasher",
+ "lightning-application",
+ "lightning-types",
  "lru 0.12.4",
+ "merklize-test-utils",
+ "opentelemetry 0.24.0",
+ "opentelemetry-otlp 0.17.0",
+ "opentelemetry-semantic-conventions 0.16.0",
+ "opentelemetry_sdk 0.24.1",
+ "rand 0.8.5",
  "reference-trie",
  "schemars",
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "tempfile",
  "tiny-keccak",
+ "tokio",
  "tracing",
+ "tracing-opentelemetry 0.25.0",
  "tracing-subscriber",
  "trie-db",
 ]
 
 [[package]]
-name = "merklize-tests"
+name = "merklize-test-utils"
 version = "0.0.0"
 dependencies = [
  "anyhow",
@@ -8030,17 +8044,10 @@ dependencies = [
  "lightning-test-utils",
  "lightning-types",
  "merklize",
- "opentelemetry 0.24.0",
- "opentelemetry-otlp 0.17.0",
- "opentelemetry-semantic-conventions 0.16.0",
- "opentelemetry_sdk 0.24.1",
  "rand 0.8.5",
  "resolved-pathbuf",
  "tempfile",
  "tokio",
- "tracing",
- "tracing-opentelemetry 0.25.0",
- "tracing-subscriber",
 ]
 
 [[package]]

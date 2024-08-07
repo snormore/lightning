@@ -422,11 +422,11 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
             .await?
             .get_state_proof(key)
             .map_err(|e| RPCError::custom(e.to_string()))?;
-        // TODO(snormore): Figure out how to avoid this extra serialization/deserialization.
-        let proof = serde_json::from_slice(&serde_json::to_vec(&proof).unwrap()).unwrap();
+        // TODO(snormore): This extra serialization/deserialization shouldn't be necessary.
         // TODO(snormore): Figure out why `ics23::CommitmentProof` fails to deserialize using the
         // serde backend but works with serde_json.
         // let proof = S::deserialize(& S::serialize(&proof));
+        let proof = serde_json::from_slice(&serde_json::to_vec(&proof).unwrap()).unwrap();
         Ok((value, proof))
     }
 

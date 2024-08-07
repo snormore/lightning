@@ -59,7 +59,7 @@ workspace-members = [
     "hp-fixed",
     "ink-quill",
     "merklize",
-    "merklize-tests",
+    "merklize-test-utils",
     "once-ptr",
     "panic-report",
     "resolved-pathbuf",

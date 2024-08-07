@@ -36,6 +36,31 @@ keccak-hasher = { git = "https://github.com/paritytech/trie.git", rev = "c3348e4
 atomo.workspace = true
 
 [dev-dependencies]
+futures.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+# Tracing and open telemetry dependencies
+# This is used for tracing examples.
+opentelemetry = "0.24.0"
+opentelemetry-otlp = "0.17.0"
+opentelemetry-semantic-conventions = "0.16.0"
+opentelemetry_sdk = { version = "0.24.1", features = ["tokio", "rt-tokio"] }
+tracing.workspace = true
+tracing-opentelemetry = "0.25.0"
+tracing-subscriber.workspace = true
+
+# Lightning dependencies
+atomo.workspace = true
+atomo-rocks.workspace = true
+fleek-crypto.workspace = true
+# Some of these crates should only be included in dev dependencies, and never in non-dev, since
+# this crate is a dependency of those crates, so we will have a cyclic dependency.
+lightning-application.workspace = true
+lightning-types.workspace = true
+merklize-test-utils = { path = "../merklize-test-utils" }
+
 
 [features]
 default = ["hashers", "strategies"]

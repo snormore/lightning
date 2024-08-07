@@ -9,7 +9,7 @@ use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::providers::mpt::MptMerklizeProvider;
-use merklize_tests::application::{
+use merklize_test_utils::application::{
     create_rocksdb_env,
     new_complex_block,
     new_medium_block,

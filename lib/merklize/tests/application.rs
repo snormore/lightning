@@ -9,7 +9,7 @@ use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::providers::mpt::MptMerklizeProvider;
 use merklize::{MerklizeProvider, StateProof};
-use merklize_tests::application::{create_rocksdb_env, new_complex_block, DummyPutter};
+use merklize_test_utils::application::{create_rocksdb_env, new_complex_block, DummyPutter};
 use tempfile::tempdir;
 
 // JMT
@@ -113,7 +113,8 @@ where
     }
 
     // Check proof of non-existence for an account that does not exist.
-    // TODO(snormore): Figure out why this test fails sometimes when using JMT.
+    // TODO(snormore): Figure out why this test fails sometimes when using ics23 proofs in JMT, but
+    // not when using `jmt::SparseMerkleProof`.
     // let non_existent_eth_address: EthAddress = {
     //     let secret_key = AccountOwnerSecretKey::generate();
     //     let public_key = secret_key.to_pk();

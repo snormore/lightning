@@ -201,7 +201,7 @@ fn test_generic<
     let new_state_root = reader.get_state_root().unwrap();
     assert_ne!(new_state_root, old_state_root);
     assert_ne!(new_state_root, StateRootHash::default());
-    // let old_state_root = new_state_root;
+    let old_state_root = new_state_root;
 
     // Remove some data.
     db.run(|ctx: _| {
@@ -214,39 +214,35 @@ fn test_generic<
 
     // Check state root.
     let new_state_root = reader.get_state_root().unwrap();
-    // TODO(snormore): Figure out why the state root is not changing after removing data using the
-    // JMT provider.
-    // assert_ne!(new_state_root, old_state_root);
+    assert_ne!(new_state_root, old_state_root);
     assert_ne!(new_state_root, StateRootHash::default());
 
     // Check non-membership proofs for removed data.
-    // TODO(snormore): Figure out why these non-existence proof verification are failing using the
-    // JMT provider.
-    // reader.run(|ctx| {
-    //     let ctx = M::context(ctx);
+    reader.run(|ctx| {
+        let ctx = M::context(ctx);
 
-    //     // Check non-existence proof for key3.
-    //     let proof = ctx
-    //         .get_state_proof("data", S::serialize(&"key3".to_string()))
-    //         .unwrap();
-    //     proof
-    //         .verify_non_membership::<String, M>("data", "key3".to_string(), new_state_root)
-    //         .unwrap();
+        // Check non-existence proof for key3.
+        let proof = ctx
+            .get_state_proof("data", S::serialize(&"key3".to_string()))
+            .unwrap();
+        proof
+            .verify_non_membership::<String, M>("data", "key3".to_string(), new_state_root)
+            .unwrap();
 
-    //     // Check non-existence proof for other5.
-    //     let proof = ctx
-    //         .get_state_proof("data", S::serialize(&"other5".to_string()))
-    //         .unwrap();
-    //     proof
-    //         .verify_non_membership::<String, M>("data", "other5".to_string(), new_state_root)
-    //         .unwrap();
+        // Check non-existence proof for other5.
+        let proof = ctx
+            .get_state_proof("data", S::serialize(&"other5".to_string()))
+            .unwrap();
+        proof
+            .verify_non_membership::<String, M>("data", "other5".to_string(), new_state_root)
+            .unwrap();
 
-    //     // Check non-existence proof for other9.
-    //     let proof = ctx
-    //         .get_state_proof("data", S::serialize(&"other9".to_string()))
-    //         .unwrap();
-    //     proof
-    //         .verify_non_membership::<String, M>("data", "other9".to_string(), new_state_root)
-    //         .unwrap();
-    // });
+        // Check non-existence proof for other9.
+        let proof = ctx
+            .get_state_proof("data", S::serialize(&"other9".to_string()))
+            .unwrap();
+        proof
+            .verify_non_membership::<String, M>("data", "other9".to_string(), new_state_root)
+            .unwrap();
+    });
 }

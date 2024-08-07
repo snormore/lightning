@@ -1,6 +1,6 @@
 # Merklize
 
-The `merklize` crate wraps [atomo](../atomo) to provide a database-backed Merkle state tree, enabling verifiable and efficient state storage.
+The `merklize` crate wraps [atomo](../atomo) to provide a database-backed Merkle state tree, enabling efficiently verifiable state storage.
 
 ## Usage
 
@@ -81,7 +81,15 @@ cargo run --example not-merklized
 This crate contains a suite of unit tests that live along with the code. You can run them as follows:
 
 ```sh
-cargo run test # or cargo nextest run
+cargo run test # or `cargo nextest run`
 ```
 
-The [merklize-tests](../merklize-tests/) crate contains a more comprehensive suite of integration tests, benchmarks, and examples.
+## Benchmarks
+
+Run the benchmarks:
+
+```sh
+cargo bench
+```
+
+See [benches/README.md](./benches/README.md) for results.
