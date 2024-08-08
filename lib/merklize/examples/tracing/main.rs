@@ -1,8 +1,14 @@
 use anyhow::Result;
-use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
+use atomo::{
+    AtomoBuilder,
+    DefaultSerdeBackend,
+    InMemoryStorage,
+    SerdeBackend,
+    StorageBackendConstructor,
+};
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
-use merklize::{MerklizeProvider, MerklizedAtomoBuilder};
+use merklize::{MerklizeProvider, MerklizedAtomo};
 use opentelemetry::trace::{TraceError, TracerProvider};
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
@@ -38,10 +44,11 @@ fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(
     builder: B,
     data_count: usize,
 ) {
-    let mut db = MerklizedAtomoBuilder::<B, M::Serde, M>::new(builder)
-        .with_table::<String, String>("data")
-        .build()
-        .unwrap();
+    let mut db = MerklizedAtomo::<_, _, _, M>::new(
+        M::with_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+            .build()
+            .unwrap(),
+    );
 
     // Open writer context and insert some data.
     db.run(|ctx| {

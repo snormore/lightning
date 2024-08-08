@@ -3,8 +3,14 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
-use atomo::{DefaultSerdeBackend, StorageBackend, StorageBackendConstructor, UpdatePerm};
+use anyhow::Result;
+use atomo::{
+    AtomoBuilder,
+    DefaultSerdeBackend,
+    StorageBackend,
+    StorageBackendConstructor,
+    UpdatePerm,
+};
 use atomo_rocks::Options;
 use fleek_crypto::{
     AccountOwnerSecretKey,
@@ -62,7 +68,7 @@ use lightning_types::{
 };
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::providers::jmt::{self, JmtStateProof};
-use merklize::{MerklizeContext, MerklizeProvider, MerklizedAtomoBuilder, SimpleHasher};
+use merklize::{MerklizeContext, MerklizeProvider, MerklizedAtomo, SimpleHasher};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
@@ -77,10 +83,10 @@ impl MerklizeProvider for BaselineMerklizeProvider {
     type Hasher = KeccakHasher;
     type Proof = jmt::JmtStateProof;
 
-    fn atomo<C: StorageBackendConstructor>(
+    fn with_tables<C: StorageBackendConstructor>(
         builder: atomo::AtomoBuilder<C, Self::Serde>,
-    ) -> Result<atomo::Atomo<atomo::UpdatePerm, C::Storage, Self::Serde>> {
-        builder.build().map_err(|e| anyhow!("{:?}", e))
+    ) -> atomo::AtomoBuilder<C, Self::Serde> {
+        builder
     }
 
     fn context<'a>(
@@ -320,44 +326,48 @@ pub fn create_merklize_app_env<C: StorageBackendConstructor, M>(
 where
     M: MerklizeProvider<Storage = C::Storage, Serde = DefaultSerdeBackend>,
 {
-    let db = MerklizedAtomoBuilder::<_, DefaultSerdeBackend, M>::new(storage)
-        .with_table::<Metadata, Value>("metadata")
-        .with_table::<EthAddress, AccountInfo>("account")
-        .with_table::<ClientPublicKey, EthAddress>("client_keys")
-        .with_table::<NodeIndex, NodeInfo>("node")
-        .with_table::<ConsensusPublicKey, NodeIndex>("consensus_key_to_index")
-        .with_table::<NodePublicKey, NodeIndex>("pub_key_to_index")
-        .with_table::<(NodeIndex, NodeIndex), Duration>("latencies")
-        .with_table::<Epoch, Committee>("committee")
-        .with_table::<ServiceId, Service>("service")
-        .with_table::<ProtocolParams, u128>("parameter")
-        .with_table::<NodeIndex, Vec<ReportedReputationMeasurements>>("rep_measurements")
-        .with_table::<NodeIndex, u8>("rep_scores")
-        .with_table::<NodeIndex, u8>("submitted_rep_measurements")
-        .with_table::<NodeIndex, NodeServed>("current_epoch_served")
-        .with_table::<NodeIndex, NodeServed>("last_epoch_served")
-        .with_table::<Epoch, TotalServed>("total_served")
-        .with_table::<CommodityTypes, HpUfixed<6>>("commodity_prices")
-        .with_table::<ServiceId, ServiceRevenue>("service_revenue")
-        .with_table::<TxHash, ()>("executed_digests")
-        .with_table::<NodeIndex, u8>("uptime")
-        .with_table::<Blake3Hash, BTreeSet<NodeIndex>>("uri_to_node")
-        .with_table::<NodeIndex, BTreeSet<Blake3Hash>>("node_to_uri")
-        .enable_iter("consensus_key_to_index")
-        .enable_iter("pub_key_to_index")
-        .enable_iter("current_epoch_served")
-        .enable_iter("rep_measurements")
-        .enable_iter("submitted_rep_measurements")
-        .enable_iter("rep_scores")
-        .enable_iter("latencies")
-        .enable_iter("node")
-        .enable_iter("executed_digests")
-        .enable_iter("uptime")
-        .enable_iter("service_revenue")
-        .enable_iter("uri_to_node")
-        .enable_iter("node_to_uri")
-        .build()
-        .unwrap();
+    let db = M::with_tables(
+        AtomoBuilder::new(storage)
+            .with_table::<Metadata, Value>("metadata")
+            .with_table::<EthAddress, AccountInfo>("account")
+            .with_table::<ClientPublicKey, EthAddress>("client_keys")
+            .with_table::<NodeIndex, NodeInfo>("node")
+            .with_table::<ConsensusPublicKey, NodeIndex>("consensus_key_to_index")
+            .with_table::<NodePublicKey, NodeIndex>("pub_key_to_index")
+            .with_table::<(NodeIndex, NodeIndex), Duration>("latencies")
+            .with_table::<Epoch, Committee>("committee")
+            .with_table::<ServiceId, Service>("service")
+            .with_table::<ProtocolParams, u128>("parameter")
+            .with_table::<NodeIndex, Vec<ReportedReputationMeasurements>>("rep_measurements")
+            .with_table::<NodeIndex, u8>("rep_scores")
+            .with_table::<NodeIndex, u8>("submitted_rep_measurements")
+            .with_table::<NodeIndex, NodeServed>("current_epoch_served")
+            .with_table::<NodeIndex, NodeServed>("last_epoch_served")
+            .with_table::<Epoch, TotalServed>("total_served")
+            .with_table::<CommodityTypes, HpUfixed<6>>("commodity_prices")
+            .with_table::<ServiceId, ServiceRevenue>("service_revenue")
+            .with_table::<TxHash, ()>("executed_digests")
+            .with_table::<NodeIndex, u8>("uptime")
+            .with_table::<Blake3Hash, BTreeSet<NodeIndex>>("uri_to_node")
+            .with_table::<NodeIndex, BTreeSet<Blake3Hash>>("node_to_uri")
+            .enable_iter("consensus_key_to_index")
+            .enable_iter("pub_key_to_index")
+            .enable_iter("current_epoch_served")
+            .enable_iter("rep_measurements")
+            .enable_iter("submitted_rep_measurements")
+            .enable_iter("rep_scores")
+            .enable_iter("latencies")
+            .enable_iter("node")
+            .enable_iter("executed_digests")
+            .enable_iter("uptime")
+            .enable_iter("service_revenue")
+            .enable_iter("uri_to_node")
+            .enable_iter("node_to_uri"),
+    )
+    .build()
+    .unwrap();
+
+    let db = MerklizedAtomo::new(db);
 
     let mut env = Env { inner: db };
     let app_config = AppConfig {

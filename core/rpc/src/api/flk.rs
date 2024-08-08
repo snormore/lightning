@@ -4,7 +4,7 @@ use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
 use jsonrpsee::proc_macros::rpc;
-use lightning_application::app::ApplicationMerklizeProvider;
+use lightning_application::env::ApplicationMerklizeProvider;
 use lightning_interfaces::types::{
     AccountInfo,
     Blake3Hash,

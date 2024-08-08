@@ -11,10 +11,11 @@ use fleek_crypto::{
 };
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use lightning_application::app::{Application, ApplicationMerklizeProvider};
+use lightning_application::app::Application;
 use lightning_application::config::Config as AppConfig;
+use lightning_application::env::ApplicationMerklizeProvider;
 use lightning_application::genesis::{Genesis, GenesisAccount, GenesisNode, GenesisNodeServed};
-use lightning_application::query_runner::ApplicationQueryRunner;
+use lightning_application::query_runner::QueryRunner;
 use lightning_blockstore::blockstore::Blockstore;
 use lightning_blockstore::config::Config as BlockstoreConfig;
 use lightning_blockstore_server::BlockstoreServer;
@@ -84,7 +85,7 @@ impl TestNode {
     fn rpc(&self) -> fdi::Ref<Rpc<TestBinding>> {
         self.inner.provider.get()
     }
-    fn query_runner(&self) -> fdi::Ref<ApplicationQueryRunner> {
+    fn query_runner(&self) -> fdi::Ref<QueryRunner> {
         self.inner.provider.get()
     }
 }

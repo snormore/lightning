@@ -1,7 +1,13 @@
-use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
+use atomo::{
+    AtomoBuilder,
+    DefaultSerdeBackend,
+    InMemoryStorage,
+    SerdeBackend,
+    StorageBackendConstructor,
+};
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
-use merklize::{MerklizeProvider, MerklizedAtomoBuilder, StateProof};
+use merklize::{MerklizeProvider, MerklizedAtomo, StateProof};
 
 pub fn main() {
     let builder = InMemoryStorage::default();
@@ -10,10 +16,11 @@ pub fn main() {
 }
 
 fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(builder: B) {
-    let mut db = MerklizedAtomoBuilder::<B, M::Serde, M>::new(builder)
-        .with_table::<String, String>("data")
-        .build()
-        .unwrap();
+    let mut db = MerklizedAtomo::<_, _, _, M>::new(
+        M::with_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+            .build()
+            .unwrap(),
+    );
     let query = db.query();
 
     // Open writer context and insert some data.

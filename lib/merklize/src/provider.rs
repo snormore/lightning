@@ -1,4 +1,3 @@
-use anyhow::Result;
 use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
 
 use crate::{MerklizeContext, SimpleHasher, StateProof};
@@ -11,10 +10,10 @@ pub trait MerklizeProvider {
     type Hasher: SimpleHasher;
     type Proof: StateProof;
 
-    /// Initialize and return an atomo instance for this provider.
-    fn atomo<C: StorageBackendConstructor>(
+    /// Augment the provided atomo builder with the necessary tables for the merklize provider.
+    fn with_tables<C: StorageBackendConstructor>(
         builder: AtomoBuilder<C, Self::Serde>,
-    ) -> Result<atomo::Atomo<atomo::UpdatePerm, C::Storage, Self::Serde>>;
+    ) -> AtomoBuilder<C, Self::Serde>;
 
     /// Initialize and return a new execution context using this provider.
     fn context<'a>(

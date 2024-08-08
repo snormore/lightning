@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use anyhow::{anyhow, Result};
 use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
 use trie_db::DBValue;
 
@@ -43,19 +42,15 @@ where
     type Hasher = H;
     type Proof = MptStateProof;
 
-    /// Build a new merklize atomo instance with the given storage backend constructor. This will
-    /// create the necessary tables for the state tree nodes and keys, then build and return the
-    /// atomo instance.
-    fn atomo<C: StorageBackendConstructor>(
+    /// Augment the provided atomo builder with the necessary tables for the merklize provider.
+    fn with_tables<C: StorageBackendConstructor>(
         builder: AtomoBuilder<C, S>,
-    ) -> Result<atomo::Atomo<atomo::UpdatePerm, C::Storage, S>> {
+    ) -> AtomoBuilder<C, S> {
         builder
             .with_table::<<SimpleHasherWrapper<H> as hash_db::Hasher>::Out, DBValue>(
                 NODES_TABLE_NAME,
             )
             .with_table::<u8, StateRootHash>(ROOT_TABLE_NAME)
-            .build()
-            .map_err(|e| anyhow!("Failed to build atomo instance: {:?}", e))
     }
 
     /// Create a new merklize context for the given table selector.
@@ -81,37 +76,34 @@ mod tests {
 
     #[test]
     fn test_mpt_provider_blake3() {
-        type S = DefaultSerdeBackend;
         type H = Blake3Hasher;
         type M = MptMerklizeProvider<InMemoryStorage, DefaultSerdeBackend, H>;
 
-        let builder = InMemoryStorage::default();
-        let db = M::atomo(AtomoBuilder::<_, S>::new(builder).with_table::<String, String>("data"))
-            .unwrap();
+        let builder =
+            AtomoBuilder::new(InMemoryStorage::default()).with_table::<String, String>("data");
+        let db = M::with_tables(builder).build().unwrap();
         let _query = db.query();
     }
 
     #[test]
     fn test_mpt_provider_keccak256() {
-        type S = DefaultSerdeBackend;
         type H = KeccakHasher;
         type M = MptMerklizeProvider<InMemoryStorage, DefaultSerdeBackend, H>;
 
-        let builder = InMemoryStorage::default();
-        let db = M::atomo(AtomoBuilder::<_, S>::new(builder).with_table::<String, String>("data"))
-            .unwrap();
+        let builder =
+            AtomoBuilder::new(InMemoryStorage::default()).with_table::<String, String>("data");
+        let db = M::with_tables(builder).build().unwrap();
         let _query = db.query();
     }
 
     #[test]
     fn test_mpt_provider_sha256() {
-        type S = DefaultSerdeBackend;
         type H = Sha256Hasher;
         type M = MptMerklizeProvider<InMemoryStorage, DefaultSerdeBackend, H>;
 
-        let builder = InMemoryStorage::default();
-        let db = M::atomo(AtomoBuilder::<_, S>::new(builder).with_table::<String, String>("data"))
-            .unwrap();
+        let builder =
+            AtomoBuilder::new(InMemoryStorage::default()).with_table::<String, String>("data");
+        let db = M::with_tables(builder).build().unwrap();
         let _query = db.query();
     }
 }

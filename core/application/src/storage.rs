@@ -91,7 +91,6 @@ impl<'a> StorageBackendConstructor for AtomoStorageBuilder<'a> {
     }
 }
 
-#[derive(Clone)]
 pub enum AtomoStorage {
     InMemory(InMemoryStorage),
     RocksDb(RocksBackend),

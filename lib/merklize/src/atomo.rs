@@ -2,7 +2,6 @@ use std::any::Any;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use anyhow::Result;
 use atomo::{
     Atomo,
     QueryPerm,
@@ -15,7 +14,7 @@ use atomo::{
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::{MerklizeProvider, StateRootHash};
+use crate::MerklizeProvider;
 
 /// A merklize atomo that can be used to read and update tables of data, wrapping an
 /// `[atomo::Atomo]` instance to provide similar functionality, but with additional merklize state
@@ -58,8 +57,8 @@ impl<P, B: StorageBackend, S: SerdeBackend, M: MerklizeProvider> MerklizedAtomo<
     /// `[merklize::MerklizedAtomo<QueryPerm>]` so that it can also provide additional
     /// merklize state tree features.
     #[inline]
-    pub fn query(&self) -> MerklizedAtomo<QueryPerm, B, S, M> {
-        MerklizedAtomo::new(self.inner.query())
+    pub fn query(&self) -> Atomo<QueryPerm, B, S> {
+        self.inner.query()
     }
 
     /// Resolve a table with the given name and key-value types.
@@ -111,21 +110,5 @@ impl<B: StorageBackend, S: SerdeBackend, M: MerklizeProvider<Storage = B, Serde 
         F: FnOnce(&mut TableSelector<B, S>) -> R,
     {
         self.inner.run(|ctx| query(ctx))
-    }
-
-    /// Return the state root hash of the state tree.
-    /// This is just a helper function that opens an execution context and calls `get_state_root`
-    /// within it.
-    #[inline]
-    pub fn get_state_root(&self) -> Result<StateRootHash> {
-        self.run(|ctx| M::context(ctx).get_state_root())
-    }
-
-    /// Return the state proof for the given table and key.
-    /// This is just a helper function that opens an execution context and calls `get_state_proof`
-    /// within it.
-    #[inline]
-    pub fn get_state_proof(&self, table: &str, serialized_key: Vec<u8>) -> Result<M::Proof> {
-        self.run(|ctx| M::context(ctx).get_state_proof(table, serialized_key))
     }
 }

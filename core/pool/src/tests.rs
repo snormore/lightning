@@ -10,7 +10,7 @@ use futures::StreamExt;
 use lightning_application::app::Application;
 use lightning_application::config::Config as AppConfig;
 use lightning_application::genesis::{Genesis, GenesisNode};
-use lightning_application::query_runner::ApplicationQueryRunner;
+use lightning_application::query_runner::QueryRunner;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{NodeIndex, NodePorts};
 use lightning_interfaces::ServiceScope;
@@ -160,7 +160,7 @@ fn create_peer(
 
     let node_index = if in_state {
         node.provider
-            .get::<ApplicationQueryRunner>()
+            .get::<QueryRunner>()
             .pubkey_to_index(&node_public_key)
             .unwrap()
     } else {

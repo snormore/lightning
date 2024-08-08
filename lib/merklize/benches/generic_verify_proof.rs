@@ -1,13 +1,13 @@
 #![feature(test)]
 extern crate test;
 
-use atomo::{DefaultSerdeBackend, SerdeBackend, StorageBackendConstructor};
+use atomo::{AtomoBuilder, DefaultSerdeBackend, SerdeBackend, StorageBackendConstructor};
 use merklize::hashers::blake3::Blake3Hasher;
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::providers::mpt::MptMerklizeProvider;
-use merklize::{MerklizeProvider, MerklizedAtomoBuilder, StateProof};
+use merklize::{MerklizeProvider, StateProof};
 use merklize_test_utils::generic::{
     rocksdb_builder,
     DATA_COUNT_COMPLEX,
@@ -209,8 +209,7 @@ fn generic_bench_verify_proof<C: StorageBackendConstructor, M>(
 ) where
     M: MerklizeProvider<Storage = C::Storage>,
 {
-    let mut db = MerklizedAtomoBuilder::<C, M::Serde, M>::new(builder)
-        .with_table::<String, String>("data")
+    let mut db = M::with_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
         .build()
         .unwrap();
 

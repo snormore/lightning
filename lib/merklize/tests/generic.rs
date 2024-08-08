@@ -1,11 +1,17 @@
-use atomo::{DefaultSerdeBackend, InMemoryStorage, SerdeBackend, StorageBackendConstructor};
+use atomo::{
+    AtomoBuilder,
+    DefaultSerdeBackend,
+    InMemoryStorage,
+    SerdeBackend,
+    StorageBackendConstructor,
+};
 use atomo_rocks::{Options, RocksBackendBuilder};
 use merklize::hashers::blake3::Blake3Hasher;
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::providers::mpt::MptMerklizeProvider;
-use merklize::{MerklizeProvider, MerklizedAtomoBuilder, StateProof, StateRootHash};
+use merklize::{MerklizeProvider, MerklizedAtomo, StateProof, StateRootHash};
 use tempfile::tempdir;
 
 // JMT
@@ -115,17 +121,17 @@ fn test_generic<
 >(
     builder: C,
 ) {
-    let mut db = MerklizedAtomoBuilder::<C, S, M>::new(builder)
-        .with_table::<String, String>("data")
-        .enable_iter("data")
-        .with_table::<u8, u8>("other")
-        .build()
-        .unwrap();
-    let reader = db.query();
+    let builder = M::with_tables(
+        AtomoBuilder::new(builder)
+            .with_table::<String, String>("data")
+            .enable_iter("data")
+            .with_table::<u8, u8>("other"),
+    );
+    let mut db = MerklizedAtomo::<_, _, _, M>::new(builder.build().unwrap());
+    let query = db.query();
 
     // Check state root.
-    let initial_state_root = reader.get_state_root().unwrap();
-    // assert_eq!(initial_state_root, empty_state_root);
+    let initial_state_root = query.run(|ctx| M::context(ctx).get_state_root().unwrap());
     let mut old_state_root = initial_state_root;
 
     // Insert initial data.
@@ -139,15 +145,15 @@ fn test_generic<
     });
 
     // Check data via reader.
-    reader.run(|ctx| {
+    query.run(|ctx| {
+        let data_table = ctx.get_table::<String, String>("data");
+        let ctx = M::context(ctx);
+
         // Check state root.
-        let new_state_root = reader.get_state_root().unwrap();
+        let new_state_root = ctx.get_state_root().unwrap();
         assert_ne!(new_state_root, old_state_root);
         assert_ne!(new_state_root, StateRootHash::default());
         old_state_root = new_state_root;
-
-        let data_table = ctx.get_table::<String, String>("data");
-        let ctx = M::context(ctx);
 
         // Check data key count.
         let keys = data_table.keys().collect::<Vec<_>>();
@@ -198,7 +204,7 @@ fn test_generic<
     });
 
     // Check state root.
-    let new_state_root = reader.get_state_root().unwrap();
+    let new_state_root = query.run(|ctx| M::context(ctx).get_state_root().unwrap());
     assert_ne!(new_state_root, old_state_root);
     assert_ne!(new_state_root, StateRootHash::default());
     let old_state_root = new_state_root;
@@ -213,12 +219,12 @@ fn test_generic<
     });
 
     // Check state root.
-    let new_state_root = reader.get_state_root().unwrap();
+    let new_state_root = query.run(|ctx| M::context(ctx).get_state_root().unwrap());
     assert_ne!(new_state_root, old_state_root);
     assert_ne!(new_state_root, StateRootHash::default());
 
     // Check non-membership proofs for removed data.
-    reader.run(|ctx| {
+    query.run(|ctx| {
         let ctx = M::context(ctx);
 
         // Check non-existence proof for key3.

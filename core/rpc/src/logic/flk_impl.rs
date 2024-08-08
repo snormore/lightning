@@ -1,12 +1,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use atomo::SerdeBackend;
 use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
-use lightning_application::app::ApplicationMerklizeProvider;
+use lightning_application::env::{
+    ApplicationMerklizeProvider,
+    ApplicationMerklizeProviderWithStorage,
+};
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{
     AccountInfo,
@@ -401,11 +403,14 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
     }
 
     async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<StateRootHash> {
+        type Storage<C> = <<<C as Collection>::ApplicationInterface as ApplicationInterface<C>>
+            ::SyncExecutor as SyncQueryRunnerInterface>::Backend;
+
         Ok(self
             .data
             .query_runner(epoch)
             .await?
-            .get_state_root()
+            .get_state_root::<ApplicationMerklizeProviderWithStorage<Storage<C>>>()
             .map_err(|e| RPCError::custom(e.to_string()))?)
     }
 
@@ -417,16 +422,15 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         Option<StateProofValue>,
         <ApplicationMerklizeProvider as MerklizeProvider>::Proof,
     )> {
+        type Storage<C> = <<<C as Collection>::ApplicationInterface as ApplicationInterface<C>>
+            ::SyncExecutor as SyncQueryRunnerInterface>::Backend;
+
         let (value, proof) = self
             .data
             .query_runner(epoch)
             .await?
-            .get_state_proof(key)
+            .get_state_proof::<ApplicationMerklizeProviderWithStorage<Storage<C>>>(key)
             .map_err(|e| RPCError::custom(e.to_string()))?;
-        type S = <ApplicationMerklizeProvider as MerklizeProvider>::Serde;
-        // This extra serialization/deserialization is ideally not needed, but it's a workaround
-        // for the generics of the returned proof type.
-        let proof = S::deserialize(&S::serialize(&proof));
         Ok((value, proof))
     }
 

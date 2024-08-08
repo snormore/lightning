@@ -4,25 +4,18 @@ use std::time::Duration;
 
 use affair::AsyncWorker;
 use anyhow::{anyhow, Result};
-use atomo::DefaultSerdeBackend;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::spawn_worker;
 use lightning_interfaces::types::{ChainId, NodeInfo};
-use merklize::hashers::keccak::KeccakHasher;
-use merklize::providers::mpt::MptMerklizeProvider;
 use tracing::{error, info};
 
 use crate::config::{Config, StorageConfig};
-use crate::env::{Env, UpdateWorker};
-use crate::query_runner::ApplicationQueryRunner;
-use crate::storage::AtomoStorage;
-
-pub type ApplicationMerklizeProvider =
-    MptMerklizeProvider<AtomoStorage, DefaultSerdeBackend, KeccakHasher>;
+use crate::env::{ApplicationEnv, Env, UpdateWorker};
+use crate::query_runner::QueryRunner;
 
 pub struct Application<C: Collection> {
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
-    query_runner: ApplicationQueryRunner,
+    query_runner: QueryRunner,
     collection: PhantomData<C>,
 }
 
@@ -75,7 +68,7 @@ impl<C: Collection> fdi::BuildGraph for Application<C> {
 
 impl<C: Collection> ApplicationInterface<C> for Application<C> {
     /// The type for the sync query executor.
-    type SyncExecutor = ApplicationQueryRunner;
+    type SyncExecutor = QueryRunner;
 
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
@@ -110,10 +103,7 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut counter = 0;
 
         loop {
-            match Env::<_, AtomoStorage, ApplicationMerklizeProvider>::new(
-                config,
-                Some((checkpoint_hash, &checkpoint)),
-            ) {
+            match ApplicationEnv::new(config, Some((checkpoint_hash, &checkpoint))) {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"

@@ -3,7 +3,6 @@
 mod serialization;
 use std::fs::{self};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::Result;
 use atomo::batch::Operation;
@@ -168,15 +167,14 @@ impl<'a> StorageBackendConstructor for RocksBackendBuilder<'a> {
 
         Ok(RocksBackend {
             columns: self.columns,
-            db: Arc::new(db),
+            db,
         })
     }
 }
 
-#[derive(Clone)]
 /// RocksDB persistence backend for [`atomo`].
 pub struct RocksBackend {
-    db: Arc<rocksdb::DB>,
+    db: rocksdb::DB,
     columns: Vec<String>,
 }
 

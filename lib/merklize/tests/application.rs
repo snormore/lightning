@@ -8,7 +8,7 @@ use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtMerklizeProvider;
 use merklize::providers::mpt::MptMerklizeProvider;
-use merklize::{MerklizeProvider, StateProof};
+use merklize::{MerklizeProvider, MerklizedAtomo, StateProof};
 use merklize_test_utils::application::{create_rocksdb_env, new_complex_block, DummyPutter};
 use tempfile::tempdir;
 
@@ -84,9 +84,9 @@ where
 
     env.run(block.clone(), || DummyPutter {}).await;
 
-    let query = env.inner.query();
+    let query = MerklizedAtomo::<_, _, _, M>::new(env.inner.query());
 
-    let state_root = query.get_state_root().unwrap();
+    let state_root = query.run(|ctx| M::context(ctx).get_state_root().unwrap());
 
     // Check that all accounts are present in the state tree.
     for eth_address in eth_addresses.iter() {

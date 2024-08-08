@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
-use atomo::{DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
+use atomo::{AtomoBuilder, DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -35,16 +35,24 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_metrics::increment_counter;
-use merklize::{MerklizeProvider, MerklizedAtomo, MerklizedAtomoBuilder};
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::providers::mpt::MptMerklizeProvider;
+use merklize::{MerklizeProvider, MerklizedAtomo};
 use tracing::{trace_span, warn};
 
-use crate::app::ApplicationMerklizeProvider;
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
 use crate::query_runner::QueryRunner;
 use crate::state::State;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
+
+pub type ApplicationMerklizeProvider = ApplicationMerklizeProviderWithStorage<AtomoStorage>;
+
+pub type ApplicationMerklizeProviderWithStorage<B> =
+    MptMerklizeProvider<B, DefaultSerdeBackend, KeccakHasher>;
+
+pub type ApplicationEnv = Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider>;
 
 pub struct Env<P, B: StorageBackend, M: MerklizeProvider> {
     pub inner: MerklizedAtomo<P, B, DefaultSerdeBackend, M>,
@@ -91,7 +99,7 @@ where
             StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
         };
 
-        let mut atomo = MerklizedAtomoBuilder::new(storage);
+        let mut atomo = AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
         atomo = atomo
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")
@@ -134,15 +142,14 @@ where
                 .enable_iter("pub_key_to_index");
         }
 
+        atomo = M::with_tables(atomo);
+
         Ok(Self {
-            inner: atomo.build()?,
+            inner: MerklizedAtomo::new(atomo.build()?),
         })
     }
 
-    pub fn query_runner(&self) -> QueryRunner<M>
-    where
-        M: MerklizeProvider + Clone + Send + Sync + 'static,
-    {
+    pub fn query_runner(&self) -> QueryRunner {
         QueryRunner::new(self.inner.query())
     }
 }
@@ -263,7 +270,7 @@ where
     /// Returns an identical environment but with query permissions
     pub fn query_socket(&self) -> Env<QueryPerm, B, M> {
         Env {
-            inner: self.inner.query(),
+            inner: MerklizedAtomo::new(self.inner.query()),
         }
     }
 
@@ -498,7 +505,7 @@ where
     }
 }
 
-impl Default for Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider> {
+impl Default for ApplicationEnv {
     fn default() -> Self {
         Self::new(&Config::default(), None).unwrap()
     }
@@ -506,15 +513,12 @@ impl Default for Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider> {
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider>,
+    env: ApplicationEnv,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(
-        env: Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider>,
-        blockstore: C::BlockstoreInterface,
-    ) -> Self {
+    pub fn new(env: ApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
@@ -541,8 +545,7 @@ mod env_tests {
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
             .unwrap();
         let config = Config::test(genesis_path);
-        let mut env =
-            Env::<_, AtomoStorage, ApplicationMerklizeProvider>::new(&config, None).unwrap();
+        let mut env = ApplicationEnv::new(&config, None).unwrap();
 
         assert!(env.apply_genesis_block(&config).unwrap());
 
