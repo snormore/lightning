@@ -1,10 +1,11 @@
 mod adapter;
-mod context;
 mod hasher;
 mod layout;
 mod proof;
 mod provider;
 
-pub use context::MptMerklizeContext;
+#[cfg(test)]
+mod tests;
+
 pub use proof::MptStateProof;
 pub use provider::MptMerklizeProvider;

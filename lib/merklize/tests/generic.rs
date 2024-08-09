@@ -131,7 +131,7 @@ fn test_generic<
     let query = db.query();
 
     // Check state root.
-    let initial_state_root = query.run(|ctx| M::context(ctx).get_state_root().unwrap());
+    let initial_state_root = query.run(|ctx| M::get_state_root(ctx).unwrap());
     let mut old_state_root = initial_state_root;
 
     // Insert initial data.
@@ -147,10 +147,9 @@ fn test_generic<
     // Check data via reader.
     query.run(|ctx| {
         let data_table = ctx.get_table::<String, String>("data");
-        let ctx = M::context(ctx);
 
         // Check state root.
-        let new_state_root = ctx.get_state_root().unwrap();
+        let new_state_root = M::get_state_root(ctx).unwrap();
         assert_ne!(new_state_root, old_state_root);
         assert_ne!(new_state_root, StateRootHash::default());
         old_state_root = new_state_root;
@@ -167,12 +166,12 @@ fn test_generic<
         // Check existence proofs.
         for i in 1..=data_insert_count {
             // Generate proof.
-            let proof = ctx
-                .get_state_proof(
-                    "data",
-                    M::Serde::serialize::<Vec<u8>>(&format!("key{i}").as_bytes().to_vec()),
-                )
-                .unwrap();
+            let proof = M::get_state_proof(
+                ctx,
+                "data",
+                M::Serde::serialize::<Vec<u8>>(&format!("key{i}").as_bytes().to_vec()),
+            )
+            .unwrap();
 
             // Verify proof.
             proof
@@ -186,9 +185,7 @@ fn test_generic<
         }
 
         // Check non-existence proof.
-        let proof = ctx
-            .get_state_proof("data", S::serialize(&"unknown".to_string()))
-            .unwrap();
+        let proof = M::get_state_proof(ctx, "data", S::serialize(&"unknown".to_string())).unwrap();
         proof
             .verify_non_membership::<String, M>("data", "unknown".to_string(), new_state_root)
             .unwrap();
@@ -204,7 +201,7 @@ fn test_generic<
     });
 
     // Check state root.
-    let new_state_root = query.run(|ctx| M::context(ctx).get_state_root().unwrap());
+    let new_state_root = query.run(|ctx| M::get_state_root(ctx).unwrap());
     assert_ne!(new_state_root, old_state_root);
     assert_ne!(new_state_root, StateRootHash::default());
     let old_state_root = new_state_root;
@@ -219,34 +216,26 @@ fn test_generic<
     });
 
     // Check state root.
-    let new_state_root = query.run(|ctx| M::context(ctx).get_state_root().unwrap());
+    let new_state_root = query.run(|ctx| M::get_state_root(ctx).unwrap());
     assert_ne!(new_state_root, old_state_root);
     assert_ne!(new_state_root, StateRootHash::default());
 
     // Check non-membership proofs for removed data.
     query.run(|ctx| {
-        let ctx = M::context(ctx);
-
         // Check non-existence proof for key3.
-        let proof = ctx
-            .get_state_proof("data", S::serialize(&"key3".to_string()))
-            .unwrap();
+        let proof = M::get_state_proof(ctx, "data", S::serialize(&"key3".to_string())).unwrap();
         proof
             .verify_non_membership::<String, M>("data", "key3".to_string(), new_state_root)
             .unwrap();
 
         // Check non-existence proof for other5.
-        let proof = ctx
-            .get_state_proof("data", S::serialize(&"other5".to_string()))
-            .unwrap();
+        let proof = M::get_state_proof(ctx, "data", S::serialize(&"other5".to_string())).unwrap();
         proof
             .verify_non_membership::<String, M>("data", "other5".to_string(), new_state_root)
             .unwrap();
 
         // Check non-existence proof for other9.
-        let proof = ctx
-            .get_state_proof("data", S::serialize(&"other9".to_string()))
-            .unwrap();
+        let proof = M::get_state_proof(ctx, "data", S::serialize(&"other9".to_string())).unwrap();
         proof
             .verify_non_membership::<String, M>("data", "other9".to_string(), new_state_root)
             .unwrap();

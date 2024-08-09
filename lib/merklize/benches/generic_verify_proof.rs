@@ -226,14 +226,11 @@ fn generic_bench_verify_proof<C: StorageBackendConstructor, M>(
     let mut state_root = None;
     let mut proofs = Vec::new();
     db.query().run(|ctx| {
-        let ctx = M::context(ctx);
-
-        state_root = Some(ctx.get_state_root().unwrap());
+        state_root = Some(M::get_state_root(ctx).unwrap());
 
         for i in 1..=data_count {
-            let proof = ctx
-                .get_state_proof("data", M::Serde::serialize(&format!("key{i}")))
-                .unwrap();
+            let proof =
+                M::get_state_proof(ctx, "data", M::Serde::serialize(&format!("key{i}"))).unwrap();
             proofs.push(proof);
         }
     });

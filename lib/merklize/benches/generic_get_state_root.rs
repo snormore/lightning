@@ -224,7 +224,7 @@ fn generic_bench_get_state_root<C: StorageBackendConstructor, M>(
 
     b.iter(|| {
         db.query().run(|ctx| {
-            M::context(ctx).get_state_root().unwrap();
+            M::get_state_root(ctx).unwrap();
         });
     })
 }

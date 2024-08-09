@@ -1,5 +1,4 @@
 mod atomo;
-mod context;
 mod hasher;
 pub mod hashers;
 mod proof;
@@ -8,7 +7,6 @@ pub mod providers;
 mod types;
 
 pub use atomo::MerklizedAtomo;
-pub use context::MerklizeContext;
 pub use hasher::{SimpleHash, SimpleHasher};
 pub use proof::StateProof;
 pub use provider::MerklizeProvider;

@@ -87,7 +87,7 @@ impl<B: StorageBackend, S: SerdeBackend, M: MerklizeProvider<Storage = B, Serde 
             let res = mutation(ctx);
 
             // Apply the state tree changes based on the state changes.
-            M::context(ctx).apply_state_tree_changes().unwrap();
+            M::apply_state_tree_changes(ctx).unwrap();
 
             res
         })

@@ -78,17 +78,12 @@ fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(
         let value = table.get("key1".to_string()).unwrap();
         println!("value(key1): {:?}", value);
 
-        // Get the merklize context.
-        let ctx = M::context(ctx);
-
         // Get the state root hash.
-        let root_hash = ctx.get_state_root().unwrap();
+        let root_hash = M::get_state_root(ctx).unwrap();
         println!("state root: {:?}", root_hash);
 
         // Get a proof of existence for some value in the state.
-        let proof = ctx
-            .get_state_proof("data", M::Serde::serialize(&"key1"))
-            .unwrap();
+        let proof = M::get_state_proof(ctx, "data", M::Serde::serialize(&"key1")).unwrap();
         println!("proof: {:?}", proof);
     });
 }

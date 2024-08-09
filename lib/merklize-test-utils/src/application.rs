@@ -9,6 +9,7 @@ use atomo::{
     DefaultSerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
+    TableSelector,
     UpdatePerm,
 };
 use atomo_rocks::Options;
@@ -68,7 +69,7 @@ use lightning_types::{
 };
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::providers::jmt::{self, JmtStateProof};
-use merklize::{MerklizeContext, MerklizeProvider, MerklizedAtomo, SimpleHasher};
+use merklize::{MerklizeProvider, MerklizedAtomo};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
@@ -89,33 +90,22 @@ impl MerklizeProvider for BaselineMerklizeProvider {
         builder
     }
 
-    fn context<'a>(
-        _ctx: &'a atomo::TableSelector<Self::Storage, Self::Serde>,
-    ) -> Box<dyn MerklizeContext<'a, Self::Storage, Self::Serde, Self::Hasher, Self::Proof> + 'a>
-    where
-        Self::Hasher: SimpleHasher + 'a,
-    {
-        Box::new(BaselineMerklizeContext {})
-    }
-}
-
-/// A merklize context that can be used to compare against as a baseline, since it does not
-/// provide any merklization or state tree functionality.
-pub struct BaselineMerklizeContext {}
-
-impl<'a> MerklizeContext<'a, AtomoStorage, DefaultSerdeBackend, KeccakHasher, JmtStateProof>
-    for BaselineMerklizeContext
-{
-    fn apply_state_tree_changes(&mut self) -> Result<()> {
+    fn apply_state_tree_changes(_ctx: &TableSelector<Self::Storage, Self::Serde>) -> Result<()> {
         // Do nothing.
         Ok(())
     }
 
-    fn get_state_proof(&self, _table: &str, _serialized_key: Vec<u8>) -> Result<JmtStateProof> {
+    fn get_state_proof(
+        _ctx: &TableSelector<Self::Storage, Self::Serde>,
+        _table: &str,
+        _serialized_key: Vec<u8>,
+    ) -> Result<JmtStateProof> {
         unimplemented!("Baseline context does not implement state proofs.")
     }
 
-    fn get_state_root(&self) -> Result<merklize::StateRootHash> {
+    fn get_state_root(
+        _ctx: &TableSelector<Self::Storage, Self::Serde>,
+    ) -> Result<merklize::StateRootHash> {
         unimplemented!("Baseline context does not implement state roots.")
     }
 }

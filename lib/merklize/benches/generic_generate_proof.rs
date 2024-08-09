@@ -225,11 +225,9 @@ fn generic_bench_generate_proof<C: StorageBackendConstructor, M>(
 
     b.iter(|| {
         db.query().run(|ctx| {
-            let ctx = M::context(ctx);
             let i = rand::thread_rng().gen_range(1..=data_count);
-            let _proof = ctx
-                .get_state_proof("data", M::Serde::serialize(&format!("key{i}")))
-                .unwrap();
+            let _proof =
+                M::get_state_proof(ctx, "data", M::Serde::serialize(&format!("key{i}"))).unwrap();
         });
     })
 }

@@ -86,7 +86,7 @@ where
 
     let query = MerklizedAtomo::<_, _, _, M>::new(env.inner.query());
 
-    let state_root = query.run(|ctx| M::context(ctx).get_state_root().unwrap());
+    let state_root = query.run(|ctx| M::get_state_root(ctx).unwrap());
 
     // Check that all accounts are present in the state tree.
     for eth_address in eth_addresses.iter() {
@@ -95,10 +95,8 @@ where
             let value = accounts_table.get(eth_address).unwrap();
 
             // Generate proof of existence.
-            let ctx = M::context(ctx);
-            let proof = ctx
-                .get_state_proof("account", M::Serde::serialize(&eth_address))
-                .unwrap();
+            let proof =
+                M::get_state_proof(ctx, "account", M::Serde::serialize(&eth_address)).unwrap();
 
             // Verify proof of existence.
             proof
@@ -127,10 +125,12 @@ where
     //     assert!(accounts_table.get(non_existent_eth_address).is_none());
 
     //     // Generate proof of non-existence.
-    //     let ctx = M::context(ctx);
-    //     let proof = ctx
-    //         .get_state_proof("account", M::Serde::serialize(&non_existent_eth_address))
-    //         .unwrap();
+    //     let proof = M::get_state_proof(
+    //         ctx,
+    //         "account",
+    //         M::Serde::serialize(&non_existent_eth_address),
+    //     )
+    //     .unwrap();
 
     //     // Verify proof of non-existence.
     //     proof
@@ -147,10 +147,12 @@ where
                 let value = node_pub_key_to_index_table.get(node_public_key).unwrap();
 
                 // Generate proof of existence.
-                let ctx = M::context(ctx);
-                let proof = ctx
-                    .get_state_proof("pub_key_to_index", M::Serde::serialize(&node_public_key))
-                    .unwrap();
+                let proof = M::get_state_proof(
+                    ctx,
+                    "pub_key_to_index",
+                    M::Serde::serialize(&node_public_key),
+                )
+                .unwrap();
 
                 // Verify proof of existence.
                 proof
@@ -170,10 +172,7 @@ where
             let value = nodes_info_table.get(node_index).unwrap();
 
             // Generate proof of existence.
-            let ctx = M::context(ctx);
-            let proof = ctx
-                .get_state_proof("node", M::Serde::serialize(&node_index))
-                .unwrap();
+            let proof = M::get_state_proof(ctx, "node", M::Serde::serialize(&node_index)).unwrap();
 
             // Verify proof of existence.
             proof

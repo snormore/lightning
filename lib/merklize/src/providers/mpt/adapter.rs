@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
 
 use atomo::{SerdeBackend, StorageBackend};
 use hash_db::{AsHashDB, HashDB, HashDBRef, Prefix};
@@ -7,21 +6,19 @@ use tracing::{trace, trace_span};
 use trie_db::DBValue;
 
 use super::hasher::SimpleHasherWrapper;
+use super::provider::SharedNodesTableRef;
 use crate::SimpleHasher;
 
-type SharedTableRef<'a, K, V, B, S> = Arc<Mutex<atomo::TableRef<'a, K, V, B, S>>>;
-
 /// A HashDB implementation that uses a given atomo state tree nodes table to read and write nodes
-/// as required by the HashDB trait. This acts as an adapter between a merklize context
+/// as required by the HashDB trait. This acts as an adapter between a merklize provider
 /// functionality and the implementation using `TrieDB`.
-pub struct Adapter<'a, B, S, H>
+pub(crate) struct Adapter<'a, B, S, H>
 where
     B: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync,
     H: SimpleHasher + Send + Sync,
 {
-    nodes_table:
-        SharedTableRef<'a, <SimpleHasherWrapper<H> as hash_db::Hasher>::Out, DBValue, B, S>,
+    nodes_table: SharedNodesTableRef<'a, B, S, H>,
     hashed_null_node: <SimpleHasherWrapper<H> as hash_db::Hasher>::Out,
     null_node_data: DBValue,
     _phantom: PhantomData<()>,
@@ -33,15 +30,7 @@ where
     S: SerdeBackend + Send + Sync,
     H: SimpleHasher + Send + Sync,
 {
-    pub fn new(
-        nodes_table: SharedTableRef<
-            'a,
-            <SimpleHasherWrapper<H> as hash_db::Hasher>::Out,
-            DBValue,
-            B,
-            S,
-        >,
-    ) -> Self {
+    pub fn new(nodes_table: SharedNodesTableRef<'a, B, S, H>) -> Self {
         let null = &[0u8][..];
         Self {
             nodes_table,

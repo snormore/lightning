@@ -136,7 +136,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
     where
         M: MerklizeProvider<Storage = Self::Backend, Serde = DefaultSerdeBackend>,
     {
-        self.inner.run(|ctx| M::context(ctx).get_state_root())
+        self.inner.run(|ctx| M::get_state_root(ctx))
     }
 
     fn get_state_proof<M>(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, M::Proof)>
@@ -145,7 +145,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
     {
         self.inner.run(|ctx| {
             let (table, serialized_key) = key.raw::<M::Serde>();
-            let proof = M::context(ctx).get_state_proof(&table, serialized_key.clone())?;
+            let proof = M::get_state_proof(ctx, &table, serialized_key.clone())?;
             let value = self
                 .inner
                 .run(|ctx| ctx.get_raw_value(table, &serialized_key))

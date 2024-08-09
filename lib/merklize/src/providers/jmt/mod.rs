@@ -1,8 +1,10 @@
-mod context;
+mod adapter;
 mod hasher;
 mod proof;
 mod provider;
 
-pub use context::JmtMerklizeContext;
+#[cfg(test)]
+mod tests;
+
 pub use proof::JmtStateProof;
 pub use provider::JmtMerklizeProvider;
