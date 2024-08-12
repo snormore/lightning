@@ -206,6 +206,9 @@ fn test_mpt_get_state_root_with_updates() {
     assert_ne!(initial_state_root, new_state_root);
     let old_state_root = new_state_root;
 
+    // Check the rebuilt state root hash.
+    assert_eq!(M::build_state_root(&mut db).unwrap(), new_state_root);
+
     // Insert another value.
     db.run(|ctx| {
         let mut table = ctx.get_table::<String, String>("data");
@@ -270,6 +273,9 @@ fn test_mpt_get_state_root_with_updates() {
     assert_ne!(old_state_root, new_state_root);
     let old_state_root = new_state_root;
 
+    // Check the rebuilt state root hash.
+    assert_eq!(M::build_state_root(&mut db).unwrap(), new_state_root);
+
     // Insert existing key with same value.
     db.run(|ctx| {
         let mut table = ctx.get_table::<String, String>("data");
@@ -310,6 +316,9 @@ fn test_mpt_get_state_root_with_updates() {
     // Check the state root hash.
     let new_state_root = query.run(|ctx| M::get_state_root(ctx).unwrap());
     assert_eq!(old_state_root, new_state_root);
+
+    // Check the rebuilt state root hash.
+    assert_eq!(M::build_state_root(&mut db).unwrap(), new_state_root);
 }
 
 #[test]

@@ -259,6 +259,9 @@ fn test_jmt_get_state_root_with_updates() {
     });
     let state_root = assert_state_root_changed(&query, state_root);
 
+    // Check the rebuilt state root hash.
+    assert_eq!(M::build_state_root(&mut db).unwrap(), state_root);
+
     // Insert another value and check that the state root has changed.
     db.run(|ctx| {
         let mut table = ctx.get_table::<String, String>("data");
@@ -278,6 +281,9 @@ fn test_jmt_get_state_root_with_updates() {
         M::update_state_tree(ctx).unwrap();
     });
     let state_root = assert_state_root_changed(&query, state_root);
+
+    // Check the rebuilt state root hash.
+    assert_eq!(M::build_state_root(&mut db).unwrap(), state_root);
 
     // Insert removed key with different value and check that the state root has changed.
     db.run(|ctx| {
@@ -317,7 +323,10 @@ fn test_jmt_get_state_root_with_updates() {
 
         M::update_state_tree(ctx).unwrap();
     });
-    assert_state_root_unchanged(&query, state_root);
+    let state_root = assert_state_root_unchanged(&query, state_root);
+
+    // Check the rebuilt state root hash.
+    assert_eq!(M::build_state_root(&mut db).unwrap(), state_root);
 }
 
 #[test]
