@@ -1,16 +1,20 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use atomo::batch::Operation;
 use atomo::{
+    Atomo,
     AtomoBuilder,
+    InMemoryStorage,
     SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
     TableId,
     TableRef,
     TableSelector,
+    UpdatePerm,
 };
 use fxhash::FxHashMap;
 use tracing::{trace, trace_span};
@@ -76,6 +80,64 @@ where
             Ok(root.into())
         }
     }
+
+    /// Update the state tree with the given batch of changes as an iterator.
+    fn update_state_tree_from_iter<'a, I>(
+        nodes_table: SharedNodesTableRef<'a, B, S, H>,
+        root_table: SharedRootTable<'a, B, S>,
+        batch: HashMap<String, I>,
+    ) -> Result<()>
+    where
+        I: Iterator<Item = (Box<[u8]>, Operation)>,
+    {
+        // Get the current state root hash.
+        let mut state_root: <SimpleHasherWrapper<H> as hash_db::Hasher>::Out =
+            Self::state_root(nodes_table.clone(), root_table.clone())?.into();
+
+        // Initialize a `TrieDBMutBuilder` to update the state tree.
+        let mut adapter = Adapter::<B, S, H>::new(nodes_table.clone());
+        let mut tree =
+            TrieDBMutBuilder::<TrieLayoutWrapper<H>>::from_existing(&mut adapter, &mut state_root)
+                .build();
+
+        // Apply the changes in the batch to the state tree.
+        for (table, changes) in batch {
+            if table == NODES_TABLE_NAME || table == ROOT_TABLE_NAME {
+                continue;
+            }
+
+            for (key, operation) in changes {
+                let state_key = StateKey::new(&table, key.to_vec());
+                let key_hash = state_key.hash::<S, H>();
+
+                match operation {
+                    Operation::Remove => {
+                        trace!(?table, ?key_hash, "operation/remove");
+                        tree.remove(key_hash.as_ref())?;
+                    },
+                    Operation::Insert(value) => {
+                        trace!(?table, ?key_hash, ?value, "operation/insert");
+                        tree.insert(key_hash.as_ref(), &value)?;
+                    },
+                }
+            }
+        }
+
+        // Commit the changes to the state tree.
+        {
+            let span = trace_span!("triedb.commit");
+            let _enter = span.enter();
+
+            // Note that tree.root() calls tree.commit() before returning the root hash, so we don't
+            // need to explicitly `tree.commit()` here, but otherwise would.
+            let root = *tree.root();
+
+            // Save the root hash to the root table.
+            root_table.lock().unwrap().set(root.into());
+        }
+
+        Ok(())
+    }
 }
 
 impl<B, S, H> Default for MptMerklizeProvider<B, S, H>
@@ -112,8 +174,8 @@ where
     }
 
     /// Get the state root hash of the state tree.
-    /// Since we need to read the state tree to get the proof, a table selector execution context is
-    /// needed to ensure consistency.
+    /// Since we need to read the state, a table selector execution context is needed for
+    /// consistency.
     fn get_state_root(ctx: &TableSelector<Self::Storage, Self::Serde>) -> Result<StateRootHash> {
         let span = trace_span!("get_state_root");
         let _enter = span.enter();
@@ -126,8 +188,8 @@ where
 
     /// Get an existence proof for the given key hash, if it is present in the state tree, or
     /// non-existence proof if it is not present.
-    /// Since we need to read the state tree to get the proof, a table selector execution context is
-    /// needed to ensure consistency.
+    /// Since we need to read the state, a table selector execution context is needed for
+    /// consistency.
     fn get_state_proof(
         ctx: &TableSelector<Self::Storage, Self::Serde>,
         table: &str,
@@ -158,8 +220,8 @@ where
 
     /// Apply the state tree changes based on the state changes in the atomo batch. This will update
     /// the state tree to reflect the changes in the atomo batch.
-    /// Since we need to read the state tree to get the proof, a table selector execution context is
-    /// needed to ensure consistency.
+    /// Since we need to read the state, a table selector execution context is needed for
+    /// consistency.
     fn update_state_tree(ctx: &TableSelector<Self::Storage, Self::Serde>) -> Result<()> {
         let span = trace_span!("update_state_tree");
         let _enter = span.enter();
@@ -172,57 +234,62 @@ where
         let mut table_name_by_id = FxHashMap::default();
         for (i, table) in tables.iter().enumerate() {
             let table_id: TableId = i.try_into().unwrap();
-            let table_name = table.name.to_string();
-            table_name_by_id.insert(table_id, table_name);
+            table_name_by_id.insert(table_id, table.clone());
         }
 
-        // Get the current state root hash.
-        let mut state_root: <SimpleHasherWrapper<H> as hash_db::Hasher>::Out =
-            Self::state_root(nodes_table.clone(), root_table.clone())?.into();
-
-        // Initialize a `TrieDBMutBuilder` to update the state tree.
-        let mut adapter = Adapter::<B, S, H>::new(nodes_table.clone());
-        let mut tree =
-            TrieDBMutBuilder::<TrieLayoutWrapper<H>>::from_existing(&mut adapter, &mut state_root)
-                .build();
-
-        // Apply the changes in the batch to the state tree.
-        let batch = ctx.batch();
-        for (table_id, changes) in batch.into_raw().iter().enumerate() {
-            let table_id: TableId = table_id.try_into()?;
-            let table_name = table_name_by_id
-                .get(&table_id)
-                .ok_or(anyhow!("Table with index {} not found", table_id))?
-                .as_str();
-            for (key, operation) in changes.iter() {
-                let state_key = StateKey::new(table_name, key.to_vec());
-                let key_hash = state_key.hash::<S, H>();
-
-                match operation {
-                    Operation::Remove => {
-                        tree.remove(key_hash.as_ref())?;
-                    },
-                    Operation::Insert(value) => {
-                        tree.insert(key_hash.as_ref(), value)?;
-                    },
-                }
-            }
+        let mut batch = HashMap::new();
+        for (table_id, changes) in ctx.batch().into_raw().into_iter().enumerate() {
+            let table_name = table_name_by_id.get(&(table_id as u8)).unwrap();
+            batch.insert(
+                table_name.clone(),
+                changes.into_iter().map(|(k, v)| (k.clone(), v.clone())),
+            );
         }
 
-        // Commit the changes to the state tree.
-        {
-            let span = trace_span!("triedb.commit");
+        Self::update_state_tree_from_iter(nodes_table, root_table, batch)
+    }
+
+    /// Build a temporary state tree from the full state, and return the root hash.
+    fn build_state_root(db: &mut Atomo<UpdatePerm, B, S>) -> Result<StateRootHash> {
+        let span = trace_span!("build_state_root");
+        let _enter = span.enter();
+
+        let tables = db.tables();
+        let storage = db.get_storage_backend_unsafe();
+
+        let mut batch = HashMap::new();
+        for (i, table) in tables.into_iter().enumerate() {
+            let tid = i as u8;
+
+            let span = trace_span!("table");
             let _enter = span.enter();
+            trace!(table, "build_state_root");
 
-            // Note that tree.root() calls tree.commit() before returning the root hash, so we don't
-            // need to explicitly `tree.commit()` here, but otherwise would.
-            let root = *tree.root();
+            let mut changes = Vec::new();
 
-            // Save the root hash to the root table.
-            root_table.lock().unwrap().set(root.into());
+            for (key, value) in storage.get_all(tid) {
+                let state_key = StateKey::new(&table, key.to_vec());
+
+                trace!(?state_key, ?value, "key/value");
+
+                changes.push((key, Operation::Insert(value.into())));
+            }
+
+            batch.insert(table, changes.into_iter());
         }
 
-        Ok(())
+        type T<S, H> = MptMerklizeProvider<InMemoryStorage, S, H>;
+        let builder = AtomoBuilder::new(InMemoryStorage::default());
+        let mut tmp = T::<S, H>::with_tables(builder).build().unwrap();
+        let root = tmp.run(|ctx| {
+            let nodes_table = Arc::new(Mutex::new(ctx.get_table(NODES_TABLE_NAME)));
+            let root_table = Arc::new(Mutex::new(RootTable::new(ctx)));
+
+            T::<S, H>::update_state_tree_from_iter(nodes_table, root_table, batch)?;
+            T::<S, H>::get_state_root(ctx)
+        })?;
+
+        Ok(root)
     }
 }
 
@@ -241,12 +308,15 @@ impl<'a, B: StorageBackend, S: SerdeBackend> RootTable<'a, B, S> {
     /// Read the state root hash from the root table.
     fn get(&self) -> Option<StateRootHash> {
         // We only store the latest root hash in the root table, and so we just use the key 0u8.
-        self.table.get(0)
+        let root = self.table.get(0);
+        trace!(?root, "get");
+        root
     }
 
     /// Write the given state root to the root table.
     fn set(&mut self, root: StateRootHash) {
         // We only store the latest root hash in the root table, and so we just use the key 0u8.
+        trace!(?root, "set");
         self.table.insert(0, root);
     }
 }

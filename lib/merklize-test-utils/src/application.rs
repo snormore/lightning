@@ -52,7 +52,7 @@ use lightning_types::{
 };
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::providers::jmt::{self, JmtStateProof};
-use merklize::MerklizeProvider;
+use merklize::{MerklizeProvider, StateRootHash};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tempfile::TempDir;
@@ -89,6 +89,12 @@ impl MerklizeProvider for BaselineMerklizeProvider {
     fn get_state_root(
         _ctx: &TableSelector<Self::Storage, Self::Serde>,
     ) -> Result<merklize::StateRootHash> {
+        unimplemented!("Baseline context does not implement state roots.")
+    }
+
+    fn build_state_root(
+        _db: &mut atomo::Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+    ) -> Result<StateRootHash> {
         unimplemented!("Baseline context does not implement state roots.")
     }
 }

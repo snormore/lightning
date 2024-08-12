@@ -1,5 +1,13 @@
 use anyhow::Result;
-use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor, TableSelector};
+use atomo::{
+    Atomo,
+    AtomoBuilder,
+    SerdeBackend,
+    StorageBackend,
+    StorageBackendConstructor,
+    TableSelector,
+    UpdatePerm,
+};
 
 use crate::{SimpleHasher, StateProof, StateRootHash};
 
@@ -34,4 +42,12 @@ pub trait MerklizeProvider {
         table: &str,
         serialized_key: Vec<u8>,
     ) -> Result<Self::Proof>;
+
+    /// Build a temporary state tree from the full state, and return the root hash.
+    /// This can be used to perform a full integrity check of the stored state, by rebuilding the
+    /// state tree from the full state and comparing with this method, and comparing the returned
+    /// root hash wit the expected root hash.
+    fn build_state_root(
+        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+    ) -> Result<StateRootHash>;
 }

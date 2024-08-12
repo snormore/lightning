@@ -110,3 +110,41 @@ impl<'a, B: StorageBackend, S: SerdeBackend> HasPreimage for Adapter<'a, B, S> {
         Ok(state_key.map(|key| S::serialize(&key)))
     }
 }
+
+pub(crate) struct EmptyTreeWrapper<'a, B: StorageBackend, S: SerdeBackend> {
+    inner: Adapter<'a, B, S>,
+}
+
+impl<'a, B: StorageBackend, S: SerdeBackend> EmptyTreeWrapper<'a, B, S> {
+    pub fn new(inner: Adapter<'a, B, S>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, B: StorageBackend, S: SerdeBackend> TreeReader for EmptyTreeWrapper<'a, B, S> {
+    /// Get the node for the given node key, if it is present in the tree.
+    /// This is a direct passthrough to the inner adapter, except that it returns a null node for
+    /// the root node.
+    fn get_node_option(&self, node_key: &NodeKey) -> Result<Option<Node>> {
+        if node_key.nibble_path().is_empty() {
+            return Ok(Some(Node::Null));
+        }
+        self.inner.get_node_option(node_key)
+    }
+
+    /// Get the leftmost leaf node in the tree.
+    /// This is a direct passthrough to the inner adapter.
+    fn get_rightmost_leaf(&self) -> Result<Option<(NodeKey, LeafNode)>> {
+        self.inner.get_rightmost_leaf()
+    }
+
+    /// Get the state value for the given key hash, if it is present in the tree.
+    /// This is a direct passthrough to the inner adapter.
+    fn get_value_option(
+        &self,
+        max_version: Version,
+        key_hash: KeyHash,
+    ) -> Result<Option<OwnedValue>> {
+        self.inner.get_value_option(max_version, key_hash)
+    }
+}
