@@ -1,11 +1,10 @@
 use std::collections::BTreeSet;
-use std::marker::PhantomData;
 use std::path::Path;
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
-use atomo::{Atomo, AtomoBuilder, DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
+use atomo::{AtomoBuilder, DefaultSerdeBackend, QueryPerm, StorageBackend, UpdatePerm};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -44,6 +43,7 @@ use tracing::{trace_span, warn};
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
 use crate::query_runner::QueryRunner;
+use crate::state::ApplicationState;
 use crate::state_executor::StateExecutor;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
@@ -53,16 +53,16 @@ pub type ApplicationMerklizeProvider = ApplicationMerklizeProviderWithStorage<At
 pub type ApplicationMerklizeProviderWithStorage<B> =
     MptMerklizeProvider<B, DefaultSerdeBackend, KeccakHasher>;
 
-pub type ApplicationEnv = Env<UpdatePerm, AtomoStorage, ApplicationMerklizeProvider>;
+pub type ApplicationEnv = Env<UpdatePerm, ApplicationMerklizeProvider>;
 
-pub struct Env<P, B: StorageBackend, M: MerklizeProvider> {
-    pub inner: Atomo<P, B>,
-    _phantom: PhantomData<M>,
+pub struct Env<P, StateTree: MerklizeProvider> {
+    pub state: ApplicationState<P, StateTree>,
 }
 
-impl<M> Env<UpdatePerm, AtomoStorage, M>
+impl<StateTree: MerklizeProvider> Env<UpdatePerm, StateTree>
 where
-    M: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
+    // TODO(snormore): Is this still needed?
+    StateTree: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
 {
     pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
         let span = trace_span!("new");
@@ -144,22 +144,24 @@ where
                 .enable_iter("pub_key_to_index");
         }
 
-        atomo = M::with_tables(atomo);
+        // TODO(snormore): Clean this up, it's a bit awkward.
+        atomo = StateTree::with_tables(atomo);
 
         Ok(Self {
-            inner: atomo.build()?,
-            _phantom: PhantomData,
+            state: ApplicationState::new(atomo.build()?),
         })
     }
 
     pub fn query_runner(&self) -> QueryRunner {
-        QueryRunner::new(self.inner.query())
+        // TODO(snormore): Pass in the state tree here instead?
+        self.state.query_runner()
     }
 }
 
-impl<B: StorageBackend, M> Env<UpdatePerm, B, M>
+impl<StateTree: MerklizeProvider> Env<UpdatePerm, StateTree>
 where
-    M: MerklizeProvider<Storage = B, Serde = DefaultSerdeBackend>,
+    // TODO(snormore): Is this still needed?
+    StateTree: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
 {
     #[autometrics::autometrics]
     pub async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
@@ -170,7 +172,7 @@ where
         let span = trace_span!("run");
         let _enter = span.enter();
 
-        let response = self.inner.run(move |ctx| {
+        let response = self.state.run(move |ctx| {
             // Create the app/execution environment
             let backend = StateTables {
                 table_selector: ctx,
@@ -235,11 +237,6 @@ where
             };
             app.set_last_block(response.block_hash, new_sub_dag_index, new_sub_dag_round);
 
-            // Update the state tree with the new changes.
-            M::update_state_tree_from_context(ctx)
-                .context("Failed to update state tree")
-                .unwrap();
-
             // Return the response
             response
         });
@@ -252,7 +249,7 @@ where
                 )
             );
 
-            let storage = self.inner.get_storage_backend_unsafe();
+            let storage = self.state.get_storage_backend_unsafe();
             // This will return `None` only if the InMemory backend is used.
             if let Some(checkpoint) = storage.serialize() {
                 let mut blockstore_put = get_putter();
@@ -276,10 +273,9 @@ where
     }
 
     /// Returns an identical environment but with query permissions
-    pub fn query_socket(&self) -> Env<QueryPerm, B, M> {
+    pub fn query_socket(&self) -> Env<QueryPerm, StateTree> {
         Env {
-            inner: self.inner.query(),
-            _phantom: PhantomData,
+            state: self.state.query(),
         }
     }
 
@@ -291,7 +287,7 @@ where
         let span = trace_span!("apply_genesis_block");
         let _enter = span.enter();
 
-        self.inner.run(|ctx| {
+        self.state.run(|ctx| {
             let mut metadata_table = ctx.get_table::<Metadata, Value>("metadata");
 
             let genesis = config.genesis()?;
@@ -499,17 +495,13 @@ where
 
             metadata_table.insert(Metadata::Epoch, Value::Epoch(0));
 
-            // Update the state tree with the new changes.
-            M::update_state_tree_from_context(ctx)
-                .context("Failed to update state tree")?;
-
             Ok(true)
         })
     }
 
     // Should only be called after saving or loading from an epoch checkpoint
     pub fn update_last_epoch_hash(&mut self, state_hash: [u8; 32]) {
-        self.inner.run(move |ctx| {
+        self.state.run(move |ctx| {
             let backend = StateTables {
                 table_selector: ctx,
             };
@@ -568,7 +560,7 @@ mod env_tests {
 
         assert!(env.apply_genesis_block(&config).unwrap());
 
-        env.inner.run(|ctx| {
+        env.state.run(|ctx| {
             let mut param_table = ctx.get_table::<ProtocolParams, u128>("parameter");
             assert!(
                 param_table
@@ -585,7 +577,7 @@ mod env_tests {
 
         assert!(!env.apply_genesis_block(&config).unwrap());
 
-        env.inner.run(|ctx| {
+        env.state.run(|ctx| {
             let param_table = ctx.get_table::<ProtocolParams, u128>("parameter");
             assert!(
                 param_table

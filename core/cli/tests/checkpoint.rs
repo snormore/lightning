@@ -230,7 +230,8 @@ async fn node_checkpointing() -> Result<()> {
     let mut env = ApplicationEnv::new(&app_config_temp, None)?;
     env.apply_genesis_block(&app_config_temp)?;
 
-    let storage = env.inner.get_storage_backend_unsafe();
+    // TODO(snormore): Figure out a better way to access this.
+    let storage = env.state.get_storage_backend_unsafe();
     let checkpoint = storage.serialize().unwrap();
     let checkpoint_hash = blake3::hash(&checkpoint);
     std::mem::drop(env);
