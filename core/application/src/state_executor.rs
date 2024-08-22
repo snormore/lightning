@@ -100,7 +100,7 @@ lazy_static! {
 ///
 /// The functions implemented on this struct are the "Smart Contracts" of the application layer
 /// All state changes come from Transactions and start at execute_transaction
-pub struct State<B: Backend> {
+pub struct StateExecutor<B: Backend> {
     pub metadata: B::Ref<Metadata, Value>,
     pub account_info: B::Ref<EthAddress, AccountInfo>,
     pub client_keys: B::Ref<ClientPublicKey, EthAddress>,
@@ -126,7 +126,7 @@ pub struct State<B: Backend> {
     pub backend: B,
 }
 
-impl<B: Backend> State<B> {
+impl<B: Backend> StateExecutor<B> {
     pub fn new(backend: B) -> Self {
         Self {
             metadata: backend.get_table_reference("metadata"),

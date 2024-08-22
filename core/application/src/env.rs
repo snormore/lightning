@@ -40,7 +40,7 @@ use tracing::warn;
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
 use crate::query_runner::QueryRunner;
-use crate::state::State;
+use crate::state_executor::StateExecutor;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
@@ -148,7 +148,7 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
             let backend = StateTables {
                 table_selector: ctx,
             };
-            let app = State::new(backend);
+            let app = StateExecutor::new(backend);
             let last_block_hash = app.get_block_hash();
 
             let block_number = app.get_block_number() + 1;
@@ -472,7 +472,7 @@ impl<B: StorageBackend> Env<UpdatePerm, B> {
             let backend = StateTables {
                 table_selector: ctx,
             };
-            let app = State::new(backend);
+            let app = StateExecutor::new(backend);
             app.set_last_epoch_hash(state_hash);
         })
     }

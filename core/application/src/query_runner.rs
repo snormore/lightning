@@ -35,7 +35,7 @@ use lightning_interfaces::types::{
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
 
-use crate::state::State;
+use crate::state_executor::StateExecutor;
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 use crate::table::StateTables;
 
@@ -235,7 +235,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
             let backend = StateTables {
                 table_selector: ctx,
             };
-            let app = State::new(backend);
+            let app = StateExecutor::new(backend);
             app.execute_transaction(txn)
         })
     }
