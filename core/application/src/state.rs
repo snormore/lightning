@@ -15,7 +15,8 @@ pub struct ApplicationState<P, StateTree: MerklizeProvider> {
 }
 
 impl<P, StateTree: MerklizeProvider> ApplicationState<P, StateTree> {
-    pub fn new(db: Atomo<P, StateTree::Storage, StateTree::Serde>) -> Self {
+    pub fn new(atomo: AtomoBuilder<P, StateTree::Storage, StateTree::Serde>) -> Self {
+        let db = atomo.build();
         Self {
             db,
             _tree: PhantomData,
