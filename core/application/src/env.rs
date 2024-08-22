@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
-use atomo::{AtomoBuilder, DefaultSerdeBackend, SerdeBackend, StorageBackend};
+use atomo::{AtomoBuilder, DefaultSerdeBackend, StorageBackend};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
@@ -30,20 +30,24 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_metrics::increment_counter;
+use merklize::MerklizeProvider;
 use tracing::warn;
 
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
-use crate::state::{ApplicationState, QueryRunner};
+use crate::state::{ApplicationMerklizeProvider, ApplicationState, QueryRunner};
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 
-pub struct Env<B: StorageBackend, S: SerdeBackend> {
-    pub inner: ApplicationState<B, S>,
+pub struct Env<StateTree: MerklizeProvider> {
+    pub inner: ApplicationState<StateTree>,
 }
 
-pub type ApplicationEnv = Env<AtomoStorage, DefaultSerdeBackend>;
+pub type ApplicationEnv = Env<ApplicationMerklizeProvider>;
 
-impl ApplicationEnv {
+impl<StateTree: MerklizeProvider> Env<StateTree>
+where
+    StateTree: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
+{
     pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
         let storage = match config.storage {
             StorageConfig::RocksDb => {
@@ -81,7 +85,7 @@ impl ApplicationEnv {
         let atomo = AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
 
         Ok(Self {
-            inner: ApplicationState::build(atomo)?,
+            inner: ApplicationState::<StateTree>::build(atomo)?,
         })
     }
 
@@ -90,14 +94,13 @@ impl ApplicationEnv {
     }
 
     #[autometrics::autometrics]
-    async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
+    pub async fn run<F, P>(&mut self, mut block: Block, get_putter: F) -> BlockExecutionResponse
     where
         F: FnOnce() -> P,
         P: IncrementalPutInterface,
     {
         let response = self.inner.run(move |ctx| {
-            // Create the app/execution environment
-            let app = ApplicationState::executor(ctx);
+            let app = ApplicationState::<StateTree>::executor(ctx);
             let last_block_hash = app.get_block_hash();
 
             let block_number = app.get_block_number() + 1;
@@ -411,7 +414,7 @@ impl ApplicationEnv {
     // Should only be called after saving or loading from an epoch checkpoint
     pub fn update_last_epoch_hash(&mut self, state_hash: [u8; 32]) {
         self.inner.run(move |ctx| {
-            let app = ApplicationState::executor(ctx);
+            let app = ApplicationState::<StateTree>::executor(ctx);
             app.set_last_epoch_hash(state_hash);
         })
     }

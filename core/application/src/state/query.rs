@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Duration;
 
+use anyhow::Result;
 use atomo::{
     Atomo,
     AtomoBuilder,
@@ -35,8 +36,10 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
+use lightning_types::{StateProofKey, StateProofValue};
+use merklize::{MerklizeProvider, StateRootHash};
 
-use crate::state::{ApplicationState, ApplicationStateTables};
+use crate::state::{ApplicationMerklizeProvider, ApplicationState, ApplicationStateTables};
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 
 #[derive(Clone)]
@@ -137,6 +140,37 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn get_metadata(&self, key: &Metadata) -> Option<Value> {
         self.inner.run(|ctx| self.metadata_table.get(ctx).get(key))
+    }
+
+    /// Returns the state tree root hash from the application state.
+    #[inline]
+    fn get_state_root(&self) -> Result<StateRootHash> {
+        self.run(|ctx| <ApplicationMerklizeProvider as MerklizeProvider>::get_state_root(ctx))
+    }
+
+    /// Returns the state proof for a given key from the application state, using the state tree.
+    #[inline]
+    fn get_state_proof(
+        &self,
+        key: StateProofKey,
+    ) -> Result<(
+        Option<StateProofValue>,
+        <ApplicationMerklizeProvider as MerklizeProvider>::Proof,
+    )> {
+        type Serde = <ApplicationMerklizeProvider as MerklizeProvider>::Serde;
+
+        self.run(|ctx| {
+            let (table, serialized_key) = key.raw::<Serde>();
+            let proof = <ApplicationMerklizeProvider as MerklizeProvider>::get_state_proof(
+                ctx,
+                &table,
+                serialized_key.clone(),
+            )?;
+            let value = self
+                .run(|ctx| ctx.get_raw_value(table, &serialized_key))
+                .map(|value| key.value::<Serde>(value));
+            Ok((value, proof))
+        })
     }
 
     #[inline]
@@ -242,7 +276,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn simulate_txn(&self, txn: TransactionRequest) -> TransactionResponse {
         self.inner.run(|ctx| {
-            let app = ApplicationState::executor(ctx);
+            let app = ApplicationState::<ApplicationMerklizeProvider>::executor(ctx);
             app.execute_transaction(txn)
         })
     }

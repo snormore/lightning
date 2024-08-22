@@ -8,8 +8,6 @@ use atomo::{
     Atomo,
     AtomoBuilder,
     DefaultSerdeBackend,
-    SerdeBackend,
-    StorageBackend,
     StorageBackendConstructor,
     TableSelector,
     UpdatePerm,
@@ -17,17 +15,27 @@ use atomo::{
 use context::StateContext;
 use executor::StateExecutor;
 use lightning_interfaces::SyncQueryRunnerInterface;
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::providers::mpt::MptMerklizeProvider;
+use merklize::MerklizeProvider;
 pub use query::QueryRunner;
 pub use tables::ApplicationStateTables;
 
 use crate::storage::AtomoStorage;
 
+/// A canonical application state tree implementation.
+pub type ApplicationMerklizeProvider =
+    MptMerklizeProvider<AtomoStorage, DefaultSerdeBackend, KeccakHasher>;
+
 /// The shared application state accumulates by executing transactions.
-pub struct ApplicationState<B: StorageBackend, S: SerdeBackend> {
-    db: Atomo<UpdatePerm, B, S>,
+pub struct ApplicationState<StateTree: MerklizeProvider> {
+    db: Atomo<UpdatePerm, StateTree::Storage, StateTree::Serde>,
 }
 
-impl ApplicationState<AtomoStorage, DefaultSerdeBackend> {
+impl<StateTree> ApplicationState<StateTree>
+where
+    StateTree: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
+{
     /// Creates a new application state.
     pub(crate) fn new(db: Atomo<UpdatePerm, AtomoStorage, DefaultSerdeBackend>) -> Self {
         Self { db }
@@ -39,6 +47,7 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend> {
         C: StorageBackendConstructor<Storage = AtomoStorage>,
     {
         let atomo = ApplicationStateTables::register(atomo);
+        let atomo = StateTree::with_tables(atomo);
 
         let db = atomo
             .build()
@@ -75,6 +84,13 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend> {
     where
         F: FnOnce(&mut TableSelector<AtomoStorage, DefaultSerdeBackend>) -> R,
     {
-        self.db.run(mutation)
+        self.db.run(|ctx| {
+            let result = mutation(ctx);
+
+            // TODO(snormore): Fix this unwrap/panic.
+            StateTree::update_state_tree_from_context(ctx).unwrap();
+
+            result
+        })
     }
 }
