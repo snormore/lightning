@@ -3,25 +3,25 @@ extern crate test;
 
 mod generic_utils;
 
-use atomo::{AtomoBuilder, DefaultSerdeBackend, StorageBackendConstructor};
+use atomo::{AtomoBuilder, DefaultSerdeBackend};
 use generic_utils::{rocksdb_builder, DATA_COUNT_COMPLEX, DATA_COUNT_MEDIUM, DATA_COUNT_SIMPLE};
 use merklize::hashers::blake3::Blake3Hasher;
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
-use merklize::providers::jmt::JmtMerklizeProvider;
-use merklize::providers::mpt::MptMerklizeProvider;
-use merklize::MerklizeProvider;
+use merklize::providers::jmt::JmtStateTree;
+use merklize::providers::mpt::MptStateTree;
+use merklize::{StateTree, StateTreeBuilder, StateTreeWriter};
 use tempfile::tempdir;
 use test::Bencher;
 
 // JMT
 
-type Jmt<B, H> = JmtMerklizeProvider<B, DefaultSerdeBackend, H>;
+type Jmt<B, H> = JmtStateTree<B, DefaultSerdeBackend, H>;
 
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_keccak256_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, KeccakHasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -31,7 +31,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_keccak256_simple(b: &mut Bencher
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_blake3_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, Blake3Hasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, Blake3Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -41,7 +41,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_blake3_simple(b: &mut Bencher) {
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_sha256_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, Sha256Hasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, Sha256Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -51,7 +51,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_sha256_simple(b: &mut Bencher) {
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_keccak256_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, KeccakHasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -61,7 +61,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_keccak256_medium(b: &mut Bencher
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_blake3_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, Blake3Hasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, Blake3Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -71,7 +71,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_blake3_medium(b: &mut Bencher) {
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_sha256_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, Sha256Hasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, Sha256Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -81,7 +81,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_sha256_medium(b: &mut Bencher) {
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_keccak256_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, KeccakHasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
@@ -91,7 +91,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_keccak256_complex(b: &mut Benche
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_blake3_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, Blake3Hasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, Blake3Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
@@ -101,7 +101,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_blake3_complex(b: &mut Bencher) 
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_jmt_sha256_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Jmt<_, Sha256Hasher>>(
+    generic_bench_rebuild_state_tree::<Jmt<_, Sha256Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
@@ -110,12 +110,12 @@ fn bench_generic_rebuild_state_tree_rocksdb_jmt_sha256_complex(b: &mut Bencher) 
 
 // MPT
 
-type Mpt<B, H> = MptMerklizeProvider<B, DefaultSerdeBackend, H>;
+type Mpt<B, H> = MptStateTree<B, DefaultSerdeBackend, H>;
 
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_keccak256_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, KeccakHasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -125,7 +125,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_mpt_keccak256_simple(b: &mut Bencher
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_blake3_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, Blake3Hasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, Blake3Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -135,7 +135,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_mpt_blake3_simple(b: &mut Bencher) {
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_sha256_simple(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, Sha256Hasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, Sha256Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_SIMPLE,
@@ -145,7 +145,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_mpt_sha256_simple(b: &mut Bencher) {
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_keccak256_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, KeccakHasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -155,7 +155,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_mpt_keccak256_medium(b: &mut Bencher
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_blake3_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, Blake3Hasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, Blake3Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -165,7 +165,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_mpt_blake3_medium(b: &mut Bencher) {
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_sha256_medium(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, Sha256Hasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, Sha256Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_MEDIUM,
@@ -175,7 +175,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_mpt_sha256_medium(b: &mut Bencher) {
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_keccak256_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, KeccakHasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, KeccakHasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
@@ -185,7 +185,7 @@ fn bench_generic_rebuild_state_tree_rocksdb_mpt_keccak256_complex(b: &mut Benche
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_blake3_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, Blake3Hasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, Blake3Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
@@ -195,24 +195,23 @@ fn bench_generic_rebuild_state_tree_rocksdb_mpt_blake3_complex(b: &mut Bencher) 
 #[bench]
 fn bench_generic_rebuild_state_tree_rocksdb_mpt_sha256_complex(b: &mut Bencher) {
     let temp_dir = tempdir().unwrap();
-    generic_bench_rebuild_state_tree::<_, Mpt<_, Sha256Hasher>>(
+    generic_bench_rebuild_state_tree::<Mpt<_, Sha256Hasher>>(
         b,
         rocksdb_builder(&temp_dir),
         DATA_COUNT_COMPLEX,
     );
 }
 
-fn generic_bench_rebuild_state_tree<C: StorageBackendConstructor, M>(
+fn generic_bench_rebuild_state_tree<T: StateTree>(
     b: &mut Bencher,
-    builder: C,
+    builder: T::StorageBuilder,
     data_count: usize,
-) where
-    M: MerklizeProvider<Storage = C::Storage>,
-{
-    let mut db =
-        M::register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
-            .build()
-            .unwrap();
+) {
+    let mut db = <T::Builder as StateTreeBuilder<T>>::register_tables(
+        AtomoBuilder::new(builder).with_table::<String, String>("data"),
+    )
+    .build()
+    .unwrap();
 
     db.run(|ctx| {
         let mut data_table = ctx.get_table::<String, String>("data");
@@ -221,10 +220,10 @@ fn generic_bench_rebuild_state_tree<C: StorageBackendConstructor, M>(
             data_table.insert(format!("key{i}"), format!("value{i}"));
         }
 
-        M::update_state_tree_from_context(ctx).unwrap();
+        <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx).unwrap();
     });
 
     b.iter(|| {
-        M::clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
+        <T::Writer as StateTreeWriter<T>>::clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
     })
 }

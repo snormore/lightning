@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
@@ -30,24 +31,29 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_metrics::increment_counter;
-use merklize::MerklizeProvider;
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::providers::mpt::MptStateTree;
+use merklize::StateTree;
 use tracing::warn;
 
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
-use crate::state::{ApplicationMerklizeProvider, ApplicationState, QueryRunner};
-use crate::storage::{AtomoStorage, AtomoStorageBuilder};
+use crate::state::{ApplicationState, QueryRunner};
+use crate::storage::AtomoStorageBuilder;
 
-pub struct Env<StateTree: MerklizeProvider> {
-    pub inner: ApplicationState<StateTree>,
+pub struct Env<T: StateTree> {
+    // TODO(snormore): Make this private, not pub.
+    pub inner: ApplicationState<T>,
 }
 
-pub type ApplicationEnv = Env<ApplicationMerklizeProvider>;
+pub type ApplicationStateTree<'builder> =
+    MptStateTree<AtomoStorageBuilder<'builder>, DefaultSerdeBackend, KeccakHasher>;
 
-impl<StateTree: MerklizeProvider> Env<StateTree>
-where
-    StateTree: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
-{
+pub type ApplicationEnv = Env<ApplicationStateTree<'static>>;
+
+pub type ApplicationQueryRunner = QueryRunner<<ApplicationStateTree<'static> as StateTree>::Reader>;
+
+impl<T: StateTree> Env<T> {
     pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
         let storage = match config.storage {
             StorageConfig::RocksDb => {
@@ -83,13 +89,28 @@ where
         };
 
         let atomo = AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
+        let mut state = ApplicationState::<StateTree>::build(atomo)?;
 
-        Ok(Self {
-            inner: ApplicationState::<StateTree>::build(atomo)?,
-        })
+        // TODO(snormore): Does this need to be mutable? Can we make it not needed?
+        let mut query = state.query();
+
+        // Verify integrity of the state tree by rebuilding the state root from the state data
+        // and comparing it to the stored state root. Return error if not valid.
+        // TODO(snormore): Because the QueryRunner is using ApplicationMerklizeProvider, it uses a
+        // different implementation than the env for tests that aren't using the
+        // ApplicationMerklizeProvider. We need to make QueryRunner support the MerklizeProvider
+        // type parameter.
+        query.verify_state_tree()?;
+
+        // If the state tree is empty, rebuild it from the state data.
+        if query.is_empty_state_tree()? {
+            state.clear_and_rebuild_state_tree_unsafe()?;
+        }
+
+        Ok(Self { inner: state })
     }
 
-    pub fn query_runner(&self) -> QueryRunner {
+    pub fn query_runner(&self) -> QueryRunner<T::Reader> {
         self.inner.query()
     }
 
@@ -427,6 +448,12 @@ where
             })
             .expect("Failed to update last epoch hash");
     }
+
+    /// Rebuilds the state tree from the state data.
+    // TODO(snormore): Describe why unsafe namespace.
+    pub fn rebuild_state_tree_unsafe(&mut self) -> Result<()> {
+        self.inner.clear_and_rebuild_state_tree_unsafe()
+    }
 }
 
 impl Default for ApplicationEnv {
@@ -437,12 +464,12 @@ impl Default for ApplicationEnv {
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: ApplicationEnv,
+    env: Arc<Mutex<ApplicationEnv>>,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: ApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(env: Arc<Mutex<ApplicationEnv>>, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
@@ -452,9 +479,8 @@ impl<C: Collection> WorkerTrait for UpdateWorker<C> {
     type Response = BlockExecutionResponse;
 
     async fn handle(&mut self, req: Self::Request) -> Self::Response {
-        self.env
-            .run(req, || self.blockstore.put(None))
-            .await
+        let get_putter = || self.blockstore.put(None);
+        futures::executor::block_on(self.env.lock().unwrap().run(req, get_putter))
             .expect("Failed to execute block")
     }
 }

@@ -80,11 +80,15 @@ pub trait ApplicationInterface<C: Collection>:
         checkpoint_hash: [u8; 32],
     ) -> Result<()>;
 
-    /// Used to get the chain id from the genesis file instead of state
+    /// Returns the chain id from the genesis file, instead of from the stored state.
     fn get_chain_id(config: &Self::Config) -> Result<ChainId>;
 
-    /// Returns the committee from the geneis of the network
+    /// Returns the genesis committee from the genesis file, instead of from the stored state.
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
+
+    /// Rebuilds the state tree from the state data.
+    // TODO(snormore): Describe why unsafe namespace.
+    fn rebuild_state_tree_unsafe(&self) -> Result<()>;
 }
 
 #[interfaces_proc::blank]
@@ -114,6 +118,12 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
         key: StateProofKey,
     ) -> Result<(Option<StateProofValue>, MptStateProof)>;
     // TODO(snormore): Can we do better here?
+
+    /// Verify the state tree.
+    fn verify_state_tree(&mut self) -> Result<()>;
+
+    /// Check if the state tree is empty.
+    fn is_empty_state_tree(&mut self) -> Result<bool>;
 
     /// Query Account Table
     /// Returns information about an account.

@@ -5,7 +5,6 @@ use atomo::batch::Operation;
 use atomo::{
     Atomo,
     AtomoBuilder,
-    SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
     TableId,
@@ -15,7 +14,7 @@ use atomo::{
 use fxhash::FxHashMap;
 use tracing::trace_span;
 
-use crate::{SimpleHasher, StateProof, StateRootHash};
+use crate::StateTree;
 
 /// A trait for a merklize provider used to maintain and interact with the state tree.
 ///
@@ -24,42 +23,14 @@ use crate::{SimpleHasher, StateProof, StateRootHash};
 /// ```rust
 #[doc = include_str!("../examples/jmt-sha256.rs")]
 /// ```
-pub trait MerklizeProvider {
-    type Storage: StorageBackend;
-    type Serde: SerdeBackend;
-    type Hasher: SimpleHasher;
-    type Proof: StateProof;
+pub trait StateTreeWriter<T: StateTree>: Sized {
+    fn new(
+        db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+    ) -> Self;
 
-    const NAME: &'static str;
+    fn build(self, builder: AtomoBuilder<T::StorageBuilder, T::Serde>) -> Result<Self>;
 
-    /// Augment the provided atomo builder with the necessary tables for the merklize provider.
-    ///
-    /// Arguments:
-    /// - `builder`: The atomo builder to augment.
-    fn register_tables<C: StorageBackendConstructor>(
-        builder: AtomoBuilder<C, Self::Serde>,
-    ) -> AtomoBuilder<C, Self::Serde>;
-
-    /// Returns the root hash of the state tree.
-    ///
-    /// Arguments:
-    /// - `ctx`: The atomo execution context that will be used to get the root hash of the state
-    ///   tree.
-    fn get_state_root(ctx: &TableSelector<Self::Storage, Self::Serde>) -> Result<StateRootHash>;
-
-    /// Generates and returns a merkle proof for the given key in the state.
-    ///
-    /// This method uses an atomo execution context, so it is safe to use concurrently.
-    ///
-    /// Arguments:
-    /// - `ctx`: The atomo execution context that will be used to generate the proof.
-    /// - `table`: The name of the table to generate the proof for.
-    /// - `serialized_key`: The serialized key to generate the proof for.
-    fn get_state_proof(
-        ctx: &TableSelector<Self::Storage, Self::Serde>,
-        table: &str,
-        serialized_key: Vec<u8>,
-    ) -> Result<Self::Proof>;
+    fn reader(self) -> T::Reader;
 
     /// Applies the changes in the given batch of updates to the state tree.
     ///
@@ -69,7 +40,7 @@ pub trait MerklizeProvider {
     /// - `ctx`: The atomo execution context that will be used to apply the changes.
     /// - `batch`: The batch of pending changes to apply to the state tree.
     fn update_state_tree<I>(
-        ctx: &TableSelector<Self::Storage, Self::Serde>,
+        ctx: &TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
         batch: HashMap<String, I>,
     ) -> Result<()>
     where
@@ -78,27 +49,17 @@ pub trait MerklizeProvider {
     /// Clears the existing state tree data. This does not delete or modify any of the state data,
     /// just the tree structure and tables related to it.
     ///
-    /// This method acts directly on the atomo database instance, so it should only be used with
-    /// caution in isolation for use cases such as backfilling the state tree during rollout or
-    /// corruption recovery.
+    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
+    /// safety and consistency of atomo.
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to use for clearing the state tree.
     fn clear_state_tree_unsafe(
-        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
-    ) -> Result<()>;
-
-    /// Verifies that the state in the given atomo database instance, when used to build a
-    /// new, temporary state tree from scratch, matches the stored state tree root hash.
-    ///
-    /// This method reads directly from the atomo database instance, so may lack consistency if
-    /// concurrently accessed. It should only be used with caution in isolation for use cases such
-    /// as performing an integrity check at startup.
-    ///
-    /// Arguments:
-    /// - `db`: The atomo database instance to verify.
-    fn verify_state_tree_unsafe(
-        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+        db: &mut Atomo<
+            UpdatePerm,
+            <T::StorageBuilder as StorageBackendConstructor>::Storage,
+            T::Serde,
+        >,
     ) -> Result<()>;
 
     /// Applies the pending changes in the given context to the state tree.
@@ -109,7 +70,7 @@ pub trait MerklizeProvider {
     /// - `ctx`: The atomo execution context that will be used to get the pending changes and apply
     ///   them to the state tree.
     fn update_state_tree_from_context(
-        ctx: &TableSelector<Self::Storage, Self::Serde>,
+        ctx: &TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
     ) -> Result<()> {
         let span = trace_span!("update_state_tree_from_context");
         let _enter = span.enter();
@@ -139,14 +100,17 @@ pub trait MerklizeProvider {
     /// of the state data, just the tree structure and tables related to it. The tree is then
     /// rebuilt by applying all of the state data in the atomo context to the new tree.
     ///
-    /// This method acts directly on the atomo database instance, so it should only be used with
-    /// caution in isolation for use cases such as backfilling the state tree during rollout or
-    /// corruption recovery.
+    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
+    /// safety and consistency of atomo.
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to use for clearing and rebuilding the state tree.
     fn clear_and_rebuild_state_tree_unsafe(
-        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+        db: &mut Atomo<
+            UpdatePerm,
+            <T::StorageBuilder as StorageBackendConstructor>::Storage,
+            T::Serde,
+        >,
     ) -> Result<()> {
         let span = trace_span!("clear_and_rebuild_state_tree");
         let _enter = span.enter();

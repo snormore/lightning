@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker;
@@ -7,16 +7,20 @@ use anyhow::{anyhow, Result};
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::spawn_worker;
 use lightning_interfaces::types::{ChainId, NodeInfo};
+use merklize::StateTree;
 use tracing::{error, info};
 
 use crate::config::{Config, StorageConfig};
-use crate::env::{ApplicationEnv, Env, UpdateWorker};
+use crate::env::{ApplicationEnv, ApplicationQueryRunner, ApplicationStateTree, Env, UpdateWorker};
 use crate::state::QueryRunner;
 
 pub struct Application<C: Collection> {
+    env: Arc<Mutex<ApplicationEnv>>,
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
-    query_runner: QueryRunner,
-    collection: PhantomData<C>,
+    // TODO(snormore): Put StateTree in ApplicationInterface instead.
+    query_runner: QueryRunner<<ApplicationStateTree<'static> as StateTree>::Reader>,
+
+    _collection: PhantomData<C>,
 }
 
 impl<C: Collection> Application<C> {
@@ -35,21 +39,24 @@ impl<C: Collection> Application<C> {
         }
 
         let mut env = Env::new(&config, None).expect("Failed to initialize environment.");
+        let query_runner = env.query_runner();
 
         if env.apply_genesis_block(&config)? {
             info!("Genesis block loaded into application state.");
         } else {
             info!("Genesis block already exists exist in application state.");
-        }
+        };
 
-        let query_runner = env.inner.query();
-        let worker = UpdateWorker::<C>::new(env, blockstore.clone());
+        let env = Arc::new(Mutex::new(env));
+        let worker = UpdateWorker::<C>::new(env.clone(), blockstore.clone());
         let update_socket = spawn_worker!(worker, "APPLICATION", waiter, crucial);
 
         Ok(Self {
+            env,
             query_runner,
             update_socket: Mutex::new(Some(update_socket)),
-            collection: PhantomData,
+
+            _collection: PhantomData,
         })
     }
 }
@@ -68,7 +75,9 @@ impl<C: Collection> fdi::BuildGraph for Application<C> {
 
 impl<C: Collection> ApplicationInterface<C> for Application<C> {
     /// The type for the sync query executor.
-    type SyncExecutor = QueryRunner;
+    // TODO(snormore): Put StateTree in ApplicationInterface instead of hard coding to Application
+    // here?
+    type SyncExecutor = ApplicationQueryRunner;
 
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
@@ -127,10 +136,14 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         }
     }
 
+    /// Returns the chain id from the genesis file, instead of from the stored state.
+    // TODO(snormore): This should always be the same, so why is it necessary?
     fn get_chain_id(config: &Config) -> Result<ChainId> {
         Ok(config.genesis()?.chain_id)
     }
 
+    /// Returns the genesis committee from the genesis file, instead of from the stored state.
+    // TODO(snormore): This should always be the same, so why is it necessary?
     fn get_genesis_committee(config: &Config) -> Result<Vec<NodeInfo>> {
         Ok(config
             .genesis()?
@@ -139,5 +152,11 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
             .filter(|node| node.genesis_committee)
             .map(NodeInfo::from)
             .collect())
+    }
+
+    /// Rebuilds the state tree from the state data.
+    // TODO(snormore): Describe why unsafe namespace.
+    fn rebuild_state_tree_unsafe(&self) -> Result<()> {
+        self.env.lock().unwrap().rebuild_state_tree_unsafe()
     }
 }

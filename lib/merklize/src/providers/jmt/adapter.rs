@@ -2,14 +2,16 @@ use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use atomo::{SerdeBackend, StorageBackend, TableSelector};
+use atomo::{SerdeBackend, StorageBackend, TableRef, TableSelector};
 use jmt::storage::{HasPreimage, LeafNode, Node, NodeKey, TreeReader};
 use jmt::{KeyHash, OwnedValue, Version};
 use lru::LruCache;
 use tracing::trace;
 
-use super::provider::{SharedKeysTableRef, SharedNodesTableRef};
 use crate::StateKey;
+
+type SharedNodesTableRef<'a, B, S> = Arc<Mutex<TableRef<'a, NodeKey, Node, B, S>>>;
+type SharedKeysTableRef<'a, B, S> = Arc<Mutex<TableRef<'a, KeyHash, StateKey, B, S>>>;
 
 /// A `[jmt::TreeReader]` and `[jmt::HasPreImage]` implementation that uses a given table selector
 /// execution context to read from the database. This acts as an adapter between a merklize provider

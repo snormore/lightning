@@ -1,25 +1,20 @@
-use atomo::{
-    AtomoBuilder,
-    DefaultSerdeBackend,
-    InMemoryStorage,
-    SerdeBackend,
-    StorageBackendConstructor,
-};
+use atomo::{AtomoBuilder, DefaultSerdeBackend, InMemoryStorage, SerdeBackend};
 use merklize::hashers::keccak::KeccakHasher;
-use merklize::providers::mpt::MptMerklizeProvider;
-use merklize::{MerklizeProvider, StateProof};
+use merklize::providers::mpt::MptStateTree;
+use merklize::{StateProof, StateTree, StateTreeBuilder, StateTreeReader, StateTreeWriter};
 
 pub fn main() {
     let builder = InMemoryStorage::default();
 
-    run::<_, MptMerklizeProvider<_, DefaultSerdeBackend, KeccakHasher>>(builder);
+    run::<MptStateTree<_, DefaultSerdeBackend, KeccakHasher>>(builder);
 }
 
-fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(builder: B) {
-    let mut db =
-        M::register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
-            .build()
-            .unwrap();
+fn run<T: StateTree>(builder: T::StorageBuilder) {
+    let mut db = T::Builder::register_tables(
+        AtomoBuilder::new(builder).with_table::<String, String>("data"),
+    )
+    .build()
+    .unwrap();
     let query = db.query();
 
     // Open writer context and insert some data.
@@ -30,7 +25,7 @@ fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(
         table.insert("key".to_string(), "value".to_string());
 
         // Update state tree.
-        M::update_state_tree_from_context(ctx).unwrap();
+        <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx).unwrap();
     });
 
     // Open reader context, read the data, get the state root hash, and get a proof of existence.
@@ -42,16 +37,21 @@ fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(
         println!("value: {:?}", value);
 
         // Get the state root hash.
-        let state_root = M::get_state_root(ctx).unwrap();
+        let state_root = <T::Reader as StateTreeReader<T>>::get_state_root(ctx).unwrap();
         println!("state root: {:?}", state_root);
 
         // Get a proof of existence for some value in the state.
-        let proof = M::get_state_proof(ctx, "data", M::Serde::serialize(&"key")).unwrap();
+        let proof = <T::Reader as StateTreeReader<T>>::get_state_proof(
+            ctx,
+            "data",
+            <T::Serde as SerdeBackend>::serialize(&"key"),
+        )
+        .unwrap();
         println!("proof: {:?}", proof);
 
         // Verify the proof.
         proof
-            .verify_membership::<String, String, M>(
+            .verify_membership::<String, String, T>(
                 "data",
                 "key".to_string(),
                 "value".to_string(),
