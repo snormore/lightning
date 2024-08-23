@@ -104,6 +104,12 @@ impl MerklizeProvider for BaselineMerklizeProvider {
     ) -> Result<()> {
         unimplemented!("Baseline provider does not implement state tree")
     }
+
+    fn is_empty_state_tree_unsafe(
+        _db: &mut atomo::Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+    ) -> Result<bool> {
+        unimplemented!("Baseline provider does not implement state tree")
+    }
 }
 
 pub fn create_rocksdb_env<StateTree>(temp_dir: &TempDir) -> Env<StateTree>

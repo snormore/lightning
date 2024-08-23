@@ -88,10 +88,13 @@ pub trait ApplicationInterface<C: Collection>:
 
     /// Verify the state tree. Returns an error if the state tree is not correct,
     /// otherwise returns `Ok(())`.
-    fn verify_state_tree(&self) -> Result<()>;
+    fn verify_state_tree_unsafe(&self) -> Result<()>;
 
     /// Clear and rebuild the state tree.
-    fn clear_and_rebuild_state_tree(&self) -> Result<()>;
+    fn clear_and_rebuild_state_tree_unsafe(&self) -> Result<()>;
+
+    /// Check if the state tree is empty.
+    fn is_empty_state_tree_unsafe(&self) -> Result<bool>;
 }
 
 #[interfaces_proc::blank]

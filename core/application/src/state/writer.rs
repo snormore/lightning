@@ -123,6 +123,12 @@ where
         )
     }
 
+    /// Check if the state tree is empty.
+    pub fn is_empty_state_tree(&mut self) -> Result<bool> {
+        // TODO(snormore): Can we move this to the query runner?
+        <ApplicationMerklizeProvider as MerklizeProvider>::is_empty_state_tree_unsafe(&mut self.db)
+    }
+
     /// Registers and configures the application state tables with the atomo database builder.
     pub fn register_tables<B: StorageBackendConstructor>(
         builder: AtomoBuilder<B, StateTree::Serde>,

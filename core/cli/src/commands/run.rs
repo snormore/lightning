@@ -43,10 +43,13 @@ where
             .get::<<C as Collection>::ApplicationInterface>();
 
         // TODO(snormore): Verify state tree and bail if it's not valid.
-        app.verify_state_tree()?;
+        app.verify_state_tree_unsafe()?;
 
         // TODO(snormore): Build/backfill state tree if it's not present at all (rollout migration
         // code).
+        if app.is_empty_state_tree_unsafe()? {
+            app.clear_and_rebuild_state_tree_unsafe()?;
+        }
 
         tokio::select! {
             _ = &mut shutdown_future => break,

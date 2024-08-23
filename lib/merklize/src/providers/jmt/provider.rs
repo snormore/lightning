@@ -331,4 +331,11 @@ where
 
         Ok(())
     }
+
+    fn is_empty_state_tree_unsafe(
+        _db: &mut atomo::Atomo<atomo::UpdatePerm, Self::Storage, Self::Serde>,
+    ) -> Result<bool> {
+        // TODO(snormore): Implement this.
+        todo!()
+    }
 }

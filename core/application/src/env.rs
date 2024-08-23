@@ -46,6 +46,7 @@ pub struct Env<StateTree: MerklizeProvider> {
 
 pub type ApplicationEnv = Env<ApplicationMerklizeProvider>;
 
+// TODO(snormore): Can we do this without the arc/mutex?
 pub type SharedApplicationEnv = Arc<Mutex<ApplicationEnv>>;
 
 impl<StateTree: MerklizeProvider> Env<StateTree>

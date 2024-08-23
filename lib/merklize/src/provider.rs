@@ -101,6 +101,18 @@ pub trait MerklizeProvider {
         db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
     ) -> Result<()>;
 
+    /// Returns whether the state tree is empty.
+    ///
+    /// This method reads directly from the atomo database instance, so may lack consistency if
+    /// concurrently accessed. It should only be used with caution in isolation for use cases such
+    /// as performing a migration check at startup.
+    ///
+    /// Arguments:
+    /// - `db`: The atomo database instance to check.
+    fn is_empty_state_tree_unsafe(
+        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+    ) -> Result<bool>;
+
     /// Applies the pending changes in the given context to the state tree.
     /// This is an implementation that makes use of the `update_state_tree` method, passing it the
     /// batch of pending changes from the context.
