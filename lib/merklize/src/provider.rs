@@ -82,7 +82,9 @@ pub trait MerklizeProvider {
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to use for clearing the state tree.
-    fn clear_state_tree(db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>) -> Result<()>;
+    fn clear_state_tree_unsafe(
+        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+    ) -> Result<()>;
 
     /// Verifies that the state in the given atomo database instance, when used to build a
     /// new, temporary state tree from scratch, matches the stored state tree root hash.
@@ -93,7 +95,9 @@ pub trait MerklizeProvider {
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to verify.
-    fn verify_state_tree(db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>) -> Result<()>;
+    fn verify_state_tree_unsafe(
+        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+    ) -> Result<()>;
 
     /// Applies the pending changes in the given context to the state tree.
     /// This is an implementation that makes use of the `update_state_tree` method, passing it the
@@ -139,13 +143,13 @@ pub trait MerklizeProvider {
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to use for clearing and rebuilding the state tree.
-    fn clear_and_rebuild_state_tree(
+    fn clear_and_rebuild_state_tree_unsafe(
         db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
     ) -> Result<()> {
         let span = trace_span!("clear_and_rebuild_state_tree");
         let _enter = span.enter();
 
-        Self::clear_state_tree(db)?;
+        Self::clear_state_tree_unsafe(db)?;
 
         // Build batch of all state data.
         let mut batch = HashMap::new();

@@ -260,7 +260,7 @@ fn test_jmt_get_state_root_with_updates() {
     let state_root = assert_state_root_changed(&query, state_root);
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    M::verify_state_tree(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db).unwrap();
 
     // Insert another value and check that the state root has changed.
     db.run(|ctx| {
@@ -283,7 +283,7 @@ fn test_jmt_get_state_root_with_updates() {
     let state_root = assert_state_root_changed(&query, state_root);
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    M::verify_state_tree(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db).unwrap();
 
     // Insert removed key with different value and check that the state root has changed.
     db.run(|ctx| {
@@ -326,7 +326,7 @@ fn test_jmt_get_state_root_with_updates() {
     assert_state_root_unchanged(&query, state_root);
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    M::verify_state_tree(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db).unwrap();
 }
 
 #[test]
@@ -354,7 +354,7 @@ fn test_jmt_clear_and_rebuild_state_tree() {
     let state_root = query.run(|ctx| M::get_state_root(ctx).unwrap());
 
     // Rebuild the state tree.
-    M::clear_and_rebuild_state_tree(&mut db).unwrap();
+    M::clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
 
     // Check that the state root hash has not changed.
     let new_state_root = query.run(|ctx| M::get_state_root(ctx).unwrap());
@@ -376,7 +376,7 @@ fn test_jmt_clear_and_rebuild_state_tree() {
     let state_root = new_state_root;
 
     // Rebuild the state tree.
-    M::clear_and_rebuild_state_tree(&mut db).unwrap();
+    M::clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
 
     // Check that the state root hash has not changed.
     let new_state_root = query.run(|ctx| M::get_state_root(ctx).unwrap());
