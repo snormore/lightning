@@ -110,6 +110,19 @@ where
         })
     }
 
+    /// Verify the state tree.
+    pub fn verify_state_tree(&mut self) -> Result<()> {
+        // TODO(sormore): Can we make this not mutable and put it on the query runner?
+        <ApplicationMerklizeProvider as MerklizeProvider>::verify_state_tree_unsafe(&mut self.db)
+    }
+
+    /// Clear and rebuild the state tree.
+    pub fn clear_and_rebuild_state_tree(&mut self) -> Result<()> {
+        <ApplicationMerklizeProvider as MerklizeProvider>::clear_and_rebuild_state_tree_unsafe(
+            &mut self.db,
+        )
+    }
+
     /// Registers and configures the application state tables with the atomo database builder.
     pub fn register_tables<B: StorageBackendConstructor>(
         builder: AtomoBuilder<B, StateTree::Serde>,

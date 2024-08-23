@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
@@ -39,10 +40,13 @@ use crate::state::{ApplicationMerklizeProvider, ApplicationState, QueryRunner};
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 
 pub struct Env<StateTree: MerklizeProvider> {
+    // TODO(snormore): Make this private, not pub.
     pub inner: ApplicationState<StateTree>,
 }
 
 pub type ApplicationEnv = Env<ApplicationMerklizeProvider>;
+
+pub type SharedApplicationEnv = Arc<Mutex<ApplicationEnv>>;
 
 impl<StateTree: MerklizeProvider> Env<StateTree>
 where
@@ -437,12 +441,12 @@ impl Default for ApplicationEnv {
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: ApplicationEnv,
+    env: SharedApplicationEnv,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: ApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(env: SharedApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
@@ -452,9 +456,9 @@ impl<C: Collection> WorkerTrait for UpdateWorker<C> {
     type Response = BlockExecutionResponse;
 
     async fn handle(&mut self, req: Self::Request) -> Self::Response {
-        self.env
-            .run(req, || self.blockstore.put(None))
-            .await
+        let mut env = self.env.lock().unwrap();
+        let get_putter = || self.blockstore.put(None);
+        tokio::task::block_in_place(move || futures::executor::block_on(env.run(req, get_putter)))
             .expect("Failed to execute block")
     }
 }

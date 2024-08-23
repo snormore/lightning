@@ -38,6 +38,16 @@ where
 
         let checkpoint_fut = syncronizer.next_checkpoint_hash();
 
+        let app = node
+            .provider()
+            .get::<<C as Collection>::ApplicationInterface>();
+
+        // TODO(snormore): Verify state tree and bail if it's not valid.
+        app.verify_state_tree()?;
+
+        // TODO(snormore): Build/backfill state tree if it's not present at all (rollout migration
+        // code).
+
         tokio::select! {
             _ = &mut shutdown_future => break,
             Some(checkpoint_hash) = checkpoint_fut => {
@@ -60,10 +70,6 @@ where
                     checkpoint,
                     checkpoint_hash
                 ).await?;
-
-                // TODO(snormore): Verify state tree and bail if it's not valid.
-
-                // TODO(snormore): Build/backfill state tree if it's not present at all (rollout migration code).
 
                 let provider = MultiThreadedProvider::default();
                 provider.insert(config.clone());

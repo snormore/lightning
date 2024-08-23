@@ -85,6 +85,13 @@ pub trait ApplicationInterface<C: Collection>:
 
     /// Returns the committee from the geneis of the network
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
+
+    /// Verify the state tree. Returns an error if the state tree is not correct,
+    /// otherwise returns `Ok(())`.
+    fn verify_state_tree(&self) -> Result<()>;
+
+    /// Clear and rebuild the state tree.
+    fn clear_and_rebuild_state_tree(&self) -> Result<()>;
 }
 
 #[interfaces_proc::blank]
