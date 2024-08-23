@@ -225,6 +225,6 @@ fn generic_bench_rebuild_state_tree<C: StorageBackendConstructor, M>(
     });
 
     b.iter(|| {
-        M::clear_and_rebuild_state_tree(&mut db).unwrap();
+        M::clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
     })
 }

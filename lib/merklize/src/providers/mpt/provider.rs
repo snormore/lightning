@@ -106,6 +106,8 @@ where
     type Hasher = H;
     type Proof = MptStateProof;
 
+    const NAME: &'static str = "mpt";
+
     /// Augment the provided atomo builder with the necessary tables for the merklize provider.
     fn register_tables<C: StorageBackendConstructor>(
         builder: AtomoBuilder<C, S>,
@@ -229,7 +231,7 @@ where
     }
 
     /// Clear the state tree by removing all nodes and keys from the atomo database.
-    fn clear_state_tree(
+    fn clear_state_tree_unsafe(
         db: &mut atomo::Atomo<atomo::UpdatePerm, Self::Storage, Self::Serde>,
     ) -> Result<()> {
         let span = trace_span!("clear_state_tree");
@@ -268,7 +270,7 @@ where
 
     /// Verify that the state in the given atomo database instance, when used to build a new,
     /// temporary state tree from scratch, matches the stored state tree root hash.
-    fn verify_state_tree(
+    fn verify_state_tree_unsafe(
         db: &mut atomo::Atomo<atomo::UpdatePerm, Self::Storage, Self::Serde>,
     ) -> Result<()> {
         let span = trace_span!("verify_state_tree");

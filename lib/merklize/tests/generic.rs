@@ -194,7 +194,7 @@ fn test_generic<
     });
 
     // Verify state tree.
-    M::verify_state_tree(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db).unwrap();
 
     // Insert more data.
     db.run(|ctx: _| {
@@ -214,7 +214,7 @@ fn test_generic<
     let old_state_root = new_state_root;
 
     // Verify state tree.
-    M::verify_state_tree(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db).unwrap();
 
     // Remove some data.
     db.run(|ctx: _| {
@@ -233,7 +233,7 @@ fn test_generic<
     assert_ne!(new_state_root, StateRootHash::default());
 
     // Verify state tree.
-    M::verify_state_tree(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db).unwrap();
 
     // Check non-membership proofs for removed data.
     query.run(|ctx| {
@@ -257,8 +257,8 @@ fn test_generic<
     });
 
     // Clear and rebuild state tree.
-    M::clear_and_rebuild_state_tree(&mut db).unwrap();
+    M::clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
 
     // Verify state tree.
-    M::verify_state_tree(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db).unwrap();
 }
