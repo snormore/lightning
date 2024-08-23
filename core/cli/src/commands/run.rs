@@ -61,6 +61,10 @@ where
                     checkpoint_hash
                 ).await?;
 
+                // TODO(snormore): Verify state tree and bail if it's not valid.
+
+                // TODO(snormore): Build/backfill state tree if it's not present at all (rollout migration code).
+
                 let provider = MultiThreadedProvider::default();
                 provider.insert(config.clone());
                 node = ContainedNode::<C>::new(provider, None);

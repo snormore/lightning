@@ -14,9 +14,36 @@ where
 {
     match cmd {
         DevSubCmd::DepGraph => dep_graph::<C>().await,
+
+        // Blockstore
         DevSubCmd::Store { input } => store::<C>(config_path, input).await,
         DevSubCmd::Fetch { remote, hash } => fetch::<C>(config_path, hash, remote).await,
+
+        // Application state tree
+        DevSubCmd::ClearAndRebuildStateTree => clear_and_rebuild_state_tree::<C>(config_path),
+        DevSubCmd::VerifyStateTree => verify_state_tree::<C>(config_path),
     }
+}
+
+fn clear_and_rebuild_state_tree<C>(_config_path: ResolvedPathBuf) -> Result<()>
+where
+    C: Collection<ConfigProviderInterface = TomlConfigProvider<C>>,
+{
+    // let provider = TomlConfigProvider::<C>::load(config_path)?;
+    // let config = provider.get::<C::RpcInterface>();
+
+    // TODO(snormore): Implement this.
+
+    todo!()
+}
+
+fn verify_state_tree<C>(_config_path: ResolvedPathBuf) -> Result<()>
+where
+    C: Collection<ConfigProviderInterface = TomlConfigProvider<C>>,
+{
+    // TODO(snormore): Implement this.
+
+    todo!()
 }
 
 async fn dep_graph<C: Collection>() -> Result<()> {

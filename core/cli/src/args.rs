@@ -108,6 +108,10 @@ pub enum DevSubCmd {
         /// The Blake3 hash of the content that we want to download.
         hash: String,
     },
+    /// Verify the state tree.
+    VerifyStateTree,
+    /// Clear and rebuild the state tree.
+    ClearAndRebuildStateTree,
 }
 
 #[derive(Subcommand, PartialEq, Eq)]
