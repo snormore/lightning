@@ -57,6 +57,18 @@ impl<O, B: StorageBackend, S: SerdeBackend> Atomo<O, B, S> {
         }
     }
 
+    /// Return a reference to the storage backend. Modifying the state directly and going behind
+    /// Atomo will break Atomo.
+    ///
+    /// Only use this when you need an special read operation on the underlying storage and do
+    /// not perform any updates to the database.
+    ///
+    /// This method is not marked as unsafe since it does not allow you to violate borrow checker,
+    /// but it should be treated as such.
+    pub fn get_storage_backend_unsafe(&mut self) -> &B {
+        &self.inner.persistence
+    }
+
     /// Returns a query end for this table.
     pub fn query(&self) -> Atomo<QueryPerm, B, S> {
         Atomo::new(self.inner.clone())
@@ -115,18 +127,6 @@ impl<B: StorageBackend, S: SerdeBackend> Atomo<UpdatePerm, B, S> {
         });
 
         response
-    }
-
-    /// Return a reference to the storage backend. Modifying the state directly and going behind
-    /// Atomo will break Atomo.
-    ///
-    /// Only use this when you need an special read operation on the underlying storage and do
-    /// not perform any updates to the database.
-    ///
-    /// This method is not marked as unsafe since it does not allow you to violate borrow checker,
-    /// but it should be treated as such.
-    pub fn get_storage_backend_unsafe(&mut self) -> &B {
-        &self.inner.persistence
     }
 }
 

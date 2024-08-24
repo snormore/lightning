@@ -41,13 +41,14 @@ where
         let app = node
             .provider()
             .get::<<C as Collection>::ApplicationInterface>();
+        let mut query = app.sync_query();
+        // TODO(snormore): Does this really need to be mut?
 
-        // TODO(snormore): Verify state tree and bail if it's not valid.
-        app.verify_state_tree_unsafe()?;
+        // Verify state tree and return error if not valid.
+        query.verify_state_tree_unsafe()?;
 
-        // TODO(snormore): Build/backfill state tree if it's not present at all (rollout migration
-        // code).
-        if app.is_empty_state_tree_unsafe()? {
+        // Backfill state tree if it's not present at all.
+        if query.is_empty_state_tree_unsafe()? {
             app.clear_and_rebuild_state_tree_unsafe()?;
         }
 

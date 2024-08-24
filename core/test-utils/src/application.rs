@@ -2,7 +2,14 @@ use std::collections::BTreeMap;
 use std::net::IpAddr;
 
 use anyhow::Result;
-use atomo::{DefaultSerdeBackend, StorageBackendConstructor, TableSelector, UpdatePerm};
+use atomo::{
+    Atomo,
+    DefaultSerdeBackend,
+    QueryPerm,
+    StorageBackendConstructor,
+    TableSelector,
+    UpdatePerm,
+};
 use atomo_rocks::Options;
 use fleek_crypto::{
     AccountOwnerSecretKey,
@@ -94,20 +101,20 @@ impl MerklizeProvider for BaselineMerklizeProvider {
     }
 
     fn verify_state_tree_unsafe(
-        _db: &mut atomo::Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+        _db: &mut Atomo<QueryPerm, Self::Storage, Self::Serde>,
     ) -> Result<()> {
+        unimplemented!("Baseline provider does not implement state tree")
+    }
+
+    fn is_empty_state_tree_unsafe(
+        _db: &mut Atomo<QueryPerm, Self::Storage, Self::Serde>,
+    ) -> Result<bool> {
         unimplemented!("Baseline provider does not implement state tree")
     }
 
     fn clear_state_tree_unsafe(
         _db: &mut atomo::Atomo<UpdatePerm, Self::Storage, Self::Serde>,
     ) -> Result<()> {
-        unimplemented!("Baseline provider does not implement state tree")
-    }
-
-    fn is_empty_state_tree_unsafe(
-        _db: &mut atomo::Atomo<UpdatePerm, Self::Storage, Self::Serde>,
-    ) -> Result<bool> {
         unimplemented!("Baseline provider does not implement state tree")
     }
 }

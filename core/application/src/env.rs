@@ -459,8 +459,7 @@ impl<C: Collection> WorkerTrait for UpdateWorker<C> {
     async fn handle(&mut self, req: Self::Request) -> Self::Response {
         let mut env = self.env.lock().unwrap();
         let get_putter = || self.blockstore.put(None);
-        tokio::task::block_in_place(move || futures::executor::block_on(env.run(req, get_putter)))
-            .expect("Failed to execute block")
+        futures::executor::block_on(env.run(req, get_putter)).expect("Failed to execute block")
     }
 }
 

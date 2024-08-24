@@ -207,7 +207,7 @@ fn test_mpt_get_state_root_with_updates() {
     let old_state_root = new_state_root;
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    M::verify_state_tree_unsafe(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db.query()).unwrap();
 
     // Insert another value.
     db.run(|ctx| {
@@ -274,7 +274,7 @@ fn test_mpt_get_state_root_with_updates() {
     let old_state_root = new_state_root;
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    M::verify_state_tree_unsafe(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db.query()).unwrap();
 
     // Insert existing key with same value.
     db.run(|ctx| {
@@ -318,7 +318,7 @@ fn test_mpt_get_state_root_with_updates() {
     assert_eq!(old_state_root, new_state_root);
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    M::verify_state_tree_unsafe(&mut db).unwrap();
+    M::verify_state_tree_unsafe(&mut db.query()).unwrap();
 }
 
 #[test]

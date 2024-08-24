@@ -5,14 +5,17 @@ use std::sync::{Arc, Mutex};
 use anyhow::{ensure, Result};
 use atomo::batch::{BoxedVec, Operation, VerticalBatch};
 use atomo::{
+    Atomo,
     AtomoBuilder,
     InMemoryStorage,
+    QueryPerm,
     SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
     TableId,
     TableRef,
     TableSelector,
+    UpdatePerm,
 };
 use fxhash::FxHashMap;
 use tracing::{trace, trace_span};
@@ -232,7 +235,7 @@ where
 
     /// Clear the state tree by removing all nodes and keys from the atomo database.
     fn clear_state_tree_unsafe(
-        db: &mut atomo::Atomo<atomo::UpdatePerm, Self::Storage, Self::Serde>,
+        db: &mut atomo::Atomo<UpdatePerm, Self::Storage, Self::Serde>,
     ) -> Result<()> {
         let span = trace_span!("clear_state_tree");
         let _enter = span.enter();
@@ -271,7 +274,7 @@ where
     /// Verify that the state in the given atomo database instance, when used to build a new,
     /// temporary state tree from scratch, matches the stored state tree root hash.
     fn verify_state_tree_unsafe(
-        db: &mut atomo::Atomo<atomo::UpdatePerm, Self::Storage, Self::Serde>,
+        db: &mut Atomo<QueryPerm, Self::Storage, Self::Serde>,
     ) -> Result<()> {
         let span = trace_span!("verify_state_tree");
         let _enter = span.enter();
@@ -311,7 +314,7 @@ where
     }
 
     fn is_empty_state_tree_unsafe(
-        _db: &mut atomo::Atomo<atomo::UpdatePerm, Self::Storage, Self::Serde>,
+        _db: &mut Atomo<QueryPerm, Self::Storage, Self::Serde>,
     ) -> Result<bool> {
         // TODO(snormore): Implement this.
         todo!()

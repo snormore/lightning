@@ -5,6 +5,7 @@ use atomo::batch::Operation;
 use atomo::{
     Atomo,
     AtomoBuilder,
+    QueryPerm,
     SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
@@ -98,7 +99,7 @@ pub trait MerklizeProvider {
     /// Arguments:
     /// - `db`: The atomo database instance to verify.
     fn verify_state_tree_unsafe(
-        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+        db: &mut Atomo<QueryPerm, Self::Storage, Self::Serde>,
     ) -> Result<()>;
 
     /// Returns whether the state tree is empty.
@@ -110,7 +111,7 @@ pub trait MerklizeProvider {
     /// Arguments:
     /// - `db`: The atomo database instance to check.
     fn is_empty_state_tree_unsafe(
-        db: &mut Atomo<UpdatePerm, Self::Storage, Self::Serde>,
+        db: &mut Atomo<QueryPerm, Self::Storage, Self::Serde>,
     ) -> Result<bool>;
 
     /// Applies the pending changes in the given context to the state tree.

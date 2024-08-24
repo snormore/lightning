@@ -131,10 +131,14 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         }
     }
 
+    /// Returns the chain id from the genesis file, instead of from the stored state.
+    // TODO(snormore): This should always be the same, so why is it necessary?
     fn get_chain_id(config: &Config) -> Result<ChainId> {
         Ok(config.genesis()?.chain_id)
     }
 
+    /// Returns the genesis committee from the genesis file, instead of from the stored state.
+    // TODO(snormore): This should always be the same, so why is it necessary?
     fn get_genesis_committee(config: &Config) -> Result<Vec<NodeInfo>> {
         Ok(config
             .genesis()?
@@ -145,20 +149,14 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
             .collect())
     }
 
-    fn verify_state_tree_unsafe(&self) -> Result<()> {
-        // TODO(snormore): Can we make this use query runner?
-        self.env.lock().unwrap().inner.verify_state_tree()
-    }
-
+    /// Clear and rebuild the state tree.
+    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
+    /// safety and consistency of atomo.
     fn clear_and_rebuild_state_tree_unsafe(&self) -> Result<()> {
         self.env
             .lock()
             .unwrap()
             .inner
             .clear_and_rebuild_state_tree()
-    }
-
-    fn is_empty_state_tree_unsafe(&self) -> Result<bool> {
-        self.env.lock().unwrap().inner.is_empty_state_tree()
     }
 }
