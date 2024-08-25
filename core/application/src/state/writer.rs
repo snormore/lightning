@@ -32,39 +32,29 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
-use merklize::hashers::keccak::KeccakHasher;
-use merklize::providers::mpt::MptMerklizeProvider;
-use merklize::MerklizeProvider;
+use merklize::{StateTree, StateTreeBuilder, StateTreeWriter};
 
 use super::context::StateContext;
 use super::executor::StateExecutor;
 use super::query::QueryRunner;
 use crate::storage::AtomoStorage;
 
-/// A canonical application state tree implementation.
-pub type ApplicationMerklizeProvider =
-    MptMerklizeProvider<AtomoStorage, DefaultSerdeBackend, KeccakHasher>;
-
 /// The shared application state accumulates by executing transactions.
-pub struct ApplicationState<StateTree: MerklizeProvider> {
-    db: Atomo<UpdatePerm, StateTree::Storage, StateTree::Serde>,
+pub struct ApplicationState<T: StateTree> {
+    db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
 }
 
-impl<StateTree> ApplicationState<StateTree>
-where
-    StateTree: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
-{
+impl<T: StateTree> ApplicationState<T> {
     /// Creates a new application state.
-    pub(crate) fn new(db: Atomo<UpdatePerm, AtomoStorage, DefaultSerdeBackend>) -> Self {
+    pub(crate) fn new(
+        db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+    ) -> Self {
         Self { db }
     }
 
     /// Registers the application and state tree tables, and builds the atomo database.
-    pub fn build<C>(atomo: AtomoBuilder<C, DefaultSerdeBackend>) -> Result<Self>
-    where
-        C: StorageBackendConstructor<Storage = AtomoStorage>,
-    {
-        let atomo = ApplicationState::<StateTree>::register_tables(atomo);
+    pub fn build(atomo: AtomoBuilder<T::StorageBuilder, T::Serde>) -> Result<Self> {
+        let atomo = ApplicationState::register_tables(atomo);
 
         let db = atomo
             .build()
@@ -74,7 +64,7 @@ where
     }
 
     /// Returns a reader for the application state.
-    pub fn query(&self) -> QueryRunner {
+    pub fn query(&self) -> QueryRunner<T::Reader> {
         QueryRunner::new(self.db.query())
     }
 
@@ -82,7 +72,9 @@ where
     ///
     /// This is unsafe because it allows modifying the state tree without going through the
     /// executor, which can lead to inconsistent state across nodes.
-    pub fn get_storage_backend_unsafe(&mut self) -> &AtomoStorage {
+    pub fn get_storage_backend_unsafe(
+        &mut self,
+    ) -> &<T::StorageBuilder as StorageBackendConstructor>::Storage {
         self.db.get_storage_backend_unsafe()
     }
 
@@ -104,7 +96,7 @@ where
         self.db.run(|ctx| {
             let result = mutation(ctx);
 
-            StateTree::update_state_tree_from_context(ctx)?;
+            <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx)?;
 
             Ok(result)
         })
@@ -114,15 +106,13 @@ where
     /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
     /// safety and consistency of atomo.
     pub fn clear_and_rebuild_state_tree_unsafe(&mut self) -> Result<()> {
-        <ApplicationMerklizeProvider as MerklizeProvider>::clear_and_rebuild_state_tree_unsafe(
-            &mut self.db,
-        )
+        <T::Writer as StateTreeWriter<T>>::clear_and_rebuild_state_tree_unsafe(&mut self.db)
     }
 
     /// Registers and configures the application state tables with the atomo database builder.
-    pub fn register_tables<B: StorageBackendConstructor>(
-        builder: AtomoBuilder<B, StateTree::Serde>,
-    ) -> AtomoBuilder<B, StateTree::Serde> {
+    pub fn register_tables(
+        builder: AtomoBuilder<T::StorageBuilder, T::Serde>,
+    ) -> AtomoBuilder<T::StorageBuilder, T::Serde> {
         let mut builder = builder
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")
@@ -165,7 +155,7 @@ where
                 .enable_iter("pub_key_to_index");
         }
 
-        builder = StateTree::register_tables(builder);
+        builder = <T::Builder as StateTreeBuilder<T>>::register_tables(builder);
 
         builder
     }

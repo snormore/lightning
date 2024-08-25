@@ -10,6 +10,8 @@ use atomo::{
     KeyIterator,
     QueryPerm,
     ResolvedTableReference,
+    StorageBackend,
+    StorageBackendConstructor,
     TableSelector,
 };
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
@@ -37,15 +39,14 @@ use lightning_interfaces::types::{
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
 use lightning_types::{StateProofKey, StateProofValue};
-use merklize::{MerklizeProvider, StateRootHash};
+use merklize::{StateRootHash, StateTree, StateTreeReader};
 
-use super::writer::ApplicationMerklizeProvider;
 use crate::state::ApplicationState;
-use crate::storage::{AtomoStorage, AtomoStorageBuilder};
+use crate::storage::AtomoStorageBuilder;
 
 #[derive(Clone)]
-pub struct QueryRunner {
-    inner: Atomo<QueryPerm, AtomoStorage>,
+pub struct QueryRunner<T: StateTree> {
+    inner: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage>,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
     client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
@@ -68,19 +69,27 @@ pub struct QueryRunner {
     node_to_uri: ResolvedTableReference<NodeIndex, BTreeSet<Blake3Hash>>,
 }
 
-impl QueryRunner {
+impl<T: StateTree> QueryRunner<T> {
     pub fn run<F, R>(&self, query: F) -> R
     where
-        F: FnOnce(&mut TableSelector<AtomoStorage, DefaultSerdeBackend>) -> R,
+        F: FnOnce(
+            &mut TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        ) -> R,
     {
         self.inner.run(query)
     }
 }
 
-impl SyncQueryRunnerInterface for QueryRunner {
-    type Backend = AtomoStorage;
+impl<T: StateTree> SyncQueryRunnerInterface for QueryRunner<T>
+where
+    T::StorageBuilder: StorageBackendConstructor + Send + Sync,
+    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
+{
+    type Backend = <T::StorageBuilder as StorageBackendConstructor>::Storage;
 
-    fn new(atomo: Atomo<QueryPerm, AtomoStorage>) -> Self {
+    fn new(
+        atomo: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage>,
+    ) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -116,15 +125,11 @@ impl SyncQueryRunnerInterface for QueryRunner {
             .from_checkpoint(hash, checkpoint)
             .read_only();
 
-        let atomo =
-            ApplicationState::<ApplicationMerklizeProvider>::register_tables(AtomoBuilder::<
-                AtomoStorageBuilder,
-                DefaultSerdeBackend,
-            >::new(
-                backend
-            ))
-            .build()?
-            .query();
+        let atomo = ApplicationState::register_tables(
+            AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
+        )
+        .build()?
+        .query();
 
         Ok(atomo)
     }
@@ -132,15 +137,11 @@ impl SyncQueryRunnerInterface for QueryRunner {
     fn atomo_from_path(path: impl AsRef<Path>) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
-        let atomo =
-            ApplicationState::<ApplicationMerklizeProvider>::register_tables(AtomoBuilder::<
-                AtomoStorageBuilder,
-                DefaultSerdeBackend,
-            >::new(
-                backend
-            ))
-            .build()?
-            .query();
+        let atomo = ApplicationState::register_tables(
+            AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
+        )
+        .build()?
+        .query();
 
         Ok(atomo)
     }

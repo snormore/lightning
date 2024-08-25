@@ -1,25 +1,20 @@
-use atomo::{
-    AtomoBuilder,
-    DefaultSerdeBackend,
-    InMemoryStorage,
-    SerdeBackend,
-    StorageBackendConstructor,
-};
+use atomo::{AtomoBuilder, DefaultSerdeBackend, InMemoryStorage, StorageBackendConstructor};
 use merklize::hashers::keccak::KeccakHasher;
-use merklize::providers::jmt::JmtMerklizeProvider;
-use merklize::{MerklizeProvider, StateProof};
+use merklize::providers::jmt::JmtStateTree;
+use merklize::{StateProof, StateTree, StateTreeBuilder};
 
 pub fn main() {
     let builder = InMemoryStorage::default();
 
-    run::<_, JmtMerklizeProvider<_, DefaultSerdeBackend, KeccakHasher>>(builder);
+    run::<JmtStateTree<_, DefaultSerdeBackend, KeccakHasher>>(builder);
 }
 
-fn run<B: StorageBackendConstructor, M: MerklizeProvider<Storage = B::Storage>>(builder: B) {
-    let mut db =
-        M::register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
-            .build()
-            .unwrap();
+fn run<T: StateTree>(builder: T::StorageBuilder) {
+    let mut db = T::Builder::register_tables(
+        AtomoBuilder::new(builder).with_table::<String, String>("data"),
+    )
+    .build()
+    .unwrap();
     let query = db.query();
 
     // Open writer context and insert some data.

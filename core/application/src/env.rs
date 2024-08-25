@@ -31,25 +31,29 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_metrics::increment_counter;
-use merklize::MerklizeProvider;
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::providers::mpt::MptStateTree;
+use merklize::StateTree;
 use tracing::warn;
 
 use crate::config::{Config, StorageConfig};
 use crate::genesis::GenesisPrices;
-use crate::state::{ApplicationMerklizeProvider, ApplicationState, QueryRunner};
-use crate::storage::{AtomoStorage, AtomoStorageBuilder};
+use crate::state::{ApplicationState, QueryRunner};
+use crate::storage::AtomoStorageBuilder;
 
-pub struct Env<StateTree: MerklizeProvider> {
+pub struct Env<T: StateTree> {
     // TODO(snormore): Make this private, not pub.
-    pub inner: ApplicationState<StateTree>,
+    pub inner: ApplicationState<T>,
 }
 
-pub type ApplicationEnv = Env<ApplicationMerklizeProvider>;
+pub type ApplicationStateTree<'builder> =
+    MptStateTree<AtomoStorageBuilder<'builder>, DefaultSerdeBackend, KeccakHasher>;
 
-impl<StateTree: MerklizeProvider> Env<StateTree>
-where
-    StateTree: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
-{
+pub type ApplicationEnv = Env<ApplicationStateTree<'static>>;
+
+pub type ApplicationQueryRunner = QueryRunner<<ApplicationStateTree<'static> as StateTree>::Reader>;
+
+impl<T: StateTree> Env<T> {
     pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
         let storage = match config.storage {
             StorageConfig::RocksDb => {
@@ -106,7 +110,7 @@ where
         Ok(Self { inner: state })
     }
 
-    pub fn query_runner(&self) -> QueryRunner {
+    pub fn query_runner(&self) -> QueryRunner<T::Reader> {
         self.inner.query()
     }
 
