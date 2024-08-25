@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
@@ -439,6 +440,12 @@ where
             })
             .expect("Failed to update last epoch hash");
     }
+
+    /// Rebuilds the state tree from the state data.
+    // TODO(snormore): Describe why unsafe namespace.
+    pub fn rebuild_state_tree_unsafe(&mut self) -> Result<()> {
+        self.inner.clear_and_rebuild_state_tree_unsafe()
+    }
 }
 
 impl Default for ApplicationEnv {
@@ -449,12 +456,12 @@ impl Default for ApplicationEnv {
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: ApplicationEnv,
+    env: Arc<Mutex<ApplicationEnv>>,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: ApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(env: Arc<Mutex<ApplicationEnv>>, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
@@ -465,9 +472,7 @@ impl<C: Collection> WorkerTrait for UpdateWorker<C> {
 
     async fn handle(&mut self, req: Self::Request) -> Self::Response {
         let get_putter = || self.blockstore.put(None);
-        self.env
-            .run(req, get_putter)
-            .await
+        futures::executor::block_on(self.env.lock().unwrap().run(req, get_putter))
             .expect("Failed to execute block")
     }
 }

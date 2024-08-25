@@ -24,20 +24,16 @@ where
     }
 }
 
-fn rebuild_state_tree_unsafe<C>(_config_path: ResolvedPathBuf) -> Result<()>
+fn rebuild_state_tree_unsafe<C>(config_path: ResolvedPathBuf) -> Result<()>
 where
     C: Collection<ConfigProviderInterface = TomlConfigProvider<C>>,
 {
-    // TODO(snormore): Implement this.
+    let config = TomlConfigProvider::<C>::load(config_path)?;
+    let provider = fdi::Provider::default().with(config);
 
-    // let config = TomlConfigProvider::<C>::load(config_path)?;
-    // let provider = fdi::Provider::default().with(config);
-
-    // provider
-    //     .get::<<C as Collection>::ApplicationInterface>()
-    //     .clear_and_rebuild_state_tree_unsafe()
-
-    todo!()
+    provider
+        .get::<<C as Collection>::ApplicationInterface>()
+        .rebuild_state_tree_unsafe()
 }
 
 async fn dep_graph<C: Collection>() -> Result<()> {

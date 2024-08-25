@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker;
@@ -14,9 +14,11 @@ use crate::env::{ApplicationEnv, Env, UpdateWorker};
 use crate::state::QueryRunner;
 
 pub struct Application<C: Collection> {
+    env: Arc<Mutex<ApplicationEnv>>,
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
     query_runner: QueryRunner,
-    collection: PhantomData<C>,
+
+    _collection: PhantomData<C>,
 }
 
 impl<C: Collection> Application<C> {
@@ -43,13 +45,16 @@ impl<C: Collection> Application<C> {
             info!("Genesis block already exists exist in application state.");
         };
 
-        let worker = UpdateWorker::<C>::new(env, blockstore.clone());
+        let env = Arc::new(Mutex::new(env));
+        let worker = UpdateWorker::<C>::new(env.clone(), blockstore.clone());
         let update_socket = spawn_worker!(worker, "APPLICATION", waiter, crucial);
 
         Ok(Self {
+            env,
             query_runner,
             update_socket: Mutex::new(Some(update_socket)),
-            collection: PhantomData,
+
+            _collection: PhantomData,
         })
     }
 }
@@ -143,5 +148,11 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
             .filter(|node| node.genesis_committee)
             .map(NodeInfo::from)
             .collect())
+    }
+
+    /// Rebuilds the state tree from the state data.
+    // TODO(snormore): Describe why unsafe namespace.
+    fn rebuild_state_tree_unsafe(&self) -> Result<()> {
+        self.env.lock().unwrap().rebuild_state_tree_unsafe()
     }
 }

@@ -85,6 +85,10 @@ pub trait ApplicationInterface<C: Collection>:
 
     /// Returns the genesis committee from the genesis file, instead of from the stored state.
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
+
+    /// Rebuilds the state tree from the state data.
+    // TODO(snormore): Describe why unsafe namespace.
+    fn rebuild_state_tree_unsafe(&self) -> Result<()>;
 }
 
 #[interfaces_proc::blank]
