@@ -20,36 +20,24 @@ where
         DevSubCmd::Fetch { remote, hash } => fetch::<C>(config_path, hash, remote).await,
 
         // Application state tree
-        DevSubCmd::ClearAndRebuildStateTree => {
-            clear_and_rebuild_state_tree_unsafe::<C>(config_path)
-        },
-        DevSubCmd::VerifyStateTree => verify_state_tree_unsafe::<C>(config_path),
+        DevSubCmd::RebuildStateTree => rebuild_state_tree_unsafe::<C>(config_path),
     }
 }
 
-fn clear_and_rebuild_state_tree_unsafe<C>(config_path: ResolvedPathBuf) -> Result<()>
+fn rebuild_state_tree_unsafe<C>(_config_path: ResolvedPathBuf) -> Result<()>
 where
     C: Collection<ConfigProviderInterface = TomlConfigProvider<C>>,
 {
-    let config = TomlConfigProvider::<C>::load(config_path)?;
-    let provider = fdi::Provider::default().with(config);
+    // TODO(snormore): Implement this.
 
-    provider
-        .get::<<C as Collection>::ApplicationInterface>()
-        .clear_and_rebuild_state_tree_unsafe()
-}
+    // let config = TomlConfigProvider::<C>::load(config_path)?;
+    // let provider = fdi::Provider::default().with(config);
 
-fn verify_state_tree_unsafe<C>(config_path: ResolvedPathBuf) -> Result<()>
-where
-    C: Collection<ConfigProviderInterface = TomlConfigProvider<C>>,
-{
-    let config = TomlConfigProvider::<C>::load(config_path)?;
-    let provider = fdi::Provider::default().with(config);
+    // provider
+    //     .get::<<C as Collection>::ApplicationInterface>()
+    //     .clear_and_rebuild_state_tree_unsafe()
 
-    provider
-        .get::<<C as Collection>::ApplicationInterface>()
-        .sync_query()
-        .verify_state_tree_unsafe()
+    todo!()
 }
 
 async fn dep_graph<C: Collection>() -> Result<()> {

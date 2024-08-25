@@ -81,18 +81,10 @@ pub trait ApplicationInterface<C: Collection>:
     ) -> Result<()>;
 
     /// Returns the chain id from the genesis file, instead of from the stored state.
-    // TODO(snormore): This should always be the same, so why is it necessary?
     fn get_chain_id(config: &Self::Config) -> Result<ChainId>;
 
     /// Returns the genesis committee from the genesis file, instead of from the stored state.
-    // TODO(snormore): This should always be the same, so why is it necessary?
     fn get_genesis_committee(config: &Self::Config) -> Result<Vec<NodeInfo>>;
-
-    /// Clear and rebuild the state tree.
-    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
-    /// safety and consistency of atomo.
-    // TODO(snormore): Update all these unsafe suffixes to be prefixes.
-    fn clear_and_rebuild_state_tree_unsafe(&self) -> Result<()>;
 }
 
 #[interfaces_proc::blank]
@@ -124,14 +116,10 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     // TODO(snormore): Can we do better here?
 
     /// Verify the state tree.
-    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
-    /// safety and consistency of atomo.
-    fn verify_state_tree_unsafe(&mut self) -> Result<()>;
+    fn verify_state_tree(&mut self) -> Result<()>;
 
     /// Check if the state tree is empty.
-    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
-    /// safety and consistency of atomo.
-    fn is_empty_state_tree_unsafe(&mut self) -> Result<bool>;
+    fn is_empty_state_tree(&mut self) -> Result<bool>;
 
     /// Query Account Table
     /// Returns information about an account.

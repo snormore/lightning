@@ -181,19 +181,17 @@ impl SyncQueryRunnerInterface for QueryRunner {
     }
 
     /// Verify the state tree.
-    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
-    /// safety and consistency of atomo.
     #[inline]
-    fn verify_state_tree_unsafe(&mut self) -> Result<()> {
+    // TODO(snormore): Can we make this not need a mut self?
+    fn verify_state_tree(&mut self) -> Result<()> {
         // TODO(snormore): Can we make the query runner accept a merklize provider type param?
         <ApplicationMerklizeProvider as MerklizeProvider>::verify_state_tree_unsafe(&mut self.inner)
     }
 
     /// Check if the state tree is empty.
-    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
-    /// safety and consistency of atomo.
     #[inline]
-    fn is_empty_state_tree_unsafe(&mut self) -> Result<bool> {
+    // TODO(snormore): Can we make this not need a mut self?
+    fn is_empty_state_tree(&mut self) -> Result<bool> {
         <ApplicationMerklizeProvider as MerklizeProvider>::is_empty_state_tree_unsafe(
             &mut self.inner,
         )

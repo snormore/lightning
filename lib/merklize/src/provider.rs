@@ -79,9 +79,8 @@ pub trait MerklizeProvider {
     /// Clears the existing state tree data. This does not delete or modify any of the state data,
     /// just the tree structure and tables related to it.
     ///
-    /// This method acts directly on the atomo database instance, so it should only be used with
-    /// caution in isolation for use cases such as backfilling the state tree during rollout or
-    /// corruption recovery.
+    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
+    /// safety and consistency of atomo.
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to use for clearing the state tree.
@@ -92,9 +91,8 @@ pub trait MerklizeProvider {
     /// Verifies that the state in the given atomo database instance, when used to build a
     /// new, temporary state tree from scratch, matches the stored state tree root hash.
     ///
-    /// This method reads directly from the atomo database instance, so may lack consistency if
-    /// concurrently accessed. It should only be used with caution in isolation for use cases such
-    /// as performing an integrity check at startup.
+    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
+    /// safety and consistency of atomo.
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to verify.
@@ -104,9 +102,8 @@ pub trait MerklizeProvider {
 
     /// Returns whether the state tree is empty.
     ///
-    /// This method reads directly from the atomo database instance, so may lack consistency if
-    /// concurrently accessed. It should only be used with caution in isolation for use cases such
-    /// as performing a migration check at startup.
+    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
+    /// safety and consistency of atomo.
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to check.
@@ -152,9 +149,8 @@ pub trait MerklizeProvider {
     /// of the state data, just the tree structure and tables related to it. The tree is then
     /// rebuilt by applying all of the state data in the atomo context to the new tree.
     ///
-    /// This method acts directly on the atomo database instance, so it should only be used with
-    /// caution in isolation for use cases such as backfilling the state tree during rollout or
-    /// corruption recovery.
+    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
+    /// safety and consistency of atomo.
     ///
     /// Arguments:
     /// - `db`: The atomo database instance to use for clearing and rebuilding the state tree.

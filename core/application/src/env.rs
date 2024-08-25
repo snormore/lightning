@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
@@ -46,9 +45,6 @@ pub struct Env<StateTree: MerklizeProvider> {
 
 pub type ApplicationEnv = Env<ApplicationMerklizeProvider>;
 
-// TODO(snormore): Can we do this without the arc/mutex?
-pub type SharedApplicationEnv = Arc<Mutex<ApplicationEnv>>;
-
 impl<StateTree: MerklizeProvider> Env<StateTree>
 where
     StateTree: MerklizeProvider<Storage = AtomoStorage, Serde = DefaultSerdeBackend>,
@@ -88,10 +84,21 @@ where
         };
 
         let atomo = AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
+        let mut state = ApplicationState::<StateTree>::build(atomo)?;
 
-        Ok(Self {
-            inner: ApplicationState::<StateTree>::build(atomo)?,
-        })
+        // TODO(snormore): Does this need to be mutable? Can we make it not needed?
+        let mut query = state.query();
+
+        // Verify integrity of the state tree by rebuilding the state root from the state data
+        // and comparing it to the stored state root. Return error if not valid.
+        query.verify_state_tree()?;
+
+        // If the state tree is empty, rebuild it from the state data.
+        if query.is_empty_state_tree()? {
+            state.clear_and_rebuild_state_tree_unsafe()?;
+        }
+
+        Ok(Self { inner: state })
     }
 
     pub fn query_runner(&self) -> QueryRunner {
@@ -442,12 +449,12 @@ impl Default for ApplicationEnv {
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: SharedApplicationEnv,
+    env: ApplicationEnv,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: SharedApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(env: ApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
@@ -457,9 +464,11 @@ impl<C: Collection> WorkerTrait for UpdateWorker<C> {
     type Response = BlockExecutionResponse;
 
     async fn handle(&mut self, req: Self::Request) -> Self::Response {
-        let mut env = self.env.lock().unwrap();
         let get_putter = || self.blockstore.put(None);
-        futures::executor::block_on(env.run(req, get_putter)).expect("Failed to execute block")
+        self.env
+            .run(req, get_putter)
+            .await
+            .expect("Failed to execute block")
     }
 }
 

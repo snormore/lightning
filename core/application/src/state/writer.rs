@@ -113,7 +113,7 @@ where
     /// Clear and rebuild the state tree.
     /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
     /// safety and consistency of atomo.
-    pub fn clear_and_rebuild_state_tree(&mut self) -> Result<()> {
+    pub fn clear_and_rebuild_state_tree_unsafe(&mut self) -> Result<()> {
         <ApplicationMerklizeProvider as MerklizeProvider>::clear_and_rebuild_state_tree_unsafe(
             &mut self.db,
         )
