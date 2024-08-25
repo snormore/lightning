@@ -92,7 +92,7 @@ pub trait ApplicationInterface<C: Collection>:
 }
 
 #[interfaces_proc::blank]
-pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
+pub trait SyncQueryRunnerInterface: Send + Sync + 'static {
     #[blank(InMemoryStorage)]
     type Backend: StorageBackend + Send + Sync;
 
