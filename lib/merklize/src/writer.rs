@@ -2,7 +2,15 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use atomo::batch::Operation;
-use atomo::{Atomo, StorageBackend, StorageBackendConstructor, TableId, TableSelector, UpdatePerm};
+use atomo::{
+    Atomo,
+    AtomoBuilder,
+    StorageBackend,
+    StorageBackendConstructor,
+    TableId,
+    TableSelector,
+    UpdatePerm,
+};
 use fxhash::FxHashMap;
 use tracing::trace_span;
 
@@ -15,7 +23,15 @@ use crate::StateTree;
 /// ```rust
 #[doc = include_str!("../examples/jmt-sha256.rs")]
 /// ```
-pub trait StateTreeWriter<T: StateTree> {
+pub trait StateTreeWriter<T: StateTree>: Sized {
+    fn new(
+        db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+    ) -> Self;
+
+    fn build(self, builder: AtomoBuilder<T::StorageBuilder, T::Serde>) -> Result<Self>;
+
+    fn reader(self) -> T::Reader;
+
     /// Applies the changes in the given batch of updates to the state tree.
     ///
     /// This method uses an atomo execution context, so it is safe to use concurrently.

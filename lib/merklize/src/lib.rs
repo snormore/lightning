@@ -1,4 +1,5 @@
 mod builder;
+mod config;
 mod errors;
 mod hasher;
 pub mod hashers;
@@ -10,6 +11,7 @@ mod types;
 mod writer;
 
 pub use builder::StateTreeBuilder;
+pub use config::StateTreeConfig;
 pub use errors::VerifyStateTreeError;
 pub use hasher::{SimpleHash, SimpleHasher};
 pub use proof::StateProof;

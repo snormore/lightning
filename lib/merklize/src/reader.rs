@@ -4,7 +4,7 @@ use atomo::{Atomo, QueryPerm, StorageBackendConstructor, TableSelector};
 use crate::{StateRootHash, StateTree};
 
 /// A trait for interacting with the state tree as a reader.
-pub trait StateTreeReader<T: StateTree> {
+pub trait StateTreeReader<T: StateTree>: Clone {
     /// Returns the root hash of the state tree.
     ///
     /// Arguments:

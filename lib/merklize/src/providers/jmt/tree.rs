@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use atomo::{SerdeBackend, StorageBackendConstructor};
+use atomo::{AtomoBuilder, SerdeBackend, StorageBackendConstructor};
 use jmt::Version;
 
 use super::proof::JmtStateProof;
@@ -56,15 +56,11 @@ impl<B: StorageBackendConstructor, S: SerdeBackend, H: SimpleHasher> StateTree
     type Reader = JmtStateTreeReader<Self>;
     type Writer = JmtStateTreeWriter<Self>;
 
-    fn builder(&self) -> Self::Builder {
-        JmtStateTreeBuilder::new()
+    fn new() -> Self {
+        Self::new()
     }
 
-    fn reader(&self) -> Self::Reader {
-        JmtStateTreeReader::new()
-    }
-
-    fn writer(&self) -> Self::Writer {
-        JmtStateTreeWriter::new()
+    fn builder(self, builder: AtomoBuilder<Self::StorageBuilder, Self::Serde>) -> Self::Builder {
+        JmtStateTreeBuilder::new(builder)
     }
 }

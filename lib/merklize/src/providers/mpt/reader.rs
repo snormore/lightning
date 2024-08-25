@@ -189,9 +189,20 @@ where
         }
 
         // Build a new, temporary state tree from the batch.
-        type TempStateTree<T> =
-            MptStateTree<InMemoryStorage, <T as StateTree>::Serde, <T as StateTree>::Hasher>;
-        let builder = AtomoBuilder::<_, T::Serde>::new(InMemoryStorage::default());
+        let tmp_tree = MptStateTree::<
+            InMemoryStorage,
+            <T as StateTree>::Serde,
+            <T as StateTree>::Hasher,
+        >::new();
+
+        let tmp_db = tmp_tree
+            .builder(AtomoBuilder::new(InMemoryStorage::default()))
+            .build()?;
+
+        let tmp_query = tmp_db.reader();
+
+        let tmp_tree = TempStateTree::<T>::new();
+        let builder = <TempStateTree<T> as StateTree>::Builder::new(builder).register_tables();
         let mut tmp_db = <<TempStateTree<T> as StateTree>::Builder as StateTreeBuilder<
             TempStateTree<T>,
         >>::register_tables(builder)

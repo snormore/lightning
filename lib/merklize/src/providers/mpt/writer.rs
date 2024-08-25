@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use atomo::batch::{BoxedVec, Operation, VerticalBatch};
 use atomo::{
+    Atomo,
     SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
@@ -14,7 +15,7 @@ use atomo::{
 };
 use fxhash::FxHashMap;
 use tracing::{trace, trace_span};
-use trie_db::{TrieDBMutBuilder, TrieMut};
+use trie_db::{DBValue, TrieDBMutBuilder, TrieMut};
 
 use super::adapter::Adapter;
 use super::hasher::SimpleHasherWrapper;
@@ -29,6 +30,12 @@ use super::tree::{
 use crate::{SimpleHasher, StateKey, StateRootHash, StateTree, StateTreeWriter};
 
 pub struct MptStateTreeWriter<T: StateTree> {
+    db: Atomo<
+        UpdatePerm,
+        <<T as StateTree>::StorageBuilder as StorageBackendConstructor>::Storage,
+        <T as StateTree>::Serde,
+    >,
+
     _tree: PhantomData<T>,
 }
 
@@ -40,10 +47,6 @@ where
     T::Serde: SerdeBackend + Send + Sync,
     T::Hasher: SimpleHasher + Send + Sync,
 {
-    pub fn new() -> Self {
-        Self { _tree: PhantomData }
-    }
-
     /// Get the state root hash of the state tree from the root table if it exists, or compute it
     /// from the state tree nodes table if it does not, and save it to the root table, before
     /// returning it.
@@ -94,6 +97,35 @@ where
     T::Serde: SerdeBackend + Send + Sync,
     T::Hasher: SimpleHasher + Send + Sync,
 {
+    fn new(
+        db: Atomo<
+            UpdatePerm,
+            <<T as StateTree>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <T as StateTree>::Serde,
+        >,
+    ) -> Self {
+        Self {
+            db,
+
+            _tree: PhantomData,
+        }
+    }
+
+    fn build(
+        self,
+        builder: atomo::AtomoBuilder<<T as StateTree>::StorageBuilder, <T as StateTree>::Serde>,
+    ) -> Result<Self> {
+        let db = builder
+            .with_table::<<SimpleHasherWrapper<T::Hasher> as hash_db::Hasher>::Out, DBValue>(
+                NODES_TABLE_NAME,
+            )
+            .with_table::<u8, StateRootHash>(ROOT_TABLE_NAME)
+            .build()
+            .map_err(|e| anyhow!("{:?}", e))?;
+
+        Ok(Self::new(db))
+    }
+
     /// Apply the state tree changes based on the state changes in the atomo batch. This will update
     /// the state tree to reflect the changes in the atomo batch.
     /// Since we need to read the state, a table selector execution context is needed for

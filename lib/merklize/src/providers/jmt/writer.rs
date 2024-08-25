@@ -2,11 +2,12 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use atomo::batch::{BoxedVec, Operation, VerticalBatch};
-use atomo::{Atomo, StorageBackend, StorageBackendConstructor, TableId, TableSelector};
+use atomo::{Atomo, StorageBackend, StorageBackendConstructor, TableId, TableSelector, UpdatePerm};
 use fxhash::FxHashMap;
-use jmt::storage::{NodeKey, TreeReader};
+use jmt::storage::{Node, NodeKey, TreeReader};
+use jmt::KeyHash;
 use tracing::{trace, trace_span};
 
 use super::adapter::Adapter;
@@ -15,16 +16,43 @@ use super::tree::{KEYS_TABLE_NAME, NODES_TABLE_NAME, TREE_VERSION};
 use crate::{StateKey, StateTree, StateTreeWriter};
 
 pub struct JmtStateTreeWriter<T: StateTree> {
+    db: Atomo<
+        UpdatePerm,
+        <<T as StateTree>::StorageBuilder as StorageBackendConstructor>::Storage,
+        <T as StateTree>::Serde,
+    >,
+
     _tree: PhantomData<T>,
 }
 
-impl<T: StateTree> JmtStateTreeWriter<T> {
-    pub fn new() -> Self {
-        Self { _tree: PhantomData }
-    }
-}
-
 impl<T: StateTree> StateTreeWriter<T> for JmtStateTreeWriter<T> {
+    fn new(
+        db: Atomo<
+            UpdatePerm,
+            <<T as StateTree>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <T as StateTree>::Serde,
+        >,
+    ) -> Self {
+        Self {
+            db,
+
+            _tree: PhantomData,
+        }
+    }
+
+    fn build(
+        self,
+        builder: atomo::AtomoBuilder<<T as StateTree>::StorageBuilder, <T as StateTree>::Serde>,
+    ) -> Result<Self> {
+        let db = builder
+            .with_table::<NodeKey, Node>(NODES_TABLE_NAME)
+            .with_table::<KeyHash, StateKey>(KEYS_TABLE_NAME)
+            .build()
+            .map_err(|e| anyhow!("{:?}", e))?;
+
+        Ok(Self::new(db))
+    }
+
     /// Apply the state tree changes based on the state changes in the atomo batch. This will update
     /// the state tree to reflect the changes in the atomo batch.
     /// Since we need to read the state, a table selector execution context is needed for

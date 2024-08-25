@@ -155,8 +155,7 @@ impl<T: StateTree> ApplicationState<T> {
                 .enable_iter("pub_key_to_index");
         }
 
-        builder = <T::Builder as StateTreeBuilder<T>>::register_tables(builder);
-
-        builder
+        // TODO(snormore): Move this to StateBuilder.
+        StateTreeBuilder::new(builder).register_tables().into()
     }
 }

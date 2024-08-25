@@ -1,7 +1,14 @@
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use atomo::{SerdeBackend, StorageBackend, StorageBackendConstructor, TableRef, TableSelector};
+use atomo::{
+    AtomoBuilder,
+    SerdeBackend,
+    StorageBackend,
+    StorageBackendConstructor,
+    TableRef,
+    TableSelector,
+};
 use tracing::trace;
 use trie_db::DBValue;
 
@@ -59,16 +66,12 @@ where
     type Reader = MptStateTreeReader<Self>;
     type Writer = MptStateTreeWriter<Self>;
 
-    fn builder(&self) -> Self::Builder {
-        MptStateTreeBuilder::new()
+    fn new() -> Self {
+        Self::new()
     }
 
-    fn reader(&self) -> Self::Reader {
-        MptStateTreeReader::new()
-    }
-
-    fn writer(&self) -> Self::Writer {
-        MptStateTreeWriter::new()
+    fn builder(self, builder: AtomoBuilder<Self::StorageBuilder, Self::Serde>) -> Self::Builder {
+        MptStateTreeBuilder::new(builder)
     }
 }
 
