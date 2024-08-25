@@ -92,6 +92,10 @@ where
 
         // Verify integrity of the state tree by rebuilding the state root from the state data
         // and comparing it to the stored state root. Return error if not valid.
+        // TODO(snormore): Because the QueryRunner is using ApplicationMerklizeProvider, it uses a
+        // different implementation than the env for tests that aren't using the
+        // ApplicationMerklizeProvider. We need to make QueryRunner support the MerklizeProvider
+        // type parameter.
         query.verify_state_tree()?;
 
         // If the state tree is empty, rebuild it from the state data.

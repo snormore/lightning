@@ -335,9 +335,25 @@ where
     }
 
     fn is_empty_state_tree_unsafe(
-        _db: &mut Atomo<atomo::QueryPerm, Self::Storage, Self::Serde>,
+        db: &mut Atomo<atomo::QueryPerm, Self::Storage, Self::Serde>,
     ) -> Result<bool> {
-        // TODO(snormore): Implement this.
-        todo!()
+        let span = trace_span!("is_empty_state_tree");
+        let _enter = span.enter();
+
+        let tables = db.tables();
+        let table_id_by_name = tables
+            .iter()
+            .enumerate()
+            .map(|(tid, table)| (table.clone(), tid as TableId))
+            .collect::<FxHashMap<_, _>>();
+
+        let nodes_table_id = *table_id_by_name.get(NODES_TABLE_NAME).unwrap();
+
+        let storage = db.get_storage_backend_unsafe();
+
+        // TODO(snormore): This should use an iterator to avoid loading all keys into memory. We
+        // only need to see if there is at least one key in each table, so `.next()` on an
+        // iterator should be sufficient.
+        Ok(storage.keys(nodes_table_id).len() == 0)
     }
 }
