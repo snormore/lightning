@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{ensure, Result};
@@ -31,62 +30,59 @@ use super::tree::{
     ROOT_TABLE_NAME,
 };
 use super::{MptStateProof, MptStateTree};
+use crate::writer::StateTreeWriter;
 use crate::{
     SimpleHasher,
     StateKey,
     StateRootHash,
     StateTree,
     StateTreeBuilder,
+    StateTreeConfig,
     StateTreeReader,
-    StateTreeWriter,
     VerifyStateTreeError,
 };
 
 #[derive(Clone)]
-pub struct MptStateTreeReader<T: StateTree> {
-    _tree: PhantomData<T>,
+pub struct MptStateTreeReader<C: StateTreeConfig> {
+    db: Atomo<QueryPerm, <C::StorageBuilder as StorageBackendConstructor>::Storage, C::Serde>,
 }
 
-impl<T: StateTree> MptStateTreeReader<T>
+impl<C: StateTreeConfig> MptStateTreeReader<C>
 where
     // Send + Sync bounds required by triedb/hashdb.
-    T::StorageBuilder: StorageBackendConstructor + Send + Sync,
-    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
-    T::Serde: SerdeBackend + Send + Sync,
-    T::Hasher: SimpleHasher + Send + Sync,
+    C::StorageBuilder: StorageBackendConstructor + Send + Sync,
+    <C::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
+    C::Serde: SerdeBackend + Send + Sync,
+    C::Hasher: SimpleHasher + Send + Sync,
 {
-    pub fn new() -> Self {
-        Self { _tree: PhantomData }
-    }
-
     /// Get the state root hash of the state tree from the root table if it exists, or compute it
     /// from the state tree nodes table if it does not, and save it to the root table, before
     /// returning it.
     // TODO(snormore): Remove/consolidate this duplicate method from `MptStateTreeWriter`.
     fn state_root(
         nodes_table: SharedNodesTableRef<
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
-            T::Hasher,
+            <C::StorageBuilder as StorageBackendConstructor>::Storage,
+            C::Serde,
+            C::Hasher,
         >,
         root_table: SharedRootTable<
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
+            <C::StorageBuilder as StorageBackendConstructor>::Storage,
+            C::Serde,
         >,
     ) -> Result<StateRootHash> {
         let root = { root_table.lock().unwrap().get() };
         if let Some(root) = root {
             Ok(root)
         } else {
-            let mut root: <SimpleHasherWrapper<T::Hasher> as hash_db::Hasher>::Out =
+            let mut root: <SimpleHasherWrapper<C::Hasher> as hash_db::Hasher>::Out =
                 StateRootHash::default().into();
             let mut adapter = Adapter::<
-                <T::StorageBuilder as StorageBackendConstructor>::Storage,
-                T::Serde,
-                T::Hasher,
+                <C::StorageBuilder as StorageBackendConstructor>::Storage,
+                C::Serde,
+                C::Hasher,
             >::new(nodes_table.clone());
             let mut tree =
-                TrieDBMutBuilder::<TrieLayoutWrapper<T::Hasher>>::new(&mut adapter, &mut root)
+                TrieDBMutBuilder::<TrieLayoutWrapper<C::Hasher>>::new(&mut adapter, &mut root)
                     .build();
 
             // Note that tree.root() calls tree.commit() before returning the root hash.
@@ -100,20 +96,32 @@ where
     }
 }
 
-impl<T: StateTree> StateTreeReader<T> for MptStateTreeReader<T>
+impl<C: StateTreeConfig> StateTreeReader<C> for MptStateTreeReader<C>
 where
-    T: StateTree<Proof = MptStateProof>,
-    // Send + Sync bounds required by triedb/hashdb.
-    T::StorageBuilder: StorageBackendConstructor + Send + Sync,
-    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
-    T::Serde: SerdeBackend + Send + Sync,
-    T::Hasher: SimpleHasher + Send + Sync,
+    // Send + Sync bounds required
+    // by triedb.
+    C::StorageBuilder: StorageBackendConstructor + Send + Sync + Clone,
+    <C::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
+    C::Serde: SerdeBackend + Send + Sync + Clone,
+    C::Hasher: SimpleHasher + Send + Sync + Clone,
 {
+    type Proof = MptStateProof;
+
+    fn new(
+        db: Atomo<
+            QueryPerm,
+            <<C as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <C as StateTreeConfig>::Serde,
+        >,
+    ) -> Self {
+        Self { db }
+    }
+
     /// Get the state root hash of the state tree.
     /// Since we need to read the state, a table selector execution context is needed for
     /// consistency.
     fn get_state_root(
-        ctx: &TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        ctx: &TableSelector<<C::StorageBuilder as StorageBackendConstructor>::Storage, C::Serde>,
     ) -> Result<StateRootHash> {
         let span = trace_span!("get_state_root");
         let _enter = span.enter();
@@ -129,30 +137,30 @@ where
     /// Since we need to read the state, a table selector execution context is needed for
     /// consistency.
     fn get_state_proof(
-        ctx: &TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        ctx: &TableSelector<<C::StorageBuilder as StorageBackendConstructor>::Storage, C::Serde>,
         table: &str,
         serialized_key: Vec<u8>,
-    ) -> Result<T::Proof> {
+    ) -> Result<Self::Proof> {
         let span = trace_span!("get_state_proof");
         let _enter = span.enter();
 
         let nodes_table = Arc::new(Mutex::new(ctx.get_table(NODES_TABLE_NAME)));
         let root_table = Arc::new(Mutex::new(RootTable::new(ctx)));
 
-        let state_root: <SimpleHasherWrapper<T::Hasher> as hash_db::Hasher>::Out =
+        let state_root: <SimpleHasherWrapper<C::Hasher> as hash_db::Hasher>::Out =
             Self::state_root(nodes_table.clone(), root_table)?.into();
         let adapter = Adapter::<
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
-            T::Hasher,
+            <C::StorageBuilder as StorageBackendConstructor>::Storage,
+            C::Serde,
+            C::Hasher,
         >::new(nodes_table.clone());
 
         let state_key = StateKey::new(table, serialized_key);
-        let key_hash = state_key.hash::<T::Serde, T::Hasher>();
+        let key_hash = state_key.hash::<C::Serde, C::Hasher>();
         trace!(?key_hash, ?state_key, "get_state_proof");
-        let key_hash: TrieHash<TrieLayoutWrapper<T::Hasher>> = key_hash.into();
+        let key_hash: TrieHash<TrieLayoutWrapper<C::Hasher>> = key_hash.into();
 
-        let proof = generate_proof::<_, TrieLayoutWrapper<T::Hasher>, _, _>(
+        let proof = generate_proof::<_, TrieLayoutWrapper<C::Hasher>, _, _>(
             &adapter,
             &state_root,
             &vec![key_hash],
@@ -168,8 +176,8 @@ where
     fn verify_state_tree_unsafe(
         db: &mut Atomo<
             QueryPerm,
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
+            <C::StorageBuilder as StorageBackendConstructor>::Storage,
+            C::Serde,
         >,
     ) -> Result<()> {
         let span = trace_span!("verify_state_tree");
@@ -188,31 +196,25 @@ where
             batch.insert(table, changes.into_iter());
         }
 
-        // Build a new, temporary state tree from the batch.
+        // Build a new, temporary state tree.
         let tmp_tree = MptStateTree::<
             InMemoryStorage,
-            <T as StateTree>::Serde,
-            <T as StateTree>::Hasher,
+            <C as StateTreeConfig>::Serde,
+            <C as StateTreeConfig>::Hasher,
         >::new();
-
         let tmp_db = tmp_tree
             .builder(AtomoBuilder::new(InMemoryStorage::default()))
             .build()?;
-
         let tmp_query = tmp_db.reader();
 
-        let tmp_tree = TempStateTree::<T>::new();
-        let builder = <TempStateTree<T> as StateTree>::Builder::new(builder).register_tables();
-        let mut tmp_db = <<TempStateTree<T> as StateTree>::Builder as StateTreeBuilder<
-            TempStateTree<T>,
-        >>::register_tables(builder)
-        .build()?;
-        tmp_db.run(|ctx| <TempStateTree<T> as StateTree>::Writer::update_state_tree(ctx, batch))?;
+        // Apply the batch to the temporary state tree.
+        // TODO(snormore): The inner thing should be in the given context from run, a new type
+        // called StateTreeContext.
+        tmp_db.run(|ctx| tmp_db.update_state_tree(ctx, batch))?;
 
         // Get and return the state root hash from the temporary state tree.
-        let tmp_state_root = tmp_db
-            .query()
-            .run(|ctx| <TempStateTree<T> as StateTree>::Reader::get_state_root(ctx))?;
+        let tmp_state_root =
+            tmp_query.run(|ctx| <TempStateTree<T> as StateTree>::Reader::get_state_root(ctx))?;
 
         // Check that the state root hash matches the stored state root hash.
         let stored_state_root = db.query().run(|ctx| Self::get_state_root(ctx))?;
@@ -227,8 +229,8 @@ where
     fn is_empty_state_tree_unsafe(
         db: &mut Atomo<
             QueryPerm,
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
+            <C::StorageBuilder as StorageBackendConstructor>::Storage,
+            C::Serde,
         >,
     ) -> Result<bool> {
         let span = trace_span!("is_empty_state_tree");
@@ -239,7 +241,7 @@ where
             .iter()
             .enumerate()
             .map(|(tid, table)| (table.clone(), tid as TableId))
-            .collect::<FxHashMap<_, _>>();
+            .collecC::<FxHashMap<_, _>>();
 
         let nodes_table_id = *table_id_by_name.get(NODES_TABLE_NAME).unwrap();
         let root_table_id = *table_id_by_name.get(ROOT_TABLE_NAME).unwrap();

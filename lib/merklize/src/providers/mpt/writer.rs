@@ -13,6 +13,7 @@ use atomo::{
     TableSelector,
     UpdatePerm,
 };
+use crate::reader::StateTreeReader;
 use fxhash::FxHashMap;
 use tracing::{trace, trace_span};
 use trie_db::{DBValue, TrieDBMutBuilder, TrieMut};
@@ -27,13 +28,13 @@ use super::tree::{
     NODES_TABLE_NAME,
     ROOT_TABLE_NAME,
 };
-use crate::{SimpleHasher, StateKey, StateRootHash, StateTree, StateTreeWriter};
+use crate::{SimpleHasher, StateKey, StateRootHash, StateTree, StateTreeConfig, StateTreeWriter};
 
 pub struct MptStateTreeWriter<T: StateTree> {
     db: Atomo<
         UpdatePerm,
-        <<T as StateTree>::StorageBuilder as StorageBackendConstructor>::Storage,
-        <T as StateTree>::Serde,
+        <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+        <<T as StateTree>::Config as StateTreeConfig>::Serde,
     >,
 
     _tree: PhantomData<T>,
@@ -42,10 +43,10 @@ pub struct MptStateTreeWriter<T: StateTree> {
 impl<T: StateTree> MptStateTreeWriter<T>
 where
     // Send + Sync bounds required by triedb/hashdb.
-    T::StorageBuilder: StorageBackendConstructor + Send + Sync,
-    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
-    T::Serde: SerdeBackend + Send + Sync,
-    T::Hasher: SimpleHasher + Send + Sync,
+    <<T as StateTree>::Config as StateTreeConfig>::StorageBuilder: StorageBackendConstructor + Send + Sync,
+    <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
+    <<T as StateTree>::Config as StateTreeConfig>::Serde: SerdeBackend + Send + Sync,
+    <<T as StateTree>::Config as StateTreeConfig>::Hasher: SimpleHasher + Send + Sync,
 {
     /// Get the state root hash of the state tree from the root table if it exists, or compute it
     /// from the state tree nodes table if it does not, and save it to the root table, before
@@ -53,28 +54,28 @@ where
     // TODO(snormore): Remove/consolidate this duplicate method from `MptStateTreeReader`.
     fn state_root(
         nodes_table: SharedNodesTableRef<
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
-            T::Hasher,
+            <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <<T as StateTree>::Config as StateTreeConfig>::Serde,
+            <<T as StateTree>::Config as StateTreeConfig>::Hasher,
         >,
         root_table: SharedRootTable<
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
+            <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <<T as StateTree>::Config as StateTreeConfig>::Serde,
         >,
     ) -> Result<StateRootHash> {
         let root = { root_table.lock().unwrap().get() };
         if let Some(root) = root {
             Ok(root)
         } else {
-            let mut root: <SimpleHasherWrapper<T::Hasher> as hash_db::Hasher>::Out =
+            let mut root: <SimpleHasherWrapper<<<T as StateTree>::Config as StateTreeConfig>::Hasher> as hash_db::Hasher>::Out =
                 StateRootHash::default().into();
             let mut adapter = Adapter::<
-                <T::StorageBuilder as StorageBackendConstructor>::Storage,
-                T::Serde,
-                T::Hasher,
+                <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+                <<T as StateTree>::Config as StateTreeConfig>::Serde,
+                <<T as StateTree>::Config as StateTreeConfig>::Hasher,
             >::new(nodes_table.clone());
             let mut tree =
-                TrieDBMutBuilder::<TrieLayoutWrapper<T::Hasher>>::new(&mut adapter, &mut root)
+                TrieDBMutBuilder::<TrieLayoutWrapper<<<T as StateTree>::Config as StateTreeConfig>::Hasher>>::new(&mut adapter, &mut root)
                     .build();
 
             // Note that tree.root() calls tree.commit() before returning the root hash.
@@ -90,18 +91,17 @@ where
 
 impl<T: StateTree> StateTreeWriter<T> for MptStateTreeWriter<T>
 where
-    // Send + Sync bounds required by
-    // triedb/hashdb.
-    T::StorageBuilder: StorageBackendConstructor + Send + Sync,
-    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
-    T::Serde: SerdeBackend + Send + Sync,
-    T::Hasher: SimpleHasher + Send + Sync,
+    // Send + Sync bounds required by triedb/hashdb.
+    <<T as StateTree>::Config as StateTreeConfig>::StorageBuilder: StorageBackendConstructor + Send + Sync,
+    <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
+    <<T as StateTree>::Config as StateTreeConfig>::Serde: SerdeBackend + Send + Sync,
+    <<T as StateTree>::Config as StateTreeConfig>::Hasher: SimpleHasher + Send + Sync,
 {
     fn new(
         db: Atomo<
             UpdatePerm,
-            <<T as StateTree>::StorageBuilder as StorageBackendConstructor>::Storage,
-            <T as StateTree>::Serde,
+            <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <<T as StateTree>::Config as StateTreeConfig>::Serde,
         >,
     ) -> Self {
         Self {
@@ -113,10 +113,13 @@ where
 
     fn build(
         self,
-        builder: atomo::AtomoBuilder<<T as StateTree>::StorageBuilder, <T as StateTree>::Serde>,
+        builder: atomo::AtomoBuilder<
+            <<T as StateTree>::Config as StateTreeConfig>::StorageBuilder,
+            <<T as StateTree>::Config as StateTreeConfig>::Serde,
+        >,
     ) -> Result<Self> {
         let db = builder
-            .with_table::<<SimpleHasherWrapper<T::Hasher> as hash_db::Hasher>::Out, DBValue>(
+            .with_table::<<SimpleHasherWrapper<<<T as StateTree>::Config as StateTreeConfig>::Hasher> as hash_db::Hasher>::Out, DBValue>(
                 NODES_TABLE_NAME,
             )
             .with_table::<u8, StateRootHash>(ROOT_TABLE_NAME)
@@ -126,12 +129,20 @@ where
         Ok(Self::new(db))
     }
 
+    fn reader(self) -> <T as StateTree>::Reader {
+        T::Reader::new(self.db.query())
+    }
+
     /// Apply the state tree changes based on the state changes in the atomo batch. This will update
     /// the state tree to reflect the changes in the atomo batch.
     /// Since we need to read the state, a table selector execution context is needed for
     /// consistency.
     fn update_state_tree<I>(
-        ctx: &TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        self,
+        ctx: &TableSelector<
+            <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <<T as StateTree>::Config as StateTreeConfig>::Serde,
+        >,
         batch: HashMap<String, I>,
     ) -> Result<()>
     where
@@ -144,16 +155,16 @@ where
         let root_table = Arc::new(Mutex::new(RootTable::new(ctx)));
 
         // Get the current state root hash.
-        let mut state_root: <SimpleHasherWrapper<T::Hasher> as hash_db::Hasher>::Out =
+        let mut state_root: <SimpleHasherWrapper<<<T as StateTree>::Config as StateTreeConfig>::Hasher> as hash_db::Hasher>::Out =
             Self::state_root(nodes_table.clone(), root_table.clone())?.into();
 
         // Initialize a `TrieDBMutBuilder` to update the state tree.
         let mut adapter = Adapter::<
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
-            T::Hasher,
+            <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <<T as StateTree>::Config as StateTreeConfig>::Serde,
+            <<T as StateTree>::Config as StateTreeConfig>::Hasher,
         >::new(nodes_table.clone());
-        let mut tree = TrieDBMutBuilder::<TrieLayoutWrapper<T::Hasher>>::from_existing(
+        let mut tree = TrieDBMutBuilder::<TrieLayoutWrapper<<<T as StateTree>::Config as StateTreeConfig>::Hasher>>::from_existing(
             &mut adapter,
             &mut state_root,
         )
@@ -167,7 +178,7 @@ where
 
             for (key, operation) in changes {
                 let state_key = StateKey::new(&table, key.to_vec());
-                let key_hash = state_key.hash::<T::Serde, T::Hasher>();
+                let key_hash = state_key.hash::<<<T as StateTree>::Config as StateTreeConfig>::Serde, <<T as StateTree>::Config as StateTreeConfig>::Hasher>();
 
                 match operation {
                     Operation::Remove => {
@@ -202,8 +213,8 @@ where
     fn clear_state_tree_unsafe(
         db: &mut atomo::Atomo<
             UpdatePerm,
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
+            <<<T as StateTree>::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <<T as StateTree>::Config as StateTreeConfig>::Serde,
         >,
     ) -> Result<()> {
         let span = trace_span!("clear_state_tree");

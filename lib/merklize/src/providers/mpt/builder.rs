@@ -1,22 +1,30 @@
 use std::marker::PhantomData;
 
 use anyhow::{anyhow, Result};
-use atomo::AtomoBuilder;
+use atomo::{AtomoBuilder, StorageBackendConstructor};
 use trie_db::DBValue;
 
 use super::hasher::SimpleHasherWrapper;
 use super::tree::{NODES_TABLE_NAME, ROOT_TABLE_NAME};
 use crate::writer::StateTreeWriter;
-use crate::{StateRootHash, StateTree, StateTreeBuilder};
+use crate::{StateRootHash, StateTree, StateTreeBuilder, StateTreeConfig};
 
 pub struct MptStateTreeBuilder<T: StateTree> {
-    inner: AtomoBuilder<T::StorageBuilder, T::Serde>,
+    inner: AtomoBuilder<
+        <<T::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+        <T::Config as StateTreeConfig>::Serde,
+    >,
 
     _tree: PhantomData<T>,
 }
 
 impl<T: StateTree> MptStateTreeBuilder<T> {
-    pub fn new(inner: AtomoBuilder<T::StorageBuilder, T::Serde>) -> Self {
+    pub fn new(
+        inner: AtomoBuilder<
+            <<T::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <T::Config as StateTreeConfig>::Serde,
+        >,
+    ) -> Self {
         Self {
             inner,
 

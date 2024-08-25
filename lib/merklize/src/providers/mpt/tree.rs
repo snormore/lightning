@@ -13,7 +13,13 @@ use tracing::trace;
 use trie_db::DBValue;
 
 use super::hasher::SimpleHasherWrapper;
-use super::{MptStateProof, MptStateTreeBuilder, MptStateTreeReader, MptStateTreeWriter};
+use super::{
+    MptStateProof,
+    MptStateTreeBuilder,
+    MptStateTreeConfig,
+    MptStateTreeReader,
+    MptStateTreeWriter,
+};
 use crate::{SimpleHasher, StateRootHash, StateTree};
 
 pub(crate) const NODES_TABLE_NAME: &str = "%state_tree_nodes";
@@ -52,25 +58,21 @@ impl<B: StorageBackendConstructor, S: SerdeBackend, H: SimpleHasher> Default
 impl<B, S, H> StateTree for MptStateTree<B, S, H>
 where
     // Send + Sync bounds required by triedb/hashdb.
-    B: StorageBackendConstructor + Send + Sync,
-    <B as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
-    S: SerdeBackend + Send + Sync,
-    H: SimpleHasher + Send + Sync,
+    B: StorageBackendConstructor + Send + Sync + Clone,
+    <B as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
+    S: SerdeBackend + Send + Sync + Clone,
+    H: SimpleHasher + Send + Sync + Clone,
 {
-    type StorageBuilder = B;
-    type Serde = S;
-    type Hasher = H;
-    type Proof = MptStateProof;
-
+    type Config = MptStateTreeConfig<B, S, H>;
     type Builder = MptStateTreeBuilder<Self>;
-    type Reader = MptStateTreeReader<Self>;
+    type Reader = MptStateTreeReader<Self::Config>;
     type Writer = MptStateTreeWriter<Self>;
 
     fn new() -> Self {
         Self::new()
     }
 
-    fn builder(self, builder: AtomoBuilder<Self::StorageBuilder, Self::Serde>) -> Self::Builder {
+    fn builder(self, builder: AtomoBuilder<B, S>) -> Self::Builder {
         MptStateTreeBuilder::new(builder)
     }
 }

@@ -14,7 +14,7 @@ use atomo::{
 use fxhash::FxHashMap;
 use tracing::trace_span;
 
-use crate::StateTree;
+use crate::{StateTree, StateTreeConfig};
 
 /// A trait for a merklize provider used to maintain and interact with the state tree.
 ///
@@ -25,10 +25,20 @@ use crate::StateTree;
 /// ```
 pub trait StateTreeWriter<T: StateTree>: Sized {
     fn new(
-        db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        db: Atomo<
+            UpdatePerm,
+            <<T::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <T::Config as StateTreeConfig>::Serde,
+        >,
     ) -> Self;
 
-    fn build(self, builder: AtomoBuilder<T::StorageBuilder, T::Serde>) -> Result<Self>;
+    fn build(
+        self,
+        builder: AtomoBuilder<
+            <T::Config as StateTreeConfig>::StorageBuilder,
+            <T::Config as StateTreeConfig>::Serde,
+        >,
+    ) -> Result<Self>;
 
     fn reader(self) -> T::Reader;
 
@@ -40,7 +50,11 @@ pub trait StateTreeWriter<T: StateTree>: Sized {
     /// - `ctx`: The atomo execution context that will be used to apply the changes.
     /// - `batch`: The batch of pending changes to apply to the state tree.
     fn update_state_tree<I>(
-        ctx: &TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        self,
+        ctx: &TableSelector<
+            <<T::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <T::Config as StateTreeConfig>::Serde,
+        >,
         batch: HashMap<String, I>,
     ) -> Result<()>
     where
@@ -57,8 +71,8 @@ pub trait StateTreeWriter<T: StateTree>: Sized {
     fn clear_state_tree_unsafe(
         db: &mut Atomo<
             UpdatePerm,
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
+            <<T::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <T::Config as StateTreeConfig>::Serde,
         >,
     ) -> Result<()>;
 
@@ -70,7 +84,10 @@ pub trait StateTreeWriter<T: StateTree>: Sized {
     /// - `ctx`: The atomo execution context that will be used to get the pending changes and apply
     ///   them to the state tree.
     fn update_state_tree_from_context(
-        ctx: &TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        ctx: &TableSelector<
+            <<T::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <T::Config as StateTreeConfig>::Serde,
+        >,
     ) -> Result<()> {
         let span = trace_span!("update_state_tree_from_context");
         let _enter = span.enter();
@@ -108,8 +125,8 @@ pub trait StateTreeWriter<T: StateTree>: Sized {
     fn clear_and_rebuild_state_tree_unsafe(
         db: &mut Atomo<
             UpdatePerm,
-            <T::StorageBuilder as StorageBackendConstructor>::Storage,
-            T::Serde,
+            <<T::Config as StateTreeConfig>::StorageBuilder as StorageBackendConstructor>::Storage,
+            <T::Config as StateTreeConfig>::Serde,
         >,
     ) -> Result<()> {
         let span = trace_span!("clear_and_rebuild_state_tree");

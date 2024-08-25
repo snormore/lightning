@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use trie_db::proof::verify_proof;
 
 use super::layout::TrieLayoutWrapper;
-use crate::{StateKey, StateProof, StateTree};
+use crate::{StateKey, StateProof, StateTree, StateTreeConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MptStateProof(Vec<Vec<u8>>);
@@ -28,11 +28,11 @@ impl StateProof for MptStateProof {
         K: serde::Serialize,
         V: serde::Serialize,
     {
-        let state_key = StateKey::new(table, T::Serde::serialize(&key.borrow()));
-        let key_hash = state_key.hash::<T::Serde, T::Hasher>();
-        let serialized_value = T::Serde::serialize(value.borrow());
+        let state_key = StateKey::new(table, <<T as StateTree>::Config as StateTreeConfig>::Serde::serialize(&key.borrow()));
+        let key_hash = state_key.hash::<<<T as StateTree>::Config as StateTreeConfig>::Serde, <<T as StateTree>::Config as StateTreeConfig>::Hasher>();
+        let serialized_value = <<T as StateTree>::Config as StateTreeConfig>::Serde::serialize(value.borrow());
         let items = vec![(key_hash.to_vec(), Some(serialized_value))];
-        verify_proof::<TrieLayoutWrapper<T::Hasher>, _, _, _>(&root.into(), &self.0, &items)
+        verify_proof::<TrieLayoutWrapper<<<T as StateTree>::Config as StateTreeConfig>::Hasher>, _, _, _>(&root.into(), &self.0, &items)
             .map_err(|e| anyhow::anyhow!(e))
     }
 
@@ -45,10 +45,10 @@ impl StateProof for MptStateProof {
     where
         K: serde::Serialize,
     {
-        let state_key = StateKey::new(table, T::Serde::serialize(&key.borrow()));
-        let key_hash = state_key.hash::<T::Serde, T::Hasher>();
+        let state_key = StateKey::new(table, <<T as StateTree>::Config as StateTreeConfig>::Serde::serialize(&key.borrow()));
+        let key_hash = state_key.hash::<<<T as StateTree>::Config as StateTreeConfig>::Serde, <<T as StateTree>::Config as StateTreeConfig>::Hasher>();
         let items: Vec<(Vec<u8>, Option<Vec<u8>>)> = vec![(key_hash.to_vec(), None)];
-        verify_proof::<TrieLayoutWrapper<T::Hasher>, _, _, _>(&root.into(), &self.0, &items)
+        verify_proof::<TrieLayoutWrapper<<<T as StateTree>::Config as StateTreeConfig>::Hasher>, _, _, _>(&root.into(), &self.0, &items)
             .map_err(|e| anyhow::anyhow!(e))
     }
 }
