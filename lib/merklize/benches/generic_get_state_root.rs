@@ -10,7 +10,7 @@ use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtStateTree;
 use merklize::providers::mpt::MptStateTree;
-use merklize::{StateTree, StateTreeBuilder, StateTreeReader, StateTreeWriter};
+use merklize::StateTree;
 use tempfile::tempdir;
 use test::Bencher;
 
@@ -203,11 +203,11 @@ fn generic_bench_get_state_root<T: StateTree>(
     builder: T::StorageBuilder,
     data_count: usize,
 ) {
-    let mut db = <T::Builder as StateTreeBuilder<T>>::register_tables(
-        AtomoBuilder::new(builder).with_table::<String, String>("data"),
-    )
-    .build()
-    .unwrap();
+    let tree = T::new();
+    let mut db = tree
+        .register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+        .build()
+        .unwrap();
 
     db.run(|ctx| {
         let mut data_table = ctx.get_table::<String, String>("data");
@@ -216,12 +216,12 @@ fn generic_bench_get_state_root<T: StateTree>(
             data_table.insert(format!("key{i}"), format!("value{i}"));
         }
 
-        <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx).unwrap();
+        tree.update_state_tree_from_context(ctx).unwrap();
     });
 
     b.iter(|| {
         db.query().run(|ctx| {
-            <T::Reader as StateTreeReader<T>>::get_state_root(ctx).unwrap();
+            tree.get_state_root(ctx).unwrap();
         });
     })
 }

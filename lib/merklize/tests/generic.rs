@@ -5,14 +5,7 @@ use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtStateTree;
 use merklize::providers::mpt::MptStateTree;
-use merklize::{
-    StateProof,
-    StateRootHash,
-    StateTree,
-    StateTreeBuilder,
-    StateTreeReader,
-    StateTreeWriter,
-};
+use merklize::{StateProof, StateRootHash, StateTree};
 use tempfile::tempdir;
 
 // JMT
@@ -116,18 +109,16 @@ fn test_generic_mpt_rocksdb_blake3() {
 }
 
 fn test_generic<T: StateTree>(builder: T::StorageBuilder) {
-    let builder = <T::Builder as StateTreeBuilder<T>>::register_tables(
-        AtomoBuilder::new(builder)
-            .with_table::<String, String>("data")
-            .enable_iter("data")
-            .with_table::<u8, u8>("other"),
-    );
-    let mut db = builder.build().unwrap();
+    let tree = T::new();
+    let builder = AtomoBuilder::new(builder)
+        .with_table::<String, String>("data")
+        .enable_iter("data")
+        .with_table::<u8, u8>("other");
+    let mut db = tree.register_tables(builder).build().unwrap();
     let query = db.query();
 
     // Check state root.
-    let initial_state_root =
-        query.run(|ctx| <T::Reader as StateTreeReader<T>>::get_state_root(ctx).unwrap());
+    let initial_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
     let mut old_state_root = initial_state_root;
 
     // Insert initial data.
@@ -139,7 +130,7 @@ fn test_generic<T: StateTree>(builder: T::StorageBuilder) {
             data_table.insert(format!("key{i}"), format!("value{i}"));
         }
 
-        <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx).unwrap();
+        tree.update_state_tree_from_context(ctx).unwrap();
     });
 
     // Check data via reader.
@@ -147,7 +138,7 @@ fn test_generic<T: StateTree>(builder: T::StorageBuilder) {
         let data_table = ctx.get_table::<String, String>("data");
 
         // Check state root.
-        let new_state_root = <T::Reader as StateTreeReader<T>>::get_state_root(ctx).unwrap();
+        let new_state_root = tree.get_state_root(ctx).unwrap();
         assert_ne!(new_state_root, old_state_root);
         assert_ne!(new_state_root, StateRootHash::default());
         old_state_root = new_state_root;
@@ -164,14 +155,15 @@ fn test_generic<T: StateTree>(builder: T::StorageBuilder) {
         // Check existence proofs.
         for i in 1..=data_insert_count {
             // Generate proof.
-            let proof = <T::Reader as StateTreeReader<T>>::get_state_proof(
-                ctx,
-                "data",
-                <T::Serde as SerdeBackend>::serialize::<Vec<u8>>(
-                    &format!("key{i}").as_bytes().to_vec(),
-                ),
-            )
-            .unwrap();
+            let proof = tree
+                .get_state_proof(
+                    ctx,
+                    "data",
+                    <T::Serde as SerdeBackend>::serialize::<Vec<u8>>(
+                        &format!("key{i}").as_bytes().to_vec(),
+                    ),
+                )
+                .unwrap();
 
             // Verify proof.
             proof
@@ -185,19 +177,20 @@ fn test_generic<T: StateTree>(builder: T::StorageBuilder) {
         }
 
         // Check non-existence proof.
-        let proof = <T::Reader as StateTreeReader<T>>::get_state_proof(
-            ctx,
-            "data",
-            <T::Serde as SerdeBackend>::serialize(&"unknown".to_string()),
-        )
-        .unwrap();
+        let proof = tree
+            .get_state_proof(
+                ctx,
+                "data",
+                <T::Serde as SerdeBackend>::serialize(&"unknown".to_string()),
+            )
+            .unwrap();
         proof
             .verify_non_membership::<String, T>("data", "unknown".to_string(), new_state_root)
             .unwrap();
     });
 
     // Verify state tree.
-    <T::Reader as StateTreeReader<T>>::verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
 
     // Insert more data.
     db.run(|ctx: _| {
@@ -207,18 +200,17 @@ fn test_generic<T: StateTree>(builder: T::StorageBuilder) {
             data_table.insert(format!("other{i}"), format!("value{i}"));
         }
 
-        <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx).unwrap();
+        tree.update_state_tree_from_context(ctx).unwrap();
     });
 
     // Check state root.
-    let new_state_root =
-        query.run(|ctx| <T::Reader as StateTreeReader<T>>::get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
     assert_ne!(new_state_root, old_state_root);
     assert_ne!(new_state_root, StateRootHash::default());
     let old_state_root = new_state_root;
 
     // Verify state tree.
-    <T::Reader as StateTreeReader<T>>::verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
 
     // Remove some data.
     db.run(|ctx: _| {
@@ -228,57 +220,59 @@ fn test_generic<T: StateTree>(builder: T::StorageBuilder) {
         data_table.remove("other5".to_string());
         data_table.remove("other9".to_string());
 
-        <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx).unwrap();
+        tree.update_state_tree_from_context(ctx).unwrap();
     });
 
     // Check state root.
-    let new_state_root =
-        query.run(|ctx| <T::Reader as StateTreeReader<T>>::get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
     assert_ne!(new_state_root, old_state_root);
     assert_ne!(new_state_root, StateRootHash::default());
 
     // Verify state tree.
-    <T::Reader as StateTreeReader<T>>::verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
 
     // Check non-membership proofs for removed data.
     query.run(|ctx| {
         // Check non-existence proof for key3.
-        let proof = <T::Reader as StateTreeReader<T>>::get_state_proof(
-            ctx,
-            "data",
-            <T::Serde as SerdeBackend>::serialize(&"key3".to_string()),
-        )
-        .unwrap();
+        let proof = tree
+            .get_state_proof(
+                ctx,
+                "data",
+                <T::Serde as SerdeBackend>::serialize(&"key3".to_string()),
+            )
+            .unwrap();
         proof
             .verify_non_membership::<String, T>("data", "key3".to_string(), new_state_root)
             .unwrap();
 
         // Check non-existence proof for other5.
-        let proof = <T::Reader as StateTreeReader<T>>::get_state_proof(
-            ctx,
-            "data",
-            <T::Serde as SerdeBackend>::serialize(&"other5".to_string()),
-        )
-        .unwrap();
+        let proof = tree
+            .get_state_proof(
+                ctx,
+                "data",
+                <T::Serde as SerdeBackend>::serialize(&"other5".to_string()),
+            )
+            .unwrap();
         proof
             .verify_non_membership::<String, T>("data", "other5".to_string(), new_state_root)
             .unwrap();
 
         // Check non-existence proof for other9.
-        let proof = <T::Reader as StateTreeReader<T>>::get_state_proof(
-            ctx,
-            "data",
-            <T::Serde as SerdeBackend>::serialize(&"other9".to_string()),
-        )
-        .unwrap();
+        let proof = tree
+            .get_state_proof(
+                ctx,
+                "data",
+                <T::Serde as SerdeBackend>::serialize(&"other9".to_string()),
+            )
+            .unwrap();
         proof
             .verify_non_membership::<String, T>("data", "other9".to_string(), new_state_root)
             .unwrap();
     });
 
     // Clear and rebuild state tree.
-    <T::Writer as StateTreeWriter<T>>::clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
+    tree.clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
 
     // Verify state tree.
-    <T::Reader as StateTreeReader<T>>::verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
 }

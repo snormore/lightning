@@ -42,14 +42,16 @@ use crate::storage::AtomoStorage;
 /// The shared application state accumulates by executing transactions.
 pub struct ApplicationState<T: StateTree> {
     db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+    tree: T::Writer,
 }
 
 impl<T: StateTree> ApplicationState<T> {
     /// Creates a new application state.
     pub(crate) fn new(
         db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        tree: T,
     ) -> Self {
-        Self { db }
+        Self { db, tree }
     }
 
     /// Registers the application and state tree tables, and builds the atomo database.
@@ -60,7 +62,9 @@ impl<T: StateTree> ApplicationState<T> {
             .build()
             .map_err(|e| anyhow!("Failed to build atomo: {:?}", e))?;
 
-        Ok(Self::new(db))
+        let tree = T::Writer::new(db);
+
+        Ok(Self::new(db, tree))
     }
 
     /// Returns a reader for the application state.
@@ -96,7 +100,7 @@ impl<T: StateTree> ApplicationState<T> {
         self.db.run(|ctx| {
             let result = mutation(ctx);
 
-            <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx)?;
+            self.tree.update_state_tree_from_context(ctx)?;
 
             Ok(result)
         })
@@ -106,7 +110,7 @@ impl<T: StateTree> ApplicationState<T> {
     /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
     /// safety and consistency of atomo.
     pub fn clear_and_rebuild_state_tree_unsafe(&mut self) -> Result<()> {
-        <T::Writer as StateTreeWriter<T>>::clear_and_rebuild_state_tree_unsafe(&mut self.db)
+        self.tree.clear_and_rebuild_state_tree_unsafe()
     }
 
     /// Registers and configures the application state tables with the atomo database builder.
@@ -155,7 +159,8 @@ impl<T: StateTree> ApplicationState<T> {
                 .enable_iter("pub_key_to_index");
         }
 
+        T::register_tables(builder)
         // TODO(snormore): Move this to StateBuilder.
-        StateTreeBuilder::new(builder).register_tables().into()
+        // StateTreeBuilder::new(builder).register_tables().into()
     }
 }

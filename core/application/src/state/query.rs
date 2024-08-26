@@ -161,10 +161,7 @@ where
     fn get_state_proof(
         &self,
         key: StateProofKey,
-    ) -> Result<(
-        Option<StateProofValue>,
-        <ApplicationMerklizeProvider as MerklizeProvider>::Proof,
-    )> {
+    ) -> Result<(Option<StateProofValue>, T::Reader::Proof)> {
         type Serde = <ApplicationMerklizeProvider as MerklizeProvider>::Serde;
 
         self.run(|ctx| {

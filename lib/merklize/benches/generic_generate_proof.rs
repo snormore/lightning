@@ -10,7 +10,7 @@ use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtStateTree;
 use merklize::providers::mpt::MptStateTree;
-use merklize::{StateTree, StateTreeBuilder, StateTreeReader, StateTreeWriter};
+use merklize::StateTree;
 use rand::Rng;
 use tempfile::tempdir;
 use test::Bencher;
@@ -204,11 +204,11 @@ fn generic_bench_generate_proof<T: StateTree>(
     builder: T::StorageBuilder,
     data_count: usize,
 ) {
-    let mut db = <T::Builder as StateTreeBuilder<T>>::register_tables(
-        AtomoBuilder::new(builder).with_table::<String, String>("data"),
-    )
-    .build()
-    .unwrap();
+    let tree = T::new();
+    let mut db = tree
+        .register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+        .build()
+        .unwrap();
 
     db.run(|ctx| {
         let mut data_table = ctx.get_table::<String, String>("data");
@@ -217,18 +217,19 @@ fn generic_bench_generate_proof<T: StateTree>(
             data_table.insert(format!("key{i}"), format!("value{i}"));
         }
 
-        <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx).unwrap();
+        tree.update_state_tree_from_context(ctx).unwrap();
     });
 
     b.iter(|| {
         db.query().run(|ctx| {
             let i = rand::thread_rng().gen_range(1..=data_count);
-            let _proof = <T::Reader as StateTreeReader<T>>::get_state_proof(
-                ctx,
-                "data",
-                <T::Serde as SerdeBackend>::serialize(&format!("key{i}")),
-            )
-            .unwrap();
+            let _proof = tree
+                .get_state_proof(
+                    ctx,
+                    "data",
+                    <T::Serde as SerdeBackend>::serialize(&format!("key{i}")),
+                )
+                .unwrap();
         });
     })
 }

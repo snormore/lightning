@@ -10,7 +10,7 @@ use merklize::hashers::keccak::KeccakHasher;
 use merklize::hashers::sha2::Sha256Hasher;
 use merklize::providers::jmt::JmtStateTree;
 use merklize::providers::mpt::MptStateTree;
-use merklize::{StateTree, StateTreeBuilder, StateTreeWriter};
+use merklize::StateTree;
 use tempfile::tempdir;
 use test::Bencher;
 
@@ -244,11 +244,11 @@ fn generic_merklize_bench_commit_changes<T: StateTree>(
     builder: T::StorageBuilder,
     data_count: usize,
 ) {
-    let mut db = <T::Builder as StateTreeBuilder<T>>::register_tables(
-        AtomoBuilder::new(builder).with_table::<String, String>("data"),
-    )
-    .build()
-    .unwrap();
+    let tree = T::new();
+    let mut db = tree
+        .register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+        .build()
+        .unwrap();
 
     b.iter(|| {
         db.run(|ctx| {
@@ -258,7 +258,7 @@ fn generic_merklize_bench_commit_changes<T: StateTree>(
                 data_table.insert(format!("key{i}"), format!("value{i}"));
             }
 
-            <T::Writer as StateTreeWriter<T>>::update_state_tree_from_context(ctx).unwrap();
+            tree.update_state_tree_from_context(ctx).unwrap();
         });
     })
 }
