@@ -55,7 +55,7 @@ impl<T: StateTree> ApplicationState<T> {
 
     /// Registers the application and state tree tables, and builds the atomo database.
     pub fn build(atomo: AtomoBuilder<T::StorageBuilder, T::Serde>) -> Result<Self> {
-        let atomo = ApplicationState::register_tables(atomo);
+        let atomo = Self::register_tables(atomo);
 
         let db = atomo
             .build()
@@ -65,7 +65,7 @@ impl<T: StateTree> ApplicationState<T> {
     }
 
     /// Returns a reader for the application state.
-    pub fn query(&self) -> QueryRunner<T::Reader> {
+    pub fn query(&self) -> QueryRunner<T> {
         QueryRunner::new(self.db.query())
     }
 
@@ -157,7 +157,5 @@ impl<T: StateTree> ApplicationState<T> {
         }
 
         T::register_tables(builder)
-        // TODO(snormore): Move this to StateBuilder.
-        // StateTreeBuilder::new(builder).register_tables().into()
     }
 }

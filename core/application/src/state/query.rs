@@ -39,14 +39,16 @@ use lightning_interfaces::types::{
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
 use lightning_types::{StateProofKey, StateProofValue};
-use merklize::{StateRootHash, StateTree, StateTreeReader};
+use merklize::{StateRootHash, StateTree};
 
 use crate::state::ApplicationState;
 use crate::storage::AtomoStorageBuilder;
 
 #[derive(Clone)]
 pub struct QueryRunner<T: StateTree> {
-    inner: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage>,
+    db: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage>,
+    tree: T,
+
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
     client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
@@ -76,43 +78,48 @@ impl<T: StateTree> QueryRunner<T> {
             &mut TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
         ) -> R,
     {
-        self.inner.run(query)
+        self.db.run(query)
     }
 }
 
 impl<T: StateTree> SyncQueryRunnerInterface for QueryRunner<T>
 where
+    T: StateTree + Send + Sync,
     T::StorageBuilder: StorageBackendConstructor + Send + Sync,
     <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
 {
     type Backend = <T::StorageBuilder as StorageBackendConstructor>::Storage;
+    type StateTree = T;
 
     fn new(
-        atomo: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage>,
+        db: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage>,
+        tree: Self::StateTree,
     ) -> Self {
         Self {
-            metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
-            account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
-            client_table: atomo.resolve::<ClientPublicKey, EthAddress>("client_keys"),
-            node_table: atomo.resolve::<NodeIndex, NodeInfo>("node"),
-            pub_key_to_index: atomo.resolve::<NodePublicKey, NodeIndex>("pub_key_to_index"),
-            committee_table: atomo.resolve::<Epoch, Committee>("committee"),
-            services_table: atomo.resolve::<ServiceId, Service>("service"),
-            param_table: atomo.resolve::<ProtocolParams, u128>("parameter"),
-            current_epoch_served: atomo.resolve::<NodeIndex, NodeServed>("current_epoch_served"),
-            rep_measurements: atomo
+            metadata_table: db.resolve::<Metadata, Value>("metadata"),
+            account_table: db.resolve::<EthAddress, AccountInfo>("account"),
+            client_table: db.resolve::<ClientPublicKey, EthAddress>("client_keys"),
+            node_table: db.resolve::<NodeIndex, NodeInfo>("node"),
+            pub_key_to_index: db.resolve::<NodePublicKey, NodeIndex>("pub_key_to_index"),
+            committee_table: db.resolve::<Epoch, Committee>("committee"),
+            services_table: db.resolve::<ServiceId, Service>("service"),
+            param_table: db.resolve::<ProtocolParams, u128>("parameter"),
+            current_epoch_served: db.resolve::<NodeIndex, NodeServed>("current_epoch_served"),
+            rep_measurements: db
                 .resolve::<NodeIndex, Vec<ReportedReputationMeasurements>>("rep_measurements"),
-            latencies: atomo.resolve::<(NodeIndex, NodeIndex), Duration>("latencies"),
-            rep_scores: atomo.resolve::<NodeIndex, u8>("rep_scores"),
-            _last_epoch_served: atomo.resolve::<NodeIndex, NodeServed>("last_epoch_served"),
-            total_served_table: atomo.resolve::<Epoch, TotalServed>("total_served"),
-            _commodity_price: atomo.resolve::<CommodityTypes, HpUfixed<6>>("commodity_prices"),
-            _service_revenue: atomo.resolve::<ServiceId, ServiceRevenue>("service_revenue"),
-            executed_digests_table: atomo.resolve::<TxHash, ()>("executed_digests"),
-            uptime_table: atomo.resolve::<NodeIndex, u8>("uptime"),
-            uri_to_node: atomo.resolve::<Blake3Hash, BTreeSet<NodeIndex>>("uri_to_node"),
-            node_to_uri: atomo.resolve::<NodeIndex, BTreeSet<Blake3Hash>>("node_to_uri"),
-            inner: atomo,
+            latencies: db.resolve::<(NodeIndex, NodeIndex), Duration>("latencies"),
+            rep_scores: db.resolve::<NodeIndex, u8>("rep_scores"),
+            _last_epoch_served: db.resolve::<NodeIndex, NodeServed>("last_epoch_served"),
+            total_served_table: db.resolve::<Epoch, TotalServed>("total_served"),
+            _commodity_price: db.resolve::<CommodityTypes, HpUfixed<6>>("commodity_prices"),
+            _service_revenue: db.resolve::<ServiceId, ServiceRevenue>("service_revenue"),
+            executed_digests_table: db.resolve::<TxHash, ()>("executed_digests"),
+            uptime_table: db.resolve::<NodeIndex, u8>("uptime"),
+            uri_to_node: db.resolve::<Blake3Hash, BTreeSet<NodeIndex>>("uri_to_node"),
+            node_to_uri: db.resolve::<NodeIndex, BTreeSet<Blake3Hash>>("node_to_uri"),
+
+            db,
+            tree,
         }
     }
 

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use affair::Socket;
 use anyhow::Result;
-use atomo::{Atomo, InMemoryStorage, KeyIterator, QueryPerm, StorageBackend};
+use atomo::{Atomo, DefaultSerdeBackend, InMemoryStorage, KeyIterator, QueryPerm, StorageBackend};
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use lightning_types::{
@@ -19,8 +19,9 @@ use lightning_types::{
     TxHash,
     Value,
 };
-use merklize::providers::mpt::MptStateProof;
-use merklize::StateRootHash;
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::providers::mpt::MptStateTree;
+use merklize::{StateRootHash, StateTree};
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Collection;
@@ -96,7 +97,11 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     #[blank(InMemoryStorage)]
     type Backend: StorageBackend + Send + Sync;
 
-    fn new(atomo: Atomo<QueryPerm, Self::Backend>) -> Self;
+    #[blank(MptStateTree<InMemoryStorage, DefaultSerdeBackend, KeccakHasher>)]
+    type StateTree: StateTree;
+
+    // TODO(snormore): Set serde backend from state tree here on the atomo type?
+    fn new(db: Atomo<QueryPerm, Self::Backend>, tree: Self::StateTree) -> Self;
 
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
@@ -116,8 +121,10 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_state_proof(
         &self,
         key: StateProofKey,
-    ) -> Result<(Option<StateProofValue>, MptStateProof)>;
-    // TODO(snormore): Can we do better here?
+    ) -> Result<(
+        Option<StateProofValue>,
+        <Self::StateTree as StateTree>::Proof,
+    )>;
 
     /// Verify the state tree.
     fn verify_state_tree(&mut self) -> Result<()>;
