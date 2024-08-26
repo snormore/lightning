@@ -3,6 +3,7 @@ use atomo::{AtomoBuilder, DefaultSerdeBackend, InMemoryStorage, SerdeBackend, St
 use super::MptStateTree;
 use crate::hashers::sha2::Sha256Hasher;
 use crate::proof::StateProof;
+use crate::reader::StateTreeReader;
 use crate::{StateRootHash, StateTree};
 
 #[test]
@@ -167,8 +168,9 @@ fn test_mpt_get_state_root_with_empty_state() {
         .unwrap();
     let tree = T::new();
     let query = db.query();
+    let tree_reader = tree.reader(query.clone());
 
-    let state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_eq!(
         state_root,
         "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d"
@@ -187,10 +189,11 @@ fn test_mpt_get_state_root_with_updates() {
         .unwrap();
     let tree = T::new();
     let query = db.query();
+    let tree_reader = tree.reader(query.clone());
 
     // Check the state root hash.
     let empty_state_root = "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d";
-    let initial_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let initial_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_ne!(initial_state_root, StateRootHash::default());
     assert_eq!(initial_state_root, empty_state_root);
 
@@ -204,13 +207,15 @@ fn test_mpt_get_state_root_with_updates() {
     });
 
     // Check the state root hash.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_ne!(new_state_root, StateRootHash::default());
     assert_ne!(initial_state_root, new_state_root);
     let old_state_root = new_state_root;
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree_reader
+        .verify_state_tree_unsafe(&mut db.query())
+        .unwrap();
 
     // Insert another value.
     db.run(|ctx| {
@@ -221,13 +226,13 @@ fn test_mpt_get_state_root_with_updates() {
         tree.update_state_tree_from_context(ctx).unwrap();
 
         // Check that we can get the current root hash before the commit happens.
-        let state_root = tree.get_state_root(ctx).unwrap();
+        let state_root = tree_reader.get_state_root(ctx).unwrap();
         assert_ne!(state_root, StateRootHash::default());
         assert_ne!(old_state_root, state_root);
     });
 
     // Check the state root hash.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_ne!(new_state_root, StateRootHash::default());
     assert_ne!(old_state_root, new_state_root);
     let old_state_root = new_state_root;
@@ -242,7 +247,7 @@ fn test_mpt_get_state_root_with_updates() {
     });
 
     // Check the state root hash.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_ne!(new_state_root, StateRootHash::default());
     assert_ne!(old_state_root, new_state_root);
     let old_state_root = new_state_root;
@@ -257,7 +262,7 @@ fn test_mpt_get_state_root_with_updates() {
     });
 
     // Check the state root hash.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_eq!(old_state_root, new_state_root);
     let old_state_root = new_state_root;
 
@@ -271,13 +276,15 @@ fn test_mpt_get_state_root_with_updates() {
     });
 
     // Check the state root hash.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_ne!(new_state_root, StateRootHash::default());
     assert_ne!(old_state_root, new_state_root);
     let old_state_root = new_state_root;
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree_reader
+        .verify_state_tree_unsafe(&mut db.query())
+        .unwrap();
 
     // Insert existing key with same value.
     db.run(|ctx| {
@@ -289,7 +296,7 @@ fn test_mpt_get_state_root_with_updates() {
     });
 
     // Check the state root hash.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_eq!(old_state_root, new_state_root);
     let old_state_root = new_state_root;
 
@@ -303,7 +310,7 @@ fn test_mpt_get_state_root_with_updates() {
     });
 
     // Check the state root hash.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_ne!(old_state_root, new_state_root);
     let old_state_root = new_state_root;
 
@@ -317,11 +324,13 @@ fn test_mpt_get_state_root_with_updates() {
     });
 
     // Check the state root hash.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_eq!(old_state_root, new_state_root);
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree_reader
+        .verify_state_tree_unsafe(&mut db.query())
+        .unwrap();
 }
 
 #[test]
@@ -336,6 +345,7 @@ fn test_mpt_clear_and_rebuild_state_tree() {
         .unwrap();
     let tree = T::new();
     let query = db.query();
+    let tree_reader = tree.reader(query.clone());
 
     // Insert a value.
     db.run(|ctx| {
@@ -347,13 +357,13 @@ fn test_mpt_clear_and_rebuild_state_tree() {
     });
 
     // Get the state root hash.
-    let state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
 
     // Rebuild the state tree.
     tree.clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
 
     // Check that the state root hash has not changed.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_eq!(state_root, new_state_root);
     let state_root = new_state_root;
 
@@ -367,7 +377,7 @@ fn test_mpt_clear_and_rebuild_state_tree() {
     });
 
     // Check that the state root hash has changed.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_ne!(state_root, new_state_root);
     let state_root = new_state_root;
 
@@ -375,7 +385,7 @@ fn test_mpt_clear_and_rebuild_state_tree() {
     tree.clear_and_rebuild_state_tree_unsafe(&mut db).unwrap();
 
     // Check that the state root hash has not changed.
-    let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let new_state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_eq!(state_root, new_state_root);
 }
 
@@ -391,11 +401,12 @@ fn test_mpt_get_state_proof_of_membership() {
         .unwrap();
     let tree = T::new();
     let query = db.query();
+    let tree_reader = tree.reader(query.clone());
 
     // Get a proof of non-membership with empty state, should fail.
-    let state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     let proof = query
-        .run(|ctx| tree.get_state_proof(ctx, "data", S::serialize(&"key1".to_string())))
+        .run(|ctx| tree_reader.get_state_proof(ctx, "data", S::serialize(&"key1".to_string())))
         .unwrap();
     proof
         .verify_non_membership::<String, T>("data", "key1".to_string(), state_root)
@@ -413,11 +424,11 @@ fn test_mpt_get_state_proof_of_membership() {
     });
 
     // Get state root for proof verification.
-    let state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
 
     // Get and verify proof of membership.
     let proof = query
-        .run(|ctx| tree.get_state_proof(ctx, "data", S::serialize(&"key1".to_string())))
+        .run(|ctx| tree_reader.get_state_proof(ctx, "data", S::serialize(&"key1".to_string())))
         .unwrap();
     proof
         .verify_membership::<String, String, T>(
@@ -430,7 +441,7 @@ fn test_mpt_get_state_proof_of_membership() {
 
     // Get and verify proof of non-membership of unknown key.
     let proof = query
-        .run(|ctx| tree.get_state_proof(ctx, "data", S::serialize(&"unknown".to_string())))
+        .run(|ctx| tree_reader.get_state_proof(ctx, "data", S::serialize(&"unknown".to_string())))
         .unwrap();
     proof
         .verify_non_membership::<String, T>("data", "unknown".to_string(), state_root)
@@ -446,11 +457,11 @@ fn test_mpt_get_state_proof_of_membership() {
     });
 
     // Get state root for proof verification.
-    let state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
 
     // Get and verify proof of non-membership of removed key.
     let proof = query
-        .run(|ctx| tree.get_state_proof(ctx, "data", S::serialize(&"key2".to_string())))
+        .run(|ctx| tree_reader.get_state_proof(ctx, "data", S::serialize(&"key2".to_string())))
         .unwrap();
     proof
         .verify_non_membership::<String, T>("data", "key2".to_string(), state_root)

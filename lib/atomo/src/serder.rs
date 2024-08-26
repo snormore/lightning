@@ -13,6 +13,7 @@ pub trait SerdeBackend: 'static {
         T: DeserializeOwned;
 }
 
+#[derive(Clone)]
 /// The bincode serializer from the [`bincode`] crate.
 pub struct BincodeSerde;
 

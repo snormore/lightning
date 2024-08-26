@@ -11,6 +11,7 @@ use atomo::{
 use super::JmtStateTree;
 use crate::hashers::sha2::Sha256Hasher;
 use crate::proof::StateProof;
+use crate::reader::StateTreeReader;
 use crate::{StateRootHash, StateTree};
 
 #[test]
@@ -207,8 +208,9 @@ fn test_jmt_get_state_root_with_empty_state() {
         .unwrap();
     let tree = T::new();
     let query = db.query();
+    let tree_reader = tree.reader(query.clone());
 
-    let state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+    let state_root = query.run(|ctx| tree_reader.get_state_root(ctx).unwrap());
     assert_eq!(
         state_root,
         "5350415253455f4d45524b4c455f504c414345484f4c4445525f484153485f5f"
@@ -228,13 +230,14 @@ fn test_jmt_get_state_root_with_updates() {
         .unwrap();
     let tree = T::new();
     let query = db.query();
+    let tree_reader = tree.reader(query);
 
     fn assert_state_root_unchanged(
         query: &Atomo<QueryPerm, B, S>,
         tree: &T,
         old_state_root: StateRootHash,
     ) -> StateRootHash {
-        let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+        let new_state_root = query.run(|ctx| tree.reader(query).get_state_root(ctx).unwrap());
         assert_eq!(old_state_root, new_state_root);
         new_state_root
     }
@@ -244,7 +247,7 @@ fn test_jmt_get_state_root_with_updates() {
         tree: &T,
         old_state_root: StateRootHash,
     ) -> StateRootHash {
-        let new_state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
+        let new_state_root = query.run(|ctx| tree.reader(query).get_state_root(ctx).unwrap());
         assert_ne!(old_state_root, new_state_root);
         new_state_root
     }
@@ -266,7 +269,9 @@ fn test_jmt_get_state_root_with_updates() {
     let state_root = assert_state_root_changed(&query, &tree, state_root);
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree_reader
+        .verify_state_tree_unsafe(&mut db.query())
+        .unwrap();
 
     // Insert another value and check that the state root has changed.
     db.run(|ctx| {
@@ -289,7 +294,9 @@ fn test_jmt_get_state_root_with_updates() {
     let state_root = assert_state_root_changed(&query, &tree, state_root);
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree_reader
+        .verify_state_tree_unsafe(&mut db.query())
+        .unwrap();
 
     // Insert removed key with different value and check that the state root has changed.
     db.run(|ctx| {
@@ -332,7 +339,9 @@ fn test_jmt_get_state_root_with_updates() {
     assert_state_root_unchanged(&query, &tree, state_root);
 
     // Verify the state tree by rebuilding it and comparing the root hashes.
-    tree.verify_state_tree_unsafe(&mut db.query()).unwrap();
+    tree_reader
+        .verify_state_tree_unsafe(&mut db.query())
+        .unwrap();
 }
 
 #[test]

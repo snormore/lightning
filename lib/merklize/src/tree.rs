@@ -16,17 +16,31 @@ use atomo::{
 use fxhash::FxHashMap;
 use tracing::trace_span;
 
-use crate::{SimpleHasher, StateProof, StateRootHash};
+use crate::{SimpleHasher, StateTreeReader};
 
 pub trait StateTree: Sized {
     type StorageBuilder: StorageBackendConstructor;
     type Serde: SerdeBackend;
     type Hasher: SimpleHasher;
 
-    type Proof: StateProof;
+    type Reader: StateTreeReader<
+            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
+            Self::Serde,
+            Self::Hasher,
+        >;
 
     /// Returns a new state tree.
     fn new() -> Self;
+
+    /// Creates and returns a new state tree reader.
+    fn reader(
+        &self,
+        db: Atomo<
+            QueryPerm,
+            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
+            Self::Serde,
+        >,
+    ) -> Self::Reader;
 
     fn register_tables(
         builder: AtomoBuilder<Self::StorageBuilder, Self::Serde>,
@@ -141,68 +155,4 @@ pub trait StateTree: Sized {
 
         db.run(|ctx| self.update_state_tree(ctx, batch))
     }
-
-    ///
-    /// Arguments:
-    /// - `ctx`: The atomo execution context that will be used to get the root hash of the state
-    ///   tree.
-    fn get_state_root(
-        &self,
-        ctx: &TableSelector<
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-            Self::Serde,
-        >,
-    ) -> Result<StateRootHash>;
-
-    /// Generates and returns a merkle proof for the given key in the state.
-    ///
-    /// This method uses an atomo execution context, so it is safe to use concurrently.
-    ///
-    /// Arguments:
-    /// - `ctx`: The atomo execution context that will be used to generate the proof.
-    /// - `table`: The name of the table to generate the proof for.
-    /// - `serialized_key`: The serialized key to generate the proof for.
-    fn get_state_proof(
-        &self,
-        ctx: &TableSelector<
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-            Self::Serde,
-        >,
-        table: &str,
-        serialized_key: Vec<u8>,
-    ) -> Result<Self::Proof>;
-
-    /// Verifies that the state in the given atomo database instance, when used to build a
-    /// new, temporary state tree from scratch, matches the stored state tree root hash.
-    ///
-    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
-    /// safety and consistency of atomo.
-    ///
-    /// Arguments:
-    /// - `db`: The atomo database instance to verify.
-    fn verify_state_tree_unsafe(
-        &self,
-        db: &mut Atomo<
-            QueryPerm,
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-            Self::Serde,
-        >,
-    ) -> Result<()>;
-
-    /// Returns whether the state tree is empty.
-    ///
-    /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
-    /// safety and consistency of atomo.
-    ///
-    /// Arguments:
-    /// - `db`: The atomo database instance to check.
-    // TODO(snormore): Can we do this without mut self?
-    fn is_empty_state_tree_unsafe(
-        &self,
-        db: &mut Atomo<
-            QueryPerm,
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-            Self::Serde,
-        >,
-    ) -> Result<bool>;
 }

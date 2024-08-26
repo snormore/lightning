@@ -2,13 +2,11 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use atomo::batch::{BoxedVec, Operation, VerticalBatch};
 use atomo::{
     Atomo,
     AtomoBuilder,
-    InMemoryStorage,
-    QueryPerm,
     SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
@@ -22,9 +20,8 @@ use tracing::{trace, trace_span};
 
 use super::adapter::Adapter;
 use super::hasher::SimpleHasherWrapper;
-use super::proof::JmtStateProof;
-use crate::providers::jmt::proof::ics23_proof_spec;
-use crate::{SimpleHasher, StateKey, StateRootHash, StateTree, VerifyStateTreeError};
+use super::JmtStateTreeReader;
+use crate::{SimpleHasher, StateKey, StateTree};
 
 pub(crate) const NODES_TABLE_NAME: &str = "%state_tree_nodes";
 pub(crate) const KEYS_TABLE_NAME: &str = "%state_tree_keys";
@@ -65,15 +62,34 @@ impl<B: StorageBackendConstructor, S: SerdeBackend, H: SimpleHasher> Default
 
 impl<B: StorageBackendConstructor, S: SerdeBackend, H: SimpleHasher> StateTree
     for JmtStateTree<B, S, H>
+where
+    // Send + Sync bounds required by triedb/hashdb.
+    // Clone bounds required by SyncQueryRunnerInterface.
+    // TODO(snormore): Can we remove these bounds?
+    B: StorageBackendConstructor + Send + Sync + Clone,
+    <B as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
+    S: SerdeBackend + Send + Sync + Clone,
+    H: SimpleHasher + Send + Sync + Clone,
 {
     type StorageBuilder = B;
     type Serde = S;
     type Hasher = H;
 
-    type Proof = JmtStateProof;
+    type Reader = JmtStateTreeReader<B::Storage, S, H>;
 
     fn new() -> Self {
         Self::new()
+    }
+
+    fn reader(
+        &self,
+        db: Atomo<
+            atomo::QueryPerm,
+            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
+            Self::Serde,
+        >,
+    ) -> Self::Reader {
+        JmtStateTreeReader::new(db)
     }
 
     fn register_tables(
@@ -249,143 +265,5 @@ impl<B: StorageBackendConstructor, S: SerdeBackend, H: SimpleHasher> StateTree
         storage.commit(batch);
 
         Ok(())
-    }
-
-    /// Get the state root hash of the state tree.
-    /// Since we need to read the state, a table selector execution context is needed for
-    /// consistency.
-    fn get_state_root(
-        &self,
-        ctx: &TableSelector<
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-            Self::Serde,
-        >,
-    ) -> Result<StateRootHash> {
-        let span = trace_span!("get_state_root");
-        let _enter = span.enter();
-
-        let nodes_table = Arc::new(Mutex::new(ctx.get_table(NODES_TABLE_NAME)));
-        let keys_table = Arc::new(Mutex::new(ctx.get_table(KEYS_TABLE_NAME)));
-
-        let adapter = Adapter::new(ctx, nodes_table, keys_table);
-        let tree = jmt::JellyfishMerkleTree::<_, SimpleHasherWrapper<Self::Hasher>>::new(&adapter);
-
-        tree.get_root_hash(TREE_VERSION).map(|hash| hash.0.into())
-    }
-
-    /// Get an existence proof for the given key hash, if it is present in the state tree, or
-    /// non-existence proof if it is not present.
-    /// Since we need to read the state, a table selector execution context is needed for
-    /// consistency.
-    fn get_state_proof(
-        &self,
-        ctx: &TableSelector<
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-            Self::Serde,
-        >,
-        table: &str,
-        serialized_key: Vec<u8>,
-    ) -> Result<Self::Proof> {
-        let span = trace_span!("get_state_proof");
-        let _enter = span.enter();
-
-        let nodes_table = Arc::new(Mutex::new(ctx.get_table(NODES_TABLE_NAME)));
-        let keys_table = Arc::new(Mutex::new(ctx.get_table(KEYS_TABLE_NAME)));
-
-        let adapter = Adapter::new(ctx, nodes_table, keys_table);
-        let tree = jmt::JellyfishMerkleTree::<_, SimpleHasherWrapper<Self::Hasher>>::new(&adapter);
-
-        let state_key = StateKey::new(table, serialized_key);
-        let key_hash = state_key.hash::<Self::Serde, Self::Hasher>();
-
-        trace!(?key_hash, ?state_key, "get_state_proof");
-
-        let (_value, proof) = tree.get_with_ics23_proof(
-            Self::Serde::serialize(&state_key),
-            TREE_VERSION,
-            ics23_proof_spec(Self::Hasher::ICS23_HASH_OP),
-        )?;
-
-        let proof: JmtStateProof = proof.into();
-
-        Ok(proof)
-    }
-
-    /// Verify that the state in the given atomo database instance, when used to build a new,
-    /// temporary state tree from scratch, matches the stored state tree root hash.
-    fn verify_state_tree_unsafe(
-        &self,
-        db: &mut Atomo<
-            QueryPerm,
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-            Self::Serde,
-        >,
-    ) -> Result<()> {
-        let span = trace_span!("verify_state_tree");
-        let _enter = span.enter();
-
-        // Build batch of all state data.
-        let tables = db.tables();
-        let mut batch = HashMap::new();
-        for (i, table) in tables.clone().into_iter().enumerate() {
-            let tid = i as u8;
-
-            let mut changes = Vec::new();
-            for (key, value) in db.get_storage_backend_unsafe().get_all(tid) {
-                changes.push((key, Operation::Insert(value)));
-            }
-            batch.insert(table, changes.into_iter());
-        }
-
-        // Build a new, temporary state tree from the batch.
-        type TmpTree<S, H> = JmtStateTree<InMemoryStorage, S, H>;
-        let tmp_tree = TmpTree::<Self::Serde, Self::Hasher>::new();
-        let mut tmp_db = TmpTree::<Self::Serde, Self::Hasher>::register_tables(AtomoBuilder::new(
-            InMemoryStorage::default(),
-        ))
-        .build()?;
-
-        // Apply the batch to the temporary state tree.
-        tmp_db.run(|ctx| tmp_tree.update_state_tree(ctx, batch))?;
-
-        // Get and return the state root hash from the temporary state tree.
-        let tmp_state_root = tmp_db.query().run(|ctx| tmp_tree.get_state_root(ctx))?;
-
-        // Check that the state root hash matches the stored state root hash.
-        let stored_state_root = db.query().run(|ctx| self.get_state_root(ctx))?;
-        ensure!(
-            tmp_state_root == stored_state_root,
-            VerifyStateTreeError::StateRootMismatch(stored_state_root, tmp_state_root)
-        );
-
-        Ok(())
-    }
-
-    fn is_empty_state_tree_unsafe(
-        &self,
-        db: &mut Atomo<
-            atomo::QueryPerm,
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-            Self::Serde,
-        >,
-    ) -> Result<bool> {
-        let span = trace_span!("is_empty_state_tree");
-        let _enter = span.enter();
-
-        let tables = db.tables();
-        let table_id_by_name = tables
-            .iter()
-            .enumerate()
-            .map(|(tid, table)| (table.clone(), tid as TableId))
-            .collect::<FxHashMap<_, _>>();
-
-        let nodes_table_id = *table_id_by_name.get(NODES_TABLE_NAME).unwrap();
-
-        let storage = db.get_storage_backend_unsafe();
-
-        // TODO(snormore): This should use an iterator to avoid loading all keys into memory. We
-        // only need to see if there is at least one key in each table, so `.next()` on an
-        // iterator should be sufficient.
-        Ok(storage.keys(nodes_table_id).len() == 0)
     }
 }
