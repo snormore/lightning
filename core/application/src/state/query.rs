@@ -1,15 +1,13 @@
 use std::collections::BTreeSet;
-use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Result;
 use atomo::{
     Atomo,
-    AtomoBuilder,
-    DefaultSerdeBackend,
     KeyIterator,
     QueryPerm,
     ResolvedTableReference,
+    SerdeBackend,
     StorageBackend,
     StorageBackendConstructor,
     TableSelector,
@@ -42,11 +40,10 @@ use lightning_types::{StateProofKey, StateProofValue};
 use merklize::{StateRootHash, StateTree};
 
 use crate::state::ApplicationState;
-use crate::storage::AtomoStorageBuilder;
 
 #[derive(Clone)]
 pub struct QueryRunner<T: StateTree> {
-    db: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage>,
+    db: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
     tree: T,
 
     metadata_table: ResolvedTableReference<Metadata, Value>,
@@ -84,15 +81,22 @@ impl<T: StateTree> QueryRunner<T> {
 
 impl<T: StateTree> SyncQueryRunnerInterface for QueryRunner<T>
 where
-    T: StateTree + Send + Sync,
-    T::StorageBuilder: StorageBackendConstructor + Send + Sync,
-    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
+    T: StateTree + Send + Sync + Clone + 'static,
+    T::StorageBuilder: StorageBackendConstructor + Send + Sync + Clone,
+    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
+    T::Serde: SerdeBackend + Send + Sync + Clone,
+    // TODO(snormore): Can we DRY this up, should the bounds just be on the StateTree trait?
 {
-    type Backend = <T::StorageBuilder as StorageBackendConstructor>::Storage;
+    type StorageBuilder = T::StorageBuilder;
+    type Serde = T::Serde;
     type StateTree = T;
 
     fn new(
-        db: Atomo<QueryPerm, <T::StorageBuilder as StorageBackendConstructor>::Storage>,
+        db: Atomo<
+            QueryPerm,
+            <T::StorageBuilder as StorageBackendConstructor>::Storage,
+            Self::Serde,
+        >,
         tree: Self::StateTree,
     ) -> Self {
         Self {
@@ -123,64 +127,63 @@ where
         }
     }
 
-    fn atomo_from_checkpoint(
-        path: impl AsRef<Path>,
-        hash: [u8; 32],
-        checkpoint: &[u8],
-    ) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
-        let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
-            .from_checkpoint(hash, checkpoint)
-            .read_only();
+    // TODO(snormore): Remove this or fix it.
+    // fn atomo_from_checkpoint(
+    //     path: impl AsRef<Path>,
+    //     hash: [u8; 32],
+    //     checkpoint: &[u8],
+    // ) -> anyhow::Result<
+    //     Atomo<QueryPerm, <Self::StorageBuilder as StorageBackendConstructor>::Storage,
+    // Self::Serde>,
+    // > { let backend = AtomoStorageBuilder::new(Some(path.as_ref())) .from_checkpoint(hash,
+    // > checkpoint) .read_only();
 
-        let atomo = ApplicationState::register_tables(
-            AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
-        )
-        .build()?
-        .query();
+    //     let atomo = ApplicationState::register_tables(
+    //         AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
+    //     )
+    //     .build()?
+    //     .query();
 
-        Ok(atomo)
-    }
+    //     Ok(atomo)
+    // }
 
-    fn atomo_from_path(path: impl AsRef<Path>) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
-        let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
+    // fn atomo_from_path(
+    //     path: impl AsRef<Path>,
+    // ) -> anyhow::Result<
+    //     Atomo<QueryPerm, <Self::StorageBuilder as StorageBackendConstructor>::Storage,
+    // Self::Serde>,
+    // > { let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
-        let atomo = ApplicationState::register_tables(
-            AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
-        )
-        .build()?
-        .query();
+    //     let atomo = ApplicationState::register_tables(
+    //         AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
+    //     )
+    //     .build()?
+    //     .query();
 
-        Ok(atomo)
-    }
+    //     Ok(atomo)
+    // }
 
     fn get_metadata(&self, key: &Metadata) -> Option<Value> {
-        self.inner.run(|ctx| self.metadata_table.get(ctx).get(key))
+        self.db.run(|ctx| self.metadata_table.get(ctx).get(key))
     }
 
     /// Returns the state tree root hash from the application state.
     #[inline]
     fn get_state_root(&self) -> Result<StateRootHash> {
-        self.run(|ctx| <ApplicationMerklizeProvider as MerklizeProvider>::get_state_root(ctx))
+        self.run(|ctx| self.tree.get_state_root(ctx))
     }
 
     /// Returns the state proof for a given key from the application state, using the state tree.
     #[inline]
-    fn get_state_proof(
-        &self,
-        key: StateProofKey,
-    ) -> Result<(Option<StateProofValue>, T::Reader::Proof)> {
-        type Serde = <ApplicationMerklizeProvider as MerklizeProvider>::Serde;
-
+    fn get_state_proof(&self, key: StateProofKey) -> Result<(Option<StateProofValue>, T::Proof)> {
         self.run(|ctx| {
-            let (table, serialized_key) = key.raw::<Serde>();
-            let proof = <ApplicationMerklizeProvider as MerklizeProvider>::get_state_proof(
-                ctx,
-                &table,
-                serialized_key.clone(),
-            )?;
+            let (table, serialized_key) = key.raw::<T::Serde>();
+            let proof = self
+                .tree
+                .get_state_proof(ctx, &table, serialized_key.clone())?;
             let value = self
                 .run(|ctx| ctx.get_raw_value(table, &serialized_key))
-                .map(|value| key.value::<Serde>(value));
+                .map(|value| key.value::<T::Serde>(value));
             Ok((value, proof))
         })
     }
@@ -189,17 +192,14 @@ where
     #[inline]
     // TODO(snormore): Can we make this not need a mut self?
     fn verify_state_tree(&mut self) -> Result<()> {
-        // TODO(snormore): Can we make the query runner accept a merklize provider type param?
-        <ApplicationMerklizeProvider as MerklizeProvider>::verify_state_tree_unsafe(&mut self.inner)
+        self.tree.verify_state_tree_unsafe(&mut self.db)
     }
 
     /// Check if the state tree is empty.
     #[inline]
     // TODO(snormore): Can we make this not need a mut self?
     fn is_empty_state_tree(&mut self) -> Result<bool> {
-        <ApplicationMerklizeProvider as MerklizeProvider>::is_empty_state_tree_unsafe(
-            &mut self.inner,
-        )
+        self.tree.is_empty_state_tree_unsafe(&mut self.db)
     }
 
     #[inline]
@@ -208,14 +208,13 @@ where
         address: &EthAddress,
         selector: impl FnOnce(AccountInfo) -> V,
     ) -> Option<V> {
-        self.inner
+        self.db
             .run(|ctx| self.account_table.get(ctx).get(address))
             .map(selector)
     }
 
     fn client_key_to_account_key(&self, pub_key: &ClientPublicKey) -> Option<EthAddress> {
-        self.inner
-            .run(|ctx| self.client_table.get(ctx).get(pub_key))
+        self.db.run(|ctx| self.client_table.get(ctx).get(pub_key))
     }
 
     #[inline]
@@ -224,19 +223,18 @@ where
         node: &NodeIndex,
         selector: impl FnOnce(NodeInfo) -> V,
     ) -> Option<V> {
-        self.inner
+        self.db
             .run(|ctx| self.node_table.get(ctx).get(node))
             .map(selector)
     }
 
     #[inline]
     fn get_node_table_iter<V>(&self, closure: impl FnOnce(KeyIterator<NodeIndex>) -> V) -> V {
-        self.inner
-            .run(|ctx| closure(self.node_table.get(ctx).keys()))
+        self.db.run(|ctx| closure(self.node_table.get(ctx).keys()))
     }
 
     fn pubkey_to_index(&self, pub_key: &NodePublicKey) -> Option<NodeIndex> {
-        self.inner
+        self.db
             .run(|ctx| self.pub_key_to_index.get(ctx).get(pub_key))
     }
 
@@ -246,21 +244,21 @@ where
         epoch: &Epoch,
         selector: impl FnOnce(Committee) -> V,
     ) -> Option<V> {
-        self.inner
+        self.db
             .run(|ctx| self.committee_table.get(ctx).get(epoch))
             .map(selector)
     }
 
     fn get_service_info(&self, id: &ServiceId) -> Option<Service> {
-        self.inner.run(|ctx| self.services_table.get(ctx).get(id))
+        self.db.run(|ctx| self.services_table.get(ctx).get(id))
     }
 
     fn get_protocol_param(&self, param: &ProtocolParams) -> Option<u128> {
-        self.inner.run(|ctx| self.param_table.get(ctx).get(param))
+        self.db.run(|ctx| self.param_table.get(ctx).get(param))
     }
 
     fn get_current_epoch_served(&self, node: &NodeIndex) -> Option<NodeServed> {
-        self.inner
+        self.db
             .run(|ctx| self.current_epoch_served.get(ctx).get(node))
     }
 
@@ -268,33 +266,31 @@ where
         &self,
         node: &NodeIndex,
     ) -> Option<Vec<ReportedReputationMeasurements>> {
-        self.inner
-            .run(|ctx| self.rep_measurements.get(ctx).get(node))
+        self.db.run(|ctx| self.rep_measurements.get(ctx).get(node))
     }
 
     fn get_latencies(&self, nodes: &(NodeIndex, NodeIndex)) -> Option<Duration> {
-        self.inner.run(|ctx| self.latencies.get(ctx).get(nodes))
+        self.db.run(|ctx| self.latencies.get(ctx).get(nodes))
     }
 
     fn get_latencies_iter<V>(
         &self,
         closure: impl FnOnce(KeyIterator<(NodeIndex, NodeIndex)>) -> V,
     ) -> V {
-        self.inner
-            .run(|ctx| closure(self.latencies.get(ctx).keys()))
+        self.db.run(|ctx| closure(self.latencies.get(ctx).keys()))
     }
 
     fn get_reputation_score(&self, node: &NodeIndex) -> Option<u8> {
-        self.inner.run(|ctx| self.rep_scores.get(ctx).get(node))
+        self.db.run(|ctx| self.rep_scores.get(ctx).get(node))
     }
 
     fn get_total_served(&self, epoch: &Epoch) -> Option<TotalServed> {
-        self.inner
+        self.db
             .run(|ctx| self.total_served_table.get(ctx).get(epoch))
     }
 
     fn has_executed_digest(&self, digest: [u8; 32]) -> bool {
-        self.inner
+        self.db
             .run(|ctx| self.executed_digests_table.get(ctx).get(digest))
             .is_some()
     }
@@ -304,23 +300,22 @@ where
     }
 
     fn simulate_txn(&self, txn: TransactionRequest) -> TransactionResponse {
-        self.inner.run(|ctx| {
-            let app = ApplicationState::<ApplicationMerklizeProvider>::executor(ctx);
+        self.db.run(|ctx| {
+            let app = ApplicationState::<T>::executor(ctx);
             app.execute_transaction(txn)
         })
     }
 
     fn get_node_uptime(&self, node_index: &NodeIndex) -> Option<u8> {
-        self.inner
+        self.db
             .run(|ctx| self.uptime_table.get(ctx).get(node_index))
     }
 
     fn get_uri_providers(&self, uri: &Blake3Hash) -> Option<BTreeSet<NodeIndex>> {
-        self.inner.run(|ctx| self.uri_to_node.get(ctx).get(uri))
+        self.db.run(|ctx| self.uri_to_node.get(ctx).get(uri))
     }
 
     fn get_content_registry(&self, node_index: &NodeIndex) -> Option<BTreeSet<Blake3Hash>> {
-        self.inner
-            .run(|ctx| self.node_to_uri.get(ctx).get(node_index))
+        self.db.run(|ctx| self.node_to_uri.get(ctx).get(node_index))
     }
 }

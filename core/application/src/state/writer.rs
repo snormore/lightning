@@ -5,7 +5,8 @@ use anyhow::{anyhow, Result};
 use atomo::{
     Atomo,
     AtomoBuilder,
-    DefaultSerdeBackend,
+    SerdeBackend,
+    StorageBackend,
     StorageBackendConstructor,
     TableSelector,
     UpdatePerm,
@@ -37,7 +38,6 @@ use merklize::StateTree;
 use super::context::StateContext;
 use super::executor::StateExecutor;
 use super::query::QueryRunner;
-use crate::storage::AtomoStorage;
 
 /// The shared application state accumulates by executing transactions.
 pub struct ApplicationState<T: StateTree> {
@@ -45,7 +45,15 @@ pub struct ApplicationState<T: StateTree> {
     tree: T,
 }
 
-impl<T: StateTree> ApplicationState<T> {
+impl<T: StateTree> ApplicationState<T>
+where
+    // TODO(snormore): Can we DRY this up, should the bounds just
+    // be on the StateTree trait?
+    T: StateTree + Send + Sync + Clone + 'static,
+    T::StorageBuilder: StorageBackendConstructor + Send + Sync + Clone,
+    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
+    T::Serde: SerdeBackend + Send + Sync + Clone,
+{
     /// Creates a new application state.
     pub(crate) fn new(
         db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
@@ -66,7 +74,9 @@ impl<T: StateTree> ApplicationState<T> {
 
     /// Returns a reader for the application state.
     pub fn query(&self) -> QueryRunner<T> {
-        QueryRunner::new(self.db.query())
+        // TODO(snormore): Should the tree actually be clonable or can we make a reader that is
+        // cloneable and pass it in here instead?
+        QueryRunner::new(self.db.query(), self.tree.clone())
     }
 
     /// Returns a mutable reference to the atomo storage backend.
@@ -82,8 +92,13 @@ impl<T: StateTree> ApplicationState<T> {
     /// Returns a state executor that handles transaction execution logic, reading and modifying the
     /// state.
     pub fn executor(
-        ctx: &mut TableSelector<AtomoStorage, DefaultSerdeBackend>,
-    ) -> StateExecutor<StateContext<AtomoStorage, DefaultSerdeBackend>> {
+        ctx: &mut TableSelector<
+            <T::StorageBuilder as StorageBackendConstructor>::Storage,
+            T::Serde,
+        >,
+    ) -> StateExecutor<
+        StateContext<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+    > {
         StateExecutor::new(StateContext {
             table_selector: ctx,
         })
@@ -92,7 +107,9 @@ impl<T: StateTree> ApplicationState<T> {
     /// Runs a mutation on the state.
     pub fn run<F, R>(&mut self, mutation: F) -> Result<R>
     where
-        F: FnOnce(&mut TableSelector<AtomoStorage, DefaultSerdeBackend>) -> R,
+        F: FnOnce(
+            &mut TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        ) -> R,
     {
         self.db.run(|ctx| {
             let result = mutation(ctx);
@@ -107,7 +124,7 @@ impl<T: StateTree> ApplicationState<T> {
     /// This is namespaced as unsafe because it acts directly on the storage backend, bypassing the
     /// safety and consistency of atomo.
     pub fn clear_and_rebuild_state_tree_unsafe(&mut self) -> Result<()> {
-        self.tree.clear_and_rebuild_state_tree_unsafe()
+        self.tree.clear_and_rebuild_state_tree_unsafe(&mut self.db)
     }
 
     /// Registers and configures the application state tables with the atomo database builder.

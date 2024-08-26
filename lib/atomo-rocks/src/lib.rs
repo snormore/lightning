@@ -42,6 +42,7 @@ pub type AtomoBuilderWithRocks<'a, S = DefaultSerdeBackend> =
 /// drop(atomo);
 /// std::fs::remove_dir_all(path).unwrap();
 /// ```
+#[derive(Clone)]
 pub struct RocksBackendBuilder<'a> {
     path: PathBuf,
     options: Options,

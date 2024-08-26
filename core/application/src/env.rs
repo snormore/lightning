@@ -1,11 +1,15 @@
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
-use atomo::{AtomoBuilder, DefaultSerdeBackend, StorageBackend};
-use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
+use atomo::{
+    AtomoBuilder,
+    DefaultSerdeBackend,
+    SerdeBackend,
+    StorageBackend,
+    StorageBackendConstructor,
+};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::prelude::*;
@@ -36,7 +40,7 @@ use merklize::providers::mpt::MptStateTree;
 use merklize::StateTree;
 use tracing::warn;
 
-use crate::config::{Config, StorageConfig};
+use crate::config::Config;
 use crate::genesis::GenesisPrices;
 use crate::state::{ApplicationState, QueryRunner};
 use crate::storage::AtomoStorageBuilder;
@@ -51,45 +55,59 @@ pub type ApplicationStateTree<'builder> =
 
 pub type ApplicationEnv = Env<ApplicationStateTree<'static>>;
 
-pub type ApplicationQueryRunner = QueryRunner<<ApplicationStateTree<'static> as StateTree>::Reader>;
+// TODO(snormore): Can we remove all these statics?
+pub type ApplicationQueryRunner = QueryRunner<ApplicationStateTree<'static>>;
 
-impl<T: StateTree> Env<T> {
-    pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
-        let storage = match config.storage {
-            StorageConfig::RocksDb => {
-                let db_path = config
-                    .db_path
-                    .as_ref()
-                    .context("db_path must be specified for RocksDb backend")?;
-                let mut db_options = if let Some(db_options) = config.db_options.as_ref() {
-                    let (options, _) = Options::load_latest(
-                        db_options,
-                        RocksEnv::new().context("Failed to create rocks db env.")?,
-                        false,
-                        // TODO(matthias): I set this lru cache size arbitrarily
-                        RocksCache::new_lru_cache(100),
-                    )
-                    .context("Failed to create rocks db options.")?;
-                    options
-                } else {
-                    Options::default()
-                };
-                db_options.create_if_missing(true);
-                db_options.create_missing_column_families(true);
-                match checkpoint {
-                    Some((hash, checkpoint)) => AtomoStorageBuilder::new(Some(db_path.as_path()))
-                        .with_options(db_options)
-                        .from_checkpoint(hash, checkpoint),
-                    None => {
-                        AtomoStorageBuilder::new(Some(db_path.as_path())).with_options(db_options)
-                    },
-                }
-            },
-            StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
-        };
+impl<T: StateTree> Env<T>
+where
+    // TODO(snormore): Can we DRY this up, should the bounds just be on the
+    // StateTree trait?
+    T: StateTree + Send + Sync + Clone + 'static,
+    T::StorageBuilder: StorageBackendConstructor + Send + Sync + Clone,
+    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
+    T::Serde: SerdeBackend + Send + Sync + Clone,
+{
+    pub fn new(
+        // config: &Config,
+        // checkpoint: Option<([u8; 32], &[u8])>,
+        storage: T::StorageBuilder,
+    ) -> Result<Self> {
+        // let storage = match config.storage {
+        //     StorageConfig::RocksDb => {
+        //         let db_path = config
+        //             .db_path
+        //             .as_ref()
+        //             .context("db_path must be specified for RocksDb backend")?;
+        //         let mut db_options = if let Some(db_options) = config.db_options.as_ref() {
+        //             let (options, _) = Options::load_latest(
+        //                 db_options,
+        //                 RocksEnv::new().context("Failed to create rocks db env.")?,
+        //                 false,
+        //                 // TODO(matthias): I set this lru cache size arbitrarily
+        //                 RocksCache::new_lru_cache(100),
+        //             )
+        //             .context("Failed to create rocks db options.")?;
+        //             options
+        //         } else {
+        //             Options::default()
+        //         };
+        //         db_options.create_if_missing(true);
+        //         db_options.create_missing_column_families(true);
+        //         match checkpoint {
+        //             Some((hash, checkpoint)) => AtomoStorageBuilder::new(Some(db_path.as_path()))
+        //                 .with_options(db_options)
+        //                 .from_checkpoint(hash, checkpoint),
+        //             None => {
+        //
+        // AtomoStorageBuilder::new(Some(db_path.as_path())).with_options(db_options)
+        //             },
+        //         }
+        //     },
+        //     StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
+        // };
 
-        let atomo = AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
-        let mut state = ApplicationState::<StateTree>::build(atomo)?;
+        let atomo = AtomoBuilder::<T::StorageBuilder, T::Serde>::new(storage);
+        let mut state = ApplicationState::<T>::build(atomo)?;
 
         // TODO(snormore): Does this need to be mutable? Can we make it not needed?
         let mut query = state.query();
@@ -110,7 +128,7 @@ impl<T: StateTree> Env<T> {
         Ok(Self { inner: state })
     }
 
-    pub fn query_runner(&self) -> QueryRunner<T::Reader> {
+    pub fn query_runner(&self) -> QueryRunner<T> {
         self.inner.query()
     }
 
@@ -127,7 +145,7 @@ impl<T: StateTree> Env<T> {
         let response = self
             .inner
             .run(move |ctx| {
-                let app = ApplicationState::<StateTree>::executor(ctx);
+                let app = ApplicationState::<T>::executor(ctx);
                 let last_block_hash = app.get_block_hash();
 
                 let block_number = app.get_block_number() + 1;
@@ -443,7 +461,7 @@ impl<T: StateTree> Env<T> {
     pub fn update_last_epoch_hash(&mut self, state_hash: [u8; 32]) {
         self.inner
             .run(move |ctx| {
-                let app = ApplicationState::<StateTree>::executor(ctx);
+                let app = ApplicationState::<T>::executor(ctx);
                 app.set_last_epoch_hash(state_hash);
             })
             .expect("Failed to update last epoch hash");
@@ -456,11 +474,11 @@ impl<T: StateTree> Env<T> {
     }
 }
 
-impl Default for ApplicationEnv {
-    fn default() -> Self {
-        Self::new(&Config::default(), None).unwrap()
-    }
-}
+// impl Default for ApplicationEnv {
+//     fn default() -> Self {
+//         Self::new(&Config::default(), None).unwrap()
+//     }
+// }
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
@@ -469,7 +487,7 @@ pub struct UpdateWorker<C: Collection> {
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: Arc<Mutex<ApplicationEnv>>, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(env: Arc<Mutex<Env<T>>>, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }

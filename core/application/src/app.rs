@@ -74,10 +74,12 @@ impl<C: Collection> fdi::BuildGraph for Application<C> {
 }
 
 impl<C: Collection> ApplicationInterface<C> for Application<C> {
+    /// The type for the state tree.
+    // TODO(snormore): Can we remove this static?
+    type StateTree = ApplicationStateTree<'static>;
+
     /// The type for the sync query executor.
-    // TODO(snormore): Put StateTree in ApplicationInterface instead of hard coding to Application
-    // here?
-    type SyncExecutor = ApplicationQueryRunner;
+    type SyncExecutor = QueryRunner<Self::StateTree>;
 
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
