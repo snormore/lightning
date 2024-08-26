@@ -33,7 +33,6 @@ pub(crate) const KEYS_TABLE_NAME: &str = "%state_tree_keys";
 // 0. The `jmt` crate also has special handling of version 0, which we don't want to be in effect.
 pub(crate) const TREE_VERSION: Version = 1;
 
-#[derive(Debug, Clone)]
 /// A merklize provider that uses a Jellyfish Merkle Tree (JMT) implementation ([`jmt`]) to manage
 /// the database-backed state tree.
 pub struct JmtStateTree<B: StorageBackendConstructor, S: SerdeBackend, H: SimpleHasher> {
@@ -66,7 +65,7 @@ where
     // Send + Sync bounds required by triedb/hashdb.
     // Clone bounds required by SyncQueryRunnerInterface.
     // TODO(snormore): Can we remove these bounds?
-    B: StorageBackendConstructor + Send + Sync + Clone,
+    B: StorageBackendConstructor + Send + Sync,
     <B as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
     S: SerdeBackend + Send + Sync + Clone,
     H: SimpleHasher + Send + Sync + Clone,

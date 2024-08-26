@@ -93,8 +93,8 @@ where
     // Send + Sync bounds required by triedb/hashdb.
     // Clone bounds required by
     // SyncQueryRunnerInterface.
-    B: StorageBackendConstructor + Send + Sync + Clone,
-    <B as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
+    B: StorageBackendConstructor + Send + Sync,
+    <B as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync + Clone,
     H: SimpleHasher + Send + Sync + Clone,
 {

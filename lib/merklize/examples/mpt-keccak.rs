@@ -1,7 +1,7 @@
 use atomo::{AtomoBuilder, DefaultSerdeBackend, InMemoryStorage, SerdeBackend};
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::providers::mpt::MptStateTree;
-use merklize::{StateProof, StateTree};
+use merklize::{StateProof, StateTree, StateTreeReader};
 
 pub fn main() {
     let builder = InMemoryStorage::default();
@@ -16,6 +16,7 @@ fn run<T: StateTree>(builder: T::StorageBuilder) {
             .unwrap();
     let query = db.query();
     let tree = T::new();
+    let tree_reader = tree.reader(query.clone());
 
     // Open writer context and insert some data.
     db.run(|ctx| {
@@ -37,11 +38,11 @@ fn run<T: StateTree>(builder: T::StorageBuilder) {
         println!("value: {:?}", value);
 
         // Get the state root hash.
-        let state_root = tree.get_state_root(ctx).unwrap();
+        let state_root = tree_reader.get_state_root(ctx).unwrap();
         println!("state root: {:?}", state_root);
 
         // Get a proof of existence for some value in the state.
-        let proof = tree
+        let proof = tree_reader
             .get_state_proof(ctx, "data", <T::Serde as SerdeBackend>::serialize(&"key"))
             .unwrap();
         println!("proof: {:?}", proof);

@@ -43,12 +43,22 @@ pub(crate) type SharedNodesTableRef<'a, B, S, H> =
 
 pub(crate) type SharedRootTable<'a, B, S> = Arc<Mutex<RootTable<'a, B, S>>>;
 
-#[derive(Clone)]
+trait CloneableStorageBackend: StorageBackend + Clone {}
+
 pub struct MptStateTreeReader<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
     // TODO(snormore): Can/should we remove this if it's not used, or should we use it for some of
     // the methods?
-    _db: Atomo<QueryPerm, B, S>,
+    db: Atomo<QueryPerm, B, S>,
     _hasher: PhantomData<H>,
+}
+
+impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> Clone for MptStateTreeReader<B, S, H> {
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db.clone(),
+            _hasher: PhantomData,
+        }
+    }
 }
 
 impl<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> MptStateTreeReader<B, S, H>
@@ -60,7 +70,7 @@ where
 {
     pub fn new(db: Atomo<QueryPerm, B, S>) -> Self {
         Self {
-            _db: db,
+            db,
             _hasher: PhantomData,
         }
     }
