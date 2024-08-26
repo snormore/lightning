@@ -114,7 +114,7 @@ fn test_generic<T: StateTree>(builder: T::StorageBuilder) {
         .with_table::<String, String>("data")
         .enable_iter("data")
         .with_table::<u8, u8>("other");
-    let mut db = tree.register_tables(builder).build().unwrap();
+    let mut db = T::register_tables(builder).build().unwrap();
     let query = db.query();
 
     // Check state root.

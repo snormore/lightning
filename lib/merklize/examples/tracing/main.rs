@@ -36,10 +36,10 @@ async fn main() -> Result<()> {
 
 fn run<T: StateTree>(builder: T::StorageBuilder, data_count: usize) {
     let tree = T::new();
-    let mut db = tree
-        .register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
-        .build()
-        .unwrap();
+    let mut db =
+        T::register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+            .build()
+            .unwrap();
     let query = db.query();
 
     // Open writer context and insert some data.

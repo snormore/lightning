@@ -108,7 +108,6 @@ where
     }
 
     fn register_tables(
-        &self,
         builder: AtomoBuilder<Self::StorageBuilder, Self::Serde>,
     ) -> AtomoBuilder<Self::StorageBuilder, Self::Serde> {
         builder
@@ -326,10 +325,12 @@ where
         }
 
         // Build a new, temporary state tree.
-        let tmp_tree = MptStateTree::<InMemoryStorage, Self::Serde, Self::Hasher>::new();
-        let mut tmp_db = tmp_tree
-            .register_tables(AtomoBuilder::new(InMemoryStorage::default()))
-            .build()?;
+        type TmpTree<S, H> = MptStateTree<InMemoryStorage, S, H>;
+        let tmp_tree = TmpTree::<Self::Serde, Self::Hasher>::new();
+        let mut tmp_db = TmpTree::<Self::Serde, Self::Hasher>::register_tables(AtomoBuilder::new(
+            InMemoryStorage::default(),
+        ))
+        .build()?;
 
         // Apply the batch to the temporary state tree.
         tmp_db.run(|ctx| tmp_tree.update_state_tree(ctx, batch))?;

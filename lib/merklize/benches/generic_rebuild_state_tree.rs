@@ -208,10 +208,10 @@ fn generic_bench_rebuild_state_tree<T: StateTree>(
     data_count: usize,
 ) {
     let tree = T::new();
-    let mut db = tree
-        .register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
-        .build()
-        .unwrap();
+    let mut db =
+        T::register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+            .build()
+            .unwrap();
 
     db.run(|ctx| {
         let mut data_table = ctx.get_table::<String, String>("data");

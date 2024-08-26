@@ -20,11 +20,10 @@ fn test_jmt_update_state_tree_from_context_with_updates() {
     type T = JmtStateTree<InMemoryStorage, S, H>;
 
     let builder = AtomoBuilder::new(InMemoryStorage::default());
-    let tree = T::new();
-    let mut db = tree
-        .register_tables(builder.with_table::<String, String>("data"))
+    let mut db = T::register_tables(builder.with_table::<String, String>("data"))
         .build()
         .unwrap();
+    let tree = T::new();
 
     // Check storage.
     {
@@ -153,11 +152,10 @@ fn test_jmt_update_state_tree_from_context_with_no_changes() {
     type T = JmtStateTree<InMemoryStorage, S, H>;
 
     let builder = AtomoBuilder::new(InMemoryStorage::default());
-    let tree = T::new();
-    let mut db = tree
-        .register_tables(builder.with_table::<String, String>("data"))
+    let mut db = T::register_tables(builder.with_table::<String, String>("data"))
         .build()
         .unwrap();
+    let tree = T::new();
 
     // Check storage.
     {
@@ -204,11 +202,10 @@ fn test_jmt_get_state_root_with_empty_state() {
     type T = JmtStateTree<InMemoryStorage, S, H>;
 
     let builder = AtomoBuilder::new(InMemoryStorage::default());
-    let tree = T::new();
-    let db = tree
-        .register_tables(builder.with_table::<String, String>("data"))
+    let db = T::register_tables(builder.with_table::<String, String>("data"))
         .build()
         .unwrap();
+    let tree = T::new();
     let query = db.query();
 
     let state_root = query.run(|ctx| tree.get_state_root(ctx).unwrap());
@@ -226,11 +223,10 @@ fn test_jmt_get_state_root_with_updates() {
     type T = JmtStateTree<InMemoryStorage, S, H>;
 
     let builder = AtomoBuilder::new(InMemoryStorage::default());
-    let tree = T::new();
-    let mut db = tree
-        .register_tables(builder.with_table::<String, String>("data"))
+    let mut db = T::register_tables(builder.with_table::<String, String>("data"))
         .build()
         .unwrap();
+    let tree = T::new();
     let query = db.query();
 
     fn assert_state_root_unchanged(
@@ -346,12 +342,11 @@ fn test_jmt_clear_and_rebuild_state_tree() {
     type T = JmtStateTree<InMemoryStorage, S, H>;
 
     let builder = AtomoBuilder::new(InMemoryStorage::default());
-    let tree = T::new();
-    let mut db = tree
-        .register_tables(builder.with_table::<String, String>("data"))
+    let mut db = T::register_tables(builder.with_table::<String, String>("data"))
         .build()
         .unwrap();
     let query = db.query();
+    let tree = T::new();
 
     // Insert a value.
     db.run(|ctx| {
@@ -402,11 +397,10 @@ fn test_jmt_get_state_proof_of_membership() {
     type T = JmtStateTree<InMemoryStorage, S, H>;
 
     let builder = AtomoBuilder::new(InMemoryStorage::default());
-    let tree = T::new();
-    let mut db = tree
-        .register_tables(builder.with_table::<String, String>("data"))
+    let mut db = T::register_tables(builder.with_table::<String, String>("data"))
         .build()
         .unwrap();
+    let tree = T::new();
     let query = db.query();
 
     // Get a proof of non-membership with empty state, should fail.

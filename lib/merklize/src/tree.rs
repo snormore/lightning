@@ -29,7 +29,6 @@ pub trait StateTree: Sized {
     fn new() -> Self;
 
     fn register_tables(
-        &self,
         builder: AtomoBuilder<Self::StorageBuilder, Self::Serde>,
     ) -> AtomoBuilder<Self::StorageBuilder, Self::Serde>;
 

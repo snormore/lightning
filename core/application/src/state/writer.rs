@@ -32,7 +32,7 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
-use merklize::{StateTree, StateTreeBuilder, StateTreeWriter};
+use merklize::StateTree;
 
 use super::context::StateContext;
 use super::executor::StateExecutor;
@@ -42,16 +42,15 @@ use crate::storage::AtomoStorage;
 /// The shared application state accumulates by executing transactions.
 pub struct ApplicationState<T: StateTree> {
     db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
-    tree: T::Writer,
+    tree: T,
 }
 
 impl<T: StateTree> ApplicationState<T> {
     /// Creates a new application state.
     pub(crate) fn new(
         db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
-        tree: T,
     ) -> Self {
-        Self { db, tree }
+        Self { db, tree: T::new() }
     }
 
     /// Registers the application and state tree tables, and builds the atomo database.
@@ -62,9 +61,7 @@ impl<T: StateTree> ApplicationState<T> {
             .build()
             .map_err(|e| anyhow!("Failed to build atomo: {:?}", e))?;
 
-        let tree = T::Writer::new(db);
-
-        Ok(Self::new(db, tree))
+        Ok(Self::new(db))
     }
 
     /// Returns a reader for the application state.

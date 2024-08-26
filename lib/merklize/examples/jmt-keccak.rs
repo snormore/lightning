@@ -10,12 +10,12 @@ pub fn main() {
 }
 
 fn run<T: StateTree>(builder: T::StorageBuilder) {
-    let tree = T::new();
-    let mut db = tree
-        .register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
-        .build()
-        .unwrap();
+    let mut db =
+        T::register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+            .build()
+            .unwrap();
     let query = db.query();
+    let tree = T::new();
 
     // Open writer context and insert some data.
     db.run(|ctx| {

@@ -245,10 +245,10 @@ fn generic_merklize_bench_commit_changes<T: StateTree>(
     data_count: usize,
 ) {
     let tree = T::new();
-    let mut db = tree
-        .register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
-        .build()
-        .unwrap();
+    let mut db =
+        T::register_tables(AtomoBuilder::new(builder).with_table::<String, String>("data"))
+            .build()
+            .unwrap();
 
     b.iter(|| {
         db.run(|ctx| {
