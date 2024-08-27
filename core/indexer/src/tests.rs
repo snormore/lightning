@@ -2,10 +2,9 @@ use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 
 use fleek_crypto::{AccountOwnerSecretKey, ConsensusSecretKey, NodeSecretKey, SecretKey};
-use lightning_application::app::Application;
+use lightning_application::app::{Application, ApplicationQueryRunner};
 use lightning_application::config::Config as AppConfig;
 use lightning_application::genesis::{Genesis, GenesisNode};
-use lightning_application::state::QueryRunner;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::NodePorts;
 use lightning_notifier::Notifier;
@@ -121,7 +120,7 @@ async fn test_submission() {
 
     // Given: an indexer & query runner.
     let indexer = node.provider.get::<Indexer<TestBinding>>();
-    let query_runner = node.provider.get::<QueryRunner>().clone();
+    let query_runner = node.provider.get::<ApplicationQueryRunner>().clone();
 
     // Given: our index.
     let us = query_runner.pubkey_to_index(&node_public_key).unwrap();

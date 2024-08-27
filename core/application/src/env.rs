@@ -1,11 +1,8 @@
-use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
-use anyhow::{Context, Result};
-use atomo::{AtomoBuilder, DefaultSerdeBackend, SerdeBackend, StorageBackend};
-use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
+use anyhow::Result;
+use atomo::{AtomoBuilder, SerdeBackend, StorageBackend, StorageBackendConstructor};
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::prelude::*;
@@ -33,60 +30,25 @@ use lightning_interfaces::types::{
 use lightning_metrics::increment_counter;
 use tracing::warn;
 
-use crate::config::{Config, StorageConfig};
+use crate::app::ApplicationEnv;
+use crate::config::Config;
 use crate::genesis::GenesisPrices;
 use crate::state::{ApplicationState, QueryRunner};
-use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 
-pub struct Env<B: StorageBackend, S: SerdeBackend> {
+pub struct Env<B: StorageBackendConstructor, S: SerdeBackend> {
     pub inner: ApplicationState<B, S>,
 }
 
-pub type ApplicationEnv = Env<AtomoStorage, DefaultSerdeBackend>;
-
-impl ApplicationEnv {
-    pub fn new(config: &Config, checkpoint: Option<([u8; 32], Arc<[u8]>)>) -> Result<Self> {
-        let storage = match config.storage {
-            StorageConfig::RocksDb => {
-                let db_path = config
-                    .db_path
-                    .as_ref()
-                    .context("db_path must be specified for RocksDb backend")?;
-                let mut db_options = if let Some(db_options) = config.db_options.as_ref() {
-                    let (options, _) = Options::load_latest(
-                        db_options,
-                        RocksEnv::new().context("Failed to create rocks db env.")?,
-                        false,
-                        // TODO(matthias): I set this lru cache size arbitrarily
-                        RocksCache::new_lru_cache(100),
-                    )
-                    .context("Failed to create rocks db options.")?;
-                    options
-                } else {
-                    Options::default()
-                };
-                db_options.create_if_missing(true);
-                db_options.create_missing_column_families(true);
-                match checkpoint {
-                    Some((hash, checkpoint)) => AtomoStorageBuilder::new(Some(db_path.as_path()))
-                        .with_options(db_options)
-                        .from_checkpoint(hash, checkpoint),
-                    None => {
-                        AtomoStorageBuilder::new(Some(db_path.as_path())).with_options(db_options)
-                    },
-                }
-            },
-            StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
-        };
-
-        let atomo = AtomoBuilder::<AtomoStorageBuilder, DefaultSerdeBackend>::new(storage);
+impl<B: StorageBackendConstructor, S: SerdeBackend> Env<B, S> {
+    pub fn new(storage: B) -> Result<Self> {
+        let atomo = AtomoBuilder::new(storage);
 
         Ok(Self {
             inner: ApplicationState::build(atomo)?,
         })
     }
 
-    pub fn query_runner(&self) -> QueryRunner {
+    pub fn query_runner(&self) -> QueryRunner<B, S> {
         self.inner.query()
     }
 
@@ -98,7 +60,7 @@ impl ApplicationEnv {
     {
         let response = self.inner.run(move |ctx| {
             // Create the app/execution environment
-            let app = ApplicationState::executor(ctx);
+            let app = ApplicationState::<B, S>::executor(ctx);
             let last_block_hash = app.get_block_hash();
 
             let block_number = app.get_block_number() + 1;
@@ -412,15 +374,9 @@ impl ApplicationEnv {
     // Should only be called after saving or loading from an epoch checkpoint
     pub fn update_last_epoch_hash(&mut self, state_hash: [u8; 32]) {
         self.inner.run(move |ctx| {
-            let app = ApplicationState::executor(ctx);
+            let app = ApplicationState::<B, S>::executor(ctx);
             app.set_last_epoch_hash(state_hash);
         })
-    }
-}
-
-impl Default for ApplicationEnv {
-    fn default() -> Self {
-        Self::new(&Config::default(), None).unwrap()
     }
 }
 
@@ -449,6 +405,7 @@ mod env_tests {
     use tempfile::tempdir;
 
     use super::*;
+    use crate::app::ApplicationEnv;
     use crate::genesis::Genesis;
 
     #[test]
@@ -458,7 +415,8 @@ mod env_tests {
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
             .unwrap();
         let config = Config::test(genesis_path);
-        let mut env = ApplicationEnv::new(&config, None).unwrap();
+        let storage = config.storage(None).unwrap();
+        let mut env = ApplicationEnv::new(storage).unwrap();
 
         assert!(env.apply_genesis_block(&config).unwrap());
 

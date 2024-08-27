@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use atomo::DefaultSerdeBackend;
 use ethers::types::BlockNumber;
+use lightning_application::storage::AtomoStorageBuilder;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{
     Block,
@@ -37,7 +39,11 @@ struct ArchiveInner<C: Collection> {
     historical_state_dir: ResolvedPathBuf,
 }
 
-impl<C: Collection> BuildGraph for Archive<C> {
+impl<C: Collection> BuildGraph for Archive<C>
+where
+    <C::ApplicationInterface as ApplicationInterface<C>>::SyncExecutor:
+        SyncQueryRunnerInterface<StorageBuilder = AtomoStorageBuilder, Serde = DefaultSerdeBackend>,
+{
     fn build_graph() -> fdi::DependencyGraph {
         fdi::DependencyGraph::new().with_infallible(Self::new.with_event_handler(
             "start",
@@ -46,7 +52,11 @@ impl<C: Collection> BuildGraph for Archive<C> {
     }
 }
 
-impl<C: Collection> Archive<C> {
+impl<C: Collection> Archive<C>
+where
+    <C::ApplicationInterface as ApplicationInterface<C>>::SyncExecutor:
+        SyncQueryRunnerInterface<StorageBuilder = AtomoStorageBuilder, Serde = DefaultSerdeBackend>,
+{
     pub fn new(
         config_provider: &C::ConfigProviderInterface,
         blockstore: &C::BlockstoreInterface,
@@ -84,7 +94,11 @@ impl<C: Collection> Archive<C> {
     }
 }
 
-impl<C: Collection> ArchiveInterface<C> for Archive<C> {
+impl<C: Collection> ArchiveInterface<C> for Archive<C>
+where
+    <C::ApplicationInterface as ApplicationInterface<C>>::SyncExecutor:
+        SyncQueryRunnerInterface<StorageBuilder = AtomoStorageBuilder, Serde = DefaultSerdeBackend>,
+{
     fn is_active(&self) -> bool {
         self.inner.is_some()
     }
@@ -155,7 +169,11 @@ impl<C: Collection> Clone for Archive<C> {
 }
 
 /// Main logic to handle archive requests
-impl<C: Collection> ArchiveInner<C> {
+impl<C: Collection> ArchiveInner<C>
+where
+    <C::ApplicationInterface as ApplicationInterface<C>>::SyncExecutor:
+        SyncQueryRunnerInterface<StorageBuilder = AtomoStorageBuilder, Serde = DefaultSerdeBackend>,
+{
     fn new(
         db: DB,
         historical_state_dir: ResolvedPathBuf,
@@ -174,8 +192,8 @@ impl<C: Collection> ArchiveInner<C> {
     ) -> Result<c!(C::ApplicationInterface::SyncExecutor)> {
         let path = self.historical_state_dir.join(epoch.to_string());
         tracing::trace!(target: "archive", "Getting historical epoch state from {:?}", path);
-        let db = <c!(C::ApplicationInterface::SyncExecutor)>::atomo_from_path(path)?;
-        let query_runner = <c!(C::ApplicationInterface::SyncExecutor)>::new(db);
+        let storage = AtomoStorageBuilder::new(Some(path)).read_only();
+        let query_runner = <c!(C::ApplicationInterface::SyncExecutor)>::build(storage)?;
         Ok(query_runner)
     }
 
@@ -259,14 +277,11 @@ impl<C: Collection> ArchiveInner<C> {
         };
 
         // create the query runner, this will write the checkpoint to the historical state dir
-        let db = <c!(C::ApplicationInterface::SyncExecutor)>::atomo_from_checkpoint(
-            path,
-            hash,
-            checkpoint.into(),
-        )?;
-
+        let storage = AtomoStorageBuilder::new(Some(path))
+            .from_checkpoint(hash, checkpoint.into())
+            .read_only();
         // we dont actullay need to do anything with the query runner, so we ignore it explicity
-        let _ = <c!(C::ApplicationInterface::SyncExecutor)>::new(db);
+        let _ = <c!(C::ApplicationInterface::SyncExecutor)>::build(storage)?;
 
         Ok(())
     }
@@ -329,7 +344,10 @@ async fn insertion_task<C: Collection>(
     fdi::Cloned(waiter): fdi::Cloned<ShutdownWaiter>,
     fdi::Cloned(notifier): fdi::Cloned<C::NotifierInterface>,
     fdi::Cloned(archive): fdi::Cloned<Archive<C>>,
-) {
+) where
+    <C::ApplicationInterface as ApplicationInterface<C>>::SyncExecutor:
+        SyncQueryRunnerInterface<StorageBuilder = AtomoStorageBuilder, Serde = DefaultSerdeBackend>,
+{
     let Some(inner) = archive.inner else {
         return;
     };

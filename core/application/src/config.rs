@@ -1,12 +1,16 @@
+use std::path::Path;
+use std::sync::Arc;
 use std::time::SystemTime;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
+use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use lightning_utils::config::LIGHTNING_HOME_DIR;
 use resolved_pathbuf::ResolvedPathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::genesis::Genesis;
 use crate::network::Network;
+use crate::storage::AtomoStorageBuilder;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -69,6 +73,46 @@ impl Config {
             }
         }
         Ok(genesis)
+    }
+
+    pub fn storage(
+        &self,
+        checkpoint: Option<([u8; 32], Arc<[u8]>)>,
+    ) -> Result<AtomoStorageBuilder> {
+        let builder = match self.storage {
+            StorageConfig::RocksDb => {
+                let db_path = self
+                    .db_path
+                    .as_ref()
+                    .context("db_path must be specified for RocksDb backend")?;
+                let mut db_options = if let Some(db_options) = self.db_options.as_ref() {
+                    let (options, _) = Options::load_latest(
+                        db_options,
+                        RocksEnv::new().context("Failed to create rocks db env.")?,
+                        false,
+                        // TODO(matthias): I set this lru cache size arbitrarily
+                        RocksCache::new_lru_cache(100),
+                    )
+                    .context("Failed to create rocks db options.")?;
+                    options
+                } else {
+                    Options::default()
+                };
+                db_options.create_if_missing(true);
+                db_options.create_missing_column_families(true);
+                match checkpoint {
+                    Some((hash, checkpoint)) => AtomoStorageBuilder::new(Some(db_path.as_path()))
+                        .with_options(db_options)
+                        .from_checkpoint(hash, checkpoint),
+                    None => {
+                        AtomoStorageBuilder::new(Some(db_path.as_path())).with_options(db_options)
+                    },
+                }
+            },
+            StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
+        };
+
+        Ok(builder)
     }
 }
 

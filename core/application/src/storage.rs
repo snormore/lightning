@@ -5,6 +5,7 @@ use atomo::batch::BoxedVec;
 use atomo::{InMemoryStorage, StorageBackend, StorageBackendConstructor};
 use atomo_rocks::{Options, RocksBackend, RocksBackendBuilder};
 
+#[derive(Clone)]
 pub enum AtomoStorageBuilder {
     InMemory(InMemoryStorage),
     RocksDb(RocksBackendBuilder),
@@ -93,6 +94,7 @@ impl StorageBackendConstructor for AtomoStorageBuilder {
     }
 }
 
+#[derive(Clone)]
 pub enum AtomoStorage {
     InMemory(InMemoryStorage),
     RocksDb(RocksBackend),

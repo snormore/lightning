@@ -1,15 +1,15 @@
 use std::collections::BTreeSet;
-use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::{anyhow, Result};
 use atomo::{
     Atomo,
     AtomoBuilder,
-    DefaultSerdeBackend,
     KeyIterator,
     QueryPerm,
     ResolvedTableReference,
+    SerdeBackend,
+    StorageBackendConstructor,
     TableSelector,
 };
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
@@ -38,11 +38,14 @@ use lightning_interfaces::types::{
 use lightning_interfaces::SyncQueryRunnerInterface;
 
 use crate::state::ApplicationState;
-use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 
 #[derive(Clone)]
-pub struct QueryRunner {
-    inner: Atomo<QueryPerm, AtomoStorage>,
+pub struct QueryRunner<B, S>
+where
+    B: StorageBackendConstructor + 'static,
+    S: SerdeBackend,
+{
+    inner: Atomo<QueryPerm, B::Storage, S>,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
     client_table: ResolvedTableReference<ClientPublicKey, EthAddress>,
@@ -65,19 +68,24 @@ pub struct QueryRunner {
     node_to_uri: ResolvedTableReference<NodeIndex, BTreeSet<Blake3Hash>>,
 }
 
-impl QueryRunner {
+impl<B: StorageBackendConstructor, S: SerdeBackend> QueryRunner<B, S> {
     pub fn run<F, R>(&self, query: F) -> R
     where
-        F: FnOnce(&mut TableSelector<AtomoStorage, DefaultSerdeBackend>) -> R,
+        F: FnOnce(&mut TableSelector<B::Storage, S>) -> R,
     {
         self.inner.run(query)
     }
 }
 
-impl SyncQueryRunnerInterface for QueryRunner {
-    type Backend = AtomoStorage;
+impl<B, S> SyncQueryRunnerInterface for QueryRunner<B, S>
+where
+    B: StorageBackendConstructor + 'static,
+    S: SerdeBackend,
+{
+    type StorageBuilder = B;
+    type Serde = S;
 
-    fn new(atomo: Atomo<QueryPerm, AtomoStorage>) -> Self {
+    fn new(atomo: Atomo<QueryPerm, B::Storage, S>) -> Self {
         Self {
             metadata_table: atomo.resolve::<Metadata, Value>("metadata"),
             account_table: atomo.resolve::<EthAddress, AccountInfo>("account"),
@@ -104,36 +112,12 @@ impl SyncQueryRunnerInterface for QueryRunner {
         }
     }
 
-    fn atomo_from_checkpoint(
-        path: impl AsRef<Path>,
-        hash: [u8; 32],
-        checkpoint: Arc<[u8]>,
-    ) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
-        let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
-            .from_checkpoint(hash, checkpoint)
-            .read_only();
+    fn build(builder: Self::StorageBuilder) -> Result<Self> {
+        let db = ApplicationState::register_tables(AtomoBuilder::new(builder))
+            .build()
+            .map_err(|e| anyhow!("{:?}", e))?;
 
-        let atomo = ApplicationState::register_tables(AtomoBuilder::<
-            AtomoStorageBuilder,
-            DefaultSerdeBackend,
-        >::new(backend))
-        .build()?
-        .query();
-
-        Ok(atomo)
-    }
-
-    fn atomo_from_path(path: impl AsRef<Path>) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
-        let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
-
-        let atomo = ApplicationState::register_tables(AtomoBuilder::<
-            AtomoStorageBuilder,
-            DefaultSerdeBackend,
-        >::new(backend))
-        .build()?
-        .query();
-
-        Ok(atomo)
+        Ok(Self::new(db.query()))
     }
 
     fn get_metadata(&self, key: &Metadata) -> Option<Value> {
@@ -243,7 +227,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn simulate_txn(&self, txn: TransactionRequest) -> TransactionResponse {
         self.inner.run(|ctx| {
-            let app = ApplicationState::executor(ctx);
+            let app = ApplicationState::<B, S>::executor(ctx);
             app.execute_transaction(txn)
         })
     }

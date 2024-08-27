@@ -5,9 +5,7 @@ use anyhow::{anyhow, Result};
 use atomo::{
     Atomo,
     AtomoBuilder,
-    DefaultSerdeBackend,
     SerdeBackend,
-    StorageBackend,
     StorageBackendConstructor,
     TableSelector,
     UpdatePerm,
@@ -38,24 +36,20 @@ use lightning_interfaces::SyncQueryRunnerInterface;
 use super::context::StateContext;
 use super::executor::StateExecutor;
 use super::query::QueryRunner;
-use crate::storage::AtomoStorage;
 
 /// The shared application state accumulates by executing transactions.
-pub struct ApplicationState<B: StorageBackend, S: SerdeBackend> {
-    db: Atomo<UpdatePerm, B, S>,
+pub struct ApplicationState<B: StorageBackendConstructor, S: SerdeBackend> {
+    db: Atomo<UpdatePerm, B::Storage, S>,
 }
 
-impl ApplicationState<AtomoStorage, DefaultSerdeBackend> {
+impl<B: StorageBackendConstructor, S: SerdeBackend> ApplicationState<B, S> {
     /// Creates a new application state.
-    pub(crate) fn new(db: Atomo<UpdatePerm, AtomoStorage, DefaultSerdeBackend>) -> Self {
+    pub(crate) fn new(db: Atomo<UpdatePerm, B::Storage, S>) -> Self {
         Self { db }
     }
 
     /// Registers the application and state tree tables, and builds the atomo database.
-    pub fn build<C>(atomo: AtomoBuilder<C, DefaultSerdeBackend>) -> Result<Self>
-    where
-        C: StorageBackendConstructor<Storage = AtomoStorage>,
-    {
+    pub fn build(atomo: AtomoBuilder<B, S>) -> Result<Self> {
         let atomo = Self::register_tables(atomo);
 
         let db = atomo
@@ -66,7 +60,7 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend> {
     }
 
     /// Returns a reader for the application state.
-    pub fn query(&self) -> QueryRunner {
+    pub fn query(&self) -> QueryRunner<B, S> {
         QueryRunner::new(self.db.query())
     }
 
@@ -74,15 +68,15 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend> {
     ///
     /// This is unsafe because it allows modifying the state tree without going through the
     /// executor, which can lead to inconsistent state across nodes.
-    pub fn get_storage_backend_unsafe(&mut self) -> &AtomoStorage {
+    pub fn get_storage_backend_unsafe(&mut self) -> &B::Storage {
         self.db.get_storage_backend_unsafe()
     }
 
     /// Returns a state executor that handles transaction execution logic, reading and modifying the
     /// state.
     pub fn executor(
-        ctx: &mut TableSelector<AtomoStorage, DefaultSerdeBackend>,
-    ) -> StateExecutor<StateContext<AtomoStorage, DefaultSerdeBackend>> {
+        ctx: &mut TableSelector<B::Storage, S>,
+    ) -> StateExecutor<StateContext<B::Storage, S>> {
         StateExecutor::new(StateContext {
             table_selector: ctx,
         })
@@ -91,15 +85,13 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend> {
     /// Runs a mutation on the state.
     pub fn run<F, R>(&mut self, mutation: F) -> R
     where
-        F: FnOnce(&mut TableSelector<AtomoStorage, DefaultSerdeBackend>) -> R,
+        F: FnOnce(&mut TableSelector<B::Storage, S>) -> R,
     {
         self.db.run(mutation)
     }
 
     /// Registers and configures the application state tables with the atomo database builder.
-    pub fn register_tables<B: StorageBackendConstructor, S: SerdeBackend>(
-        builder: AtomoBuilder<B, S>,
-    ) -> AtomoBuilder<B, S> {
+    pub fn register_tables(builder: AtomoBuilder<B, S>) -> AtomoBuilder<B, S> {
         let mut builder = builder
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")

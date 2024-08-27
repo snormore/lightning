@@ -4,7 +4,7 @@ use dashmap::DashMap;
 
 use crate::batch::{BoxedVec, Operation, VerticalBatch};
 
-pub trait StorageBackendConstructor {
+pub trait StorageBackendConstructor: Clone + Send + Sync {
     /// The storage API.
     type Storage: StorageBackend;
 
@@ -21,7 +21,7 @@ pub trait StorageBackendConstructor {
 
 /// The persistence backend in Atomo provides the binding layer with any persistence layer
 /// of you choice and allows custom implementations of the underlying data storage.
-pub trait StorageBackend {
+pub trait StorageBackend: Clone + Send + Sync {
     /// Write the changes to the disk.
     fn commit(&self, batch: VerticalBatch);
 

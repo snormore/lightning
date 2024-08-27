@@ -16,7 +16,7 @@ use rocksdb::{ColumnFamilyDescriptor, WriteBatch};
 pub use serialization::{build_db_from_checkpoint, serialize_db};
 
 /// Helper alias for an [`atomo::AtomoBuilder`] using a [`RocksBackendBuilder`].
-pub type AtomoBuilderWithRocks<'a, S = DefaultSerdeBackend> = AtomoBuilder<RocksBackendBuilder, S>;
+pub type AtomoBuilderWithRocks<S = DefaultSerdeBackend> = AtomoBuilder<RocksBackendBuilder, S>;
 
 /// Builder for a new [`rocksdb::DB`] backend.
 ///
@@ -42,6 +42,7 @@ pub type AtomoBuilderWithRocks<'a, S = DefaultSerdeBackend> = AtomoBuilder<Rocks
 /// drop(atomo);
 /// std::fs::remove_dir_all(path).unwrap();
 /// ```
+#[derive(Clone)]
 pub struct RocksBackendBuilder {
     path: PathBuf,
     options: Options,
@@ -170,14 +171,15 @@ impl StorageBackendConstructor for RocksBackendBuilder {
 
         Ok(RocksBackend {
             columns: self.columns,
-            db,
+            db: Arc::new(db),
         })
     }
 }
 
 /// RocksDB persistence backend for [`atomo`].
+#[derive(Clone)]
 pub struct RocksBackend {
-    db: rocksdb::DB,
+    db: Arc<rocksdb::DB>,
     columns: Vec<String>,
 }
 

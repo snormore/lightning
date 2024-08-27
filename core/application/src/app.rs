@@ -4,19 +4,24 @@ use std::time::Duration;
 
 use affair::AsyncWorker;
 use anyhow::{anyhow, Result};
+use atomo::DefaultSerdeBackend;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::spawn_worker;
 use lightning_interfaces::types::{ChainId, NodeInfo};
 use tracing::{error, info};
 
 use crate::config::{Config, StorageConfig};
-use crate::env::{ApplicationEnv, Env, UpdateWorker};
+use crate::env::{Env, UpdateWorker};
 use crate::state::QueryRunner;
+use crate::storage::AtomoStorageBuilder;
 pub struct Application<C: Collection> {
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
-    query_runner: QueryRunner,
+    query_runner: ApplicationQueryRunner,
     collection: PhantomData<C>,
 }
+
+pub type ApplicationEnv = Env<AtomoStorageBuilder, DefaultSerdeBackend>;
+pub type ApplicationQueryRunner = QueryRunner<AtomoStorageBuilder, DefaultSerdeBackend>;
 
 impl<C: Collection> Application<C> {
     /// Create a new instance of the application layer using the provided configuration.
@@ -33,7 +38,8 @@ impl<C: Collection> Application<C> {
             );
         }
 
-        let mut env = Env::new(&config, None).expect("Failed to initialize environment.");
+        let storage = config.storage(None)?;
+        let mut env = Env::new(storage).expect("Failed to initialize environment.");
 
         if env.apply_genesis_block(&config)? {
             info!("Genesis block loaded into application state.");
@@ -67,7 +73,7 @@ impl<C: Collection> fdi::BuildGraph for Application<C> {
 
 impl<C: Collection> ApplicationInterface<C> for Application<C> {
     /// The type for the sync query executor.
-    type SyncExecutor = QueryRunner;
+    type SyncExecutor = QueryRunner<AtomoStorageBuilder, DefaultSerdeBackend>;
 
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
@@ -102,7 +108,8 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut counter = 0;
 
         loop {
-            match ApplicationEnv::new(config, Some((checkpoint_hash, checkpoint.clone()))) {
+            let storage = config.storage(Some((checkpoint_hash, checkpoint.clone())))?;
+            match ApplicationEnv::new(storage) {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"

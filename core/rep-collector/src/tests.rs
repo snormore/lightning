@@ -2,10 +2,9 @@ use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 
 use fleek_crypto::{AccountOwnerSecretKey, ConsensusSecretKey, NodeSecretKey, SecretKey};
-use lightning_application::app::Application;
+use lightning_application::app::{Application, ApplicationQueryRunner};
 use lightning_application::config::Config as AppConfig;
 use lightning_application::genesis::{Genesis, GenesisNode};
-use lightning_application::state::QueryRunner;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{NodePorts, UpdateMethod, UpdatePayload, UpdateRequest};
 use lightning_interfaces::Weight;
@@ -264,7 +263,7 @@ async fn test_submit_measurements() {
     .expect("failed to initialize node");
     node.start().await;
 
-    let query_runner: fdi::Ref<QueryRunner> = node.provider.get();
+    let query_runner: fdi::Ref<ApplicationQueryRunner> = node.provider.get();
     let rep_reporter = node.provider.get::<MyReputationReporter>();
 
     // Report some measurements to the reputation aggregator.
@@ -437,7 +436,7 @@ async fn test_reputation_calculation_and_query() {
     )
     .expect("failed to initialize node");
     node2.start().await;
-    let query_runner: fdi::Ref<QueryRunner> = node2.provider.get();
+    let query_runner: fdi::Ref<ApplicationQueryRunner> = node2.provider.get();
     let rep_reporter2 = node2.provider.get::<MyReputationReporter>();
 
     // Both nodes report measurements for two peers (alice and bob).

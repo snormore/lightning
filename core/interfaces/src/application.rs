@@ -1,11 +1,18 @@
 use std::collections::BTreeSet;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
 use affair::Socket;
 use anyhow::Result;
-use atomo::{Atomo, InMemoryStorage, KeyIterator, QueryPerm, StorageBackend};
+use atomo::{
+    Atomo,
+    DefaultSerdeBackend,
+    InMemoryStorage,
+    KeyIterator,
+    QueryPerm,
+    SerdeBackend,
+    StorageBackendConstructor,
+};
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use lightning_types::{
@@ -87,17 +94,22 @@ pub trait ApplicationInterface<C: Collection>:
 #[interfaces_proc::blank]
 pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     #[blank(InMemoryStorage)]
-    type Backend: StorageBackend;
+    type StorageBuilder: StorageBackendConstructor;
 
-    fn new(atomo: Atomo<QueryPerm, Self::Backend>) -> Self;
+    #[blank(DefaultSerdeBackend)]
+    type Serde: SerdeBackend;
 
-    fn atomo_from_checkpoint(
-        path: impl AsRef<Path>,
-        hash: [u8; 32],
-        checkpoint: Arc<[u8]>,
-    ) -> Result<Atomo<QueryPerm, Self::Backend>>;
+    /// Creates a new instance of the sync query runner from the given atomo database.
+    fn new(
+        atomo: Atomo<
+            QueryPerm,
+            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
+            Self::Serde,
+        >,
+    ) -> Self;
 
-    fn atomo_from_path(path: impl AsRef<Path>) -> Result<Atomo<QueryPerm, Self::Backend>>;
+    /// Builds a new instance of the sync query runner from the given builder.
+    fn build(builder: Self::StorageBuilder) -> Result<Self>;
 
     /// Query Metadata Table
     fn get_metadata(&self, key: &lightning_types::Metadata) -> Option<Value>;
