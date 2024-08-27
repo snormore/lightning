@@ -1,4 +1,5 @@
 use std::fs::read_to_string;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -231,7 +232,7 @@ async fn node_checkpointing() -> Result<()> {
     env.apply_genesis_block(&app_config_temp)?;
 
     let storage = env.inner.get_storage_backend_unsafe();
-    let checkpoint = storage.serialize().unwrap();
+    let checkpoint: Arc<[u8]> = storage.serialize().unwrap().into();
     let checkpoint_hash = blake3::hash(&checkpoint);
     std::mem::drop(env);
 

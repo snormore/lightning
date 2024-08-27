@@ -1,15 +1,16 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use atomo::batch::BoxedVec;
 use atomo::{InMemoryStorage, StorageBackend, StorageBackendConstructor};
 use atomo_rocks::{Options, RocksBackend, RocksBackendBuilder};
 
-pub enum AtomoStorageBuilder<'a> {
+pub enum AtomoStorageBuilder {
     InMemory(InMemoryStorage),
-    RocksDb(RocksBackendBuilder<'a>),
+    RocksDb(RocksBackendBuilder),
 }
 
-impl<'a> AtomoStorageBuilder<'a> {
+impl AtomoStorageBuilder {
     #[inline(always)]
     pub fn new<P: Into<PathBuf>>(path: Option<P>) -> Self {
         match path {
@@ -55,7 +56,7 @@ impl<'a> AtomoStorageBuilder<'a> {
     #[inline(always)]
     #[allow(unused)]
     #[allow(clippy::wrong_self_convention)]
-    pub fn from_checkpoint(self, hash: [u8; 32], checkpoint: &'a [u8]) -> Self {
+    pub fn from_checkpoint(self, hash: [u8; 32], checkpoint: Arc<[u8]>) -> Self {
         match self {
             AtomoStorageBuilder::InMemory(builder) => AtomoStorageBuilder::InMemory(builder),
             AtomoStorageBuilder::RocksDb(builder) => {
@@ -66,7 +67,7 @@ impl<'a> AtomoStorageBuilder<'a> {
     }
 }
 
-impl<'a> StorageBackendConstructor for AtomoStorageBuilder<'a> {
+impl StorageBackendConstructor for AtomoStorageBuilder {
     type Storage = AtomoStorage;
 
     type Error = anyhow::Error;

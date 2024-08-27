@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
@@ -44,7 +45,7 @@ pub struct Env<B: StorageBackend, S: SerdeBackend> {
 pub type ApplicationEnv = Env<AtomoStorage, DefaultSerdeBackend>;
 
 impl ApplicationEnv {
-    pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
+    pub fn new(config: &Config, checkpoint: Option<([u8; 32], Arc<[u8]>)>) -> Result<Self> {
         let storage = match config.storage {
             StorageConfig::RocksDb => {
                 let db_path = config

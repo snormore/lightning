@@ -3,6 +3,7 @@
 mod serialization;
 use std::fs::{self};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::Result;
 use atomo::batch::{BoxedVec, Operation};
@@ -15,8 +16,7 @@ use rocksdb::{ColumnFamilyDescriptor, WriteBatch};
 pub use serialization::{build_db_from_checkpoint, serialize_db};
 
 /// Helper alias for an [`atomo::AtomoBuilder`] using a [`RocksBackendBuilder`].
-pub type AtomoBuilderWithRocks<'a, S = DefaultSerdeBackend> =
-    AtomoBuilder<RocksBackendBuilder<'a>, S>;
+pub type AtomoBuilderWithRocks<'a, S = DefaultSerdeBackend> = AtomoBuilder<RocksBackendBuilder, S>;
 
 /// Builder for a new [`rocksdb::DB`] backend.
 ///
@@ -42,16 +42,16 @@ pub type AtomoBuilderWithRocks<'a, S = DefaultSerdeBackend> =
 /// drop(atomo);
 /// std::fs::remove_dir_all(path).unwrap();
 /// ```
-pub struct RocksBackendBuilder<'a> {
+pub struct RocksBackendBuilder {
     path: PathBuf,
     options: Options,
     columns: Vec<String>,
     column_options: FxHashMap<String, Options>,
-    checkpoint: Option<([u8; 32], &'a [u8])>,
+    checkpoint: Option<([u8; 32], Arc<[u8]>)>,
     read_only: bool,
 }
 
-impl<'a> RocksBackendBuilder<'a> {
+impl RocksBackendBuilder {
     /// Create a new builder at the given path.
     #[inline(always)]
     pub fn new<P: Into<PathBuf>>(path: P) -> Self {
@@ -84,7 +84,7 @@ impl<'a> RocksBackendBuilder<'a> {
     /// Warning: providing a checkpoint will overwrite the existing database at the specified path,
     /// if there is one.
     #[inline(always)]
-    pub fn from_checkpoint(mut self, hash: [u8; 32], checkpoint: &'a [u8]) -> Self {
+    pub fn from_checkpoint(mut self, hash: [u8; 32], checkpoint: Arc<[u8]>) -> Self {
         self.checkpoint = Some((hash, checkpoint));
         self
     }
@@ -97,7 +97,7 @@ impl<'a> RocksBackendBuilder<'a> {
     }
 }
 
-impl<'a> StorageBackendConstructor for RocksBackendBuilder<'a> {
+impl StorageBackendConstructor for RocksBackendBuilder {
     type Storage = RocksBackend;
 
     type Error = anyhow::Error;
@@ -127,8 +127,12 @@ impl<'a> StorageBackendConstructor for RocksBackendBuilder<'a> {
                     fs::remove_dir_all(&tmp_path)?;
                 }
                 fs::create_dir_all(&tmp_path)?;
-                let (_db, column_names) =
-                    build_db_from_checkpoint(&tmp_path, hash, checkpoint, self.options.clone())?;
+                let (_db, column_names) = build_db_from_checkpoint(
+                    &tmp_path,
+                    hash,
+                    checkpoint.as_ref(),
+                    self.options.clone(),
+                )?;
                 // If the build was successful, we move the db over to the actual directory.
                 if self.path.exists() {
                     fs::remove_dir_all(&self.path)?;

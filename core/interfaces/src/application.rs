@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use affair::Socket;
@@ -72,7 +73,7 @@ pub trait ApplicationInterface<C: Collection>:
     /// Will seed its underlying database with the checkpoint provided
     async fn load_from_checkpoint(
         config: &Self::Config,
-        checkpoint: Vec<u8>,
+        checkpoint: Arc<[u8]>,
         checkpoint_hash: [u8; 32],
     ) -> Result<()>;
 
@@ -93,7 +94,7 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
         hash: [u8; 32],
-        checkpoint: &[u8],
+        checkpoint: Arc<[u8]>,
     ) -> Result<Atomo<QueryPerm, Self::Backend>>;
 
     fn atomo_from_path(path: impl AsRef<Path>) -> Result<Atomo<QueryPerm, Self::Backend>>;

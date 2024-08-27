@@ -57,7 +57,7 @@ where
                 // start local env in checkpoint mode to seed database with the new checkpoint
                 C::ApplicationInterface::load_from_checkpoint(
                     &app_config,
-                    checkpoint,
+                    checkpoint.into(),
                     checkpoint_hash
                 ).await?;
 

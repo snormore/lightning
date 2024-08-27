@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use atomo::{
@@ -106,7 +107,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
     fn atomo_from_checkpoint(
         path: impl AsRef<Path>,
         hash: [u8; 32],
-        checkpoint: &[u8],
+        checkpoint: Arc<[u8]>,
     ) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref()))
             .from_checkpoint(hash, checkpoint)

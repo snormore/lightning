@@ -262,7 +262,7 @@ impl<C: Collection> ArchiveInner<C> {
         let db = <c!(C::ApplicationInterface::SyncExecutor)>::atomo_from_checkpoint(
             path,
             hash,
-            &checkpoint,
+            checkpoint.into(),
         )?;
 
         // we dont actullay need to do anything with the query runner, so we ignore it explicity

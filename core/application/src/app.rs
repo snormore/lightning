@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker;
@@ -94,7 +94,7 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
 
     async fn load_from_checkpoint(
         config: &Config,
-        checkpoint: Vec<u8>,
+        checkpoint: Arc<[u8]>,
         checkpoint_hash: [u8; 32],
     ) -> Result<()> {
         // Due to a race condition on shutdowns when a node checkpoints, we should sleep and try
@@ -102,7 +102,7 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut counter = 0;
 
         loop {
-            match ApplicationEnv::new(config, Some((checkpoint_hash, &checkpoint))) {
+            match ApplicationEnv::new(config, Some((checkpoint_hash, checkpoint.clone()))) {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"
