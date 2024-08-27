@@ -38,7 +38,8 @@ impl<C: Collection> Application<C> {
             );
         }
 
-        let mut env = Env::new(&config, None).expect("Failed to initialize environment.");
+        let storage = Self::storage_builder(&config, None);
+        let env = Env::new(storage).expect("Failed to initialize environment.");
         let query_runner = env.query_runner();
 
         if env.apply_genesis_block(&config)? {
@@ -58,6 +59,44 @@ impl<C: Collection> Application<C> {
 
             _collection: PhantomData,
         })
+    }
+
+    fn storage_builder(
+        config: &Config,
+        checkpoint: Option<([u8; 32], Vec<u8>)>,
+    ) -> AtomoStorageBuilder {
+        match config.storage {
+            StorageConfig::RocksDb => {
+                let db_path = config
+                    .db_path
+                    .as_ref()
+                    .context("db_path must be specified for RocksDb backend")?;
+                let mut db_options = if let Some(db_options) = config.db_options.as_ref() {
+                    let (options, _) = Options::load_latest(
+                        db_options,
+                        RocksEnv::new().context("Failed to create rocks db env.")?,
+                        false,
+                        // TODO(matthias): I set this lru cache size arbitrarily
+                        RocksCache::new_lru_cache(100),
+                    )
+                    .context("Failed to create rocks db options.")?;
+                    options
+                } else {
+                    Options::default()
+                };
+                db_options.create_if_missing(true);
+                db_options.create_missing_column_families(true);
+                match checkpoint {
+                    Some((hash, checkpoint)) => AtomoStorageBuilder::new(Some(db_path.as_path()))
+                        .with_options(db_options)
+                        .from_checkpoint(hash, checkpoint),
+                    None => {
+                        AtomoStorageBuilder::new(Some(db_path.as_path())).with_options(db_options)
+                    },
+                }
+            },
+            StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
+        }
     }
 }
 
@@ -114,7 +153,8 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut counter = 0;
 
         loop {
-            match ApplicationEnv::new(config, Some((checkpoint_hash, &checkpoint))) {
+            let storage = Self::storage_builder(config, checkpoint);
+            match ApplicationEnv::new(storage) {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"

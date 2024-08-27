@@ -32,7 +32,7 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::SyncQueryRunnerInterface;
+use lightning_interfaces::{ApplicationStateInterface, SyncQueryRunnerInterface};
 use merklize::StateTree;
 
 use super::context::StateContext;
@@ -40,29 +40,28 @@ use super::executor::StateExecutor;
 use super::query::QueryRunner;
 
 /// The shared application state accumulates by executing transactions.
-pub struct ApplicationState<T: StateTree> {
+pub struct ApplicationState<B: StorageBackendConstructor, S: SerdeBackend, T: StateTree> {
     db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
     tree: T,
 }
 
-impl<T: StateTree> ApplicationState<T>
-where
-    // TODO(snormore): Can we DRY this up, should the bounds just
-    // be on the StateTree trait?
-    T: StateTree + Send + Sync + Clone + 'static,
-    T::StorageBuilder: StorageBackendConstructor + Send + Sync + Clone,
-    <T::StorageBuilder as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync + Clone,
-    T::Serde: SerdeBackend + Send + Sync + Clone,
+impl<B: StorageBackendConstructor, S: SerdeBackend, T: StateTree> ApplicationStateInterface
+    for ApplicationState<B, S, T>
 {
+    type StorageBuilder = B;
+    type Serde = S;
+    type Tree = T;
+    type Reader = QueryRunner<T>;
+
     /// Creates a new application state.
-    pub(crate) fn new(
+    fn new(
         db: Atomo<UpdatePerm, <T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
     ) -> Self {
         Self { db, tree: T::new() }
     }
 
     /// Registers the application and state tree tables, and builds the atomo database.
-    pub fn build(atomo: AtomoBuilder<T::StorageBuilder, T::Serde>) -> Result<Self> {
+    fn build(atomo: AtomoBuilder<T::StorageBuilder, T::Serde>) -> Result<Self> {
         let atomo = Self::register_tables(atomo);
 
         let db = atomo
@@ -73,7 +72,7 @@ where
     }
 
     /// Returns a reader for the application state.
-    pub fn query(&self) -> QueryRunner<T> {
+    fn query(&self) -> QueryRunner<T> {
         // TODO(snormore): Should the tree actually be clonable or can we make a reader that is
         // cloneable and pass it in here instead?
         QueryRunner::new(self.db.query(), self.tree.clone())
@@ -83,12 +82,30 @@ where
     ///
     /// This is unsafe because it allows modifying the state tree without going through the
     /// executor, which can lead to inconsistent state across nodes.
-    pub fn get_storage_backend_unsafe(
+    fn get_storage_backend_unsafe(
         &mut self,
     ) -> &<T::StorageBuilder as StorageBackendConstructor>::Storage {
         self.db.get_storage_backend_unsafe()
     }
 
+    /// Runs a mutation on the state.
+    fn run<F, R>(&mut self, mutation: F) -> Result<R>
+    where
+        F: FnOnce(
+            &mut TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
+        ) -> R,
+    {
+        self.db.run(|ctx| {
+            let result = mutation(ctx);
+
+            self.tree.update_state_tree_from_context(ctx)?;
+
+            Ok(result)
+        })
+    }
+}
+
+impl<B: StorageBackendConstructor, S: SerdeBackend, T: StateTree> ApplicationState<B, S, T> {
     /// Returns a state executor that handles transaction execution logic, reading and modifying the
     /// state.
     pub fn executor(
@@ -101,22 +118,6 @@ where
     > {
         StateExecutor::new(StateContext {
             table_selector: ctx,
-        })
-    }
-
-    /// Runs a mutation on the state.
-    pub fn run<F, R>(&mut self, mutation: F) -> Result<R>
-    where
-        F: FnOnce(
-            &mut TableSelector<<T::StorageBuilder as StorageBackendConstructor>::Storage, T::Serde>,
-        ) -> R,
-    {
-        self.db.run(|ctx| {
-            let result = mutation(ctx);
-
-            self.tree.update_state_tree_from_context(ctx)?;
-
-            Ok(result)
         })
     }
 

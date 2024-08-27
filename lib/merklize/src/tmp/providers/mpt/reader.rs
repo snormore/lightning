@@ -43,8 +43,6 @@ pub(crate) type SharedNodesTableRef<'a, B, S, H> =
 
 pub(crate) type SharedRootTable<'a, B, S> = Arc<Mutex<RootTable<'a, B, S>>>;
 
-trait CloneableStorageBackend: StorageBackend + Clone {}
-
 pub struct MptStateTreeReader<B: StorageBackend, S: SerdeBackend, H: SimpleHasher> {
     // TODO(snormore): Can/should we remove this if it's not used, or should we use it for some of
     // the methods?

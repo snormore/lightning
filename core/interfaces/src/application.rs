@@ -5,12 +5,15 @@ use affair::Socket;
 use anyhow::Result;
 use atomo::{
     Atomo,
+    AtomoBuilder,
     DefaultSerdeBackend,
     InMemoryStorage,
     KeyIterator,
     QueryPerm,
     SerdeBackend,
     StorageBackendConstructor,
+    TableSelector,
+    UpdatePerm,
 };
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
@@ -28,7 +31,9 @@ use lightning_types::{
 };
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::providers::mpt::MptStateTree;
-use merklize::{StateRootHash, StateTree};
+use merklize::v2::database::{DatabaseReader, DatabaseWriter};
+use merklize::v2::tree::{TreeReader, TreeWriter};
+use merklize::{StateRootHash, StateTree, StateTreeReader};
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Collection;
@@ -62,9 +67,13 @@ pub type ExecutionEngineSocket = Socket<Block, BlockExecutionResponse>;
 pub trait ApplicationInterface<C: Collection>:
     BuildGraph + ConfigConsumer + Sized + Send + Sync
 {
+    /// The type for the state database.
+    #[blank(AtomoDatabaseWriter)]
+    type StateDatabase: DatabaseWriter;
+
     /// The type for the state tree.
-    #[blank(MptStateTree<InMemoryStorage, DefaultSerdeBackend, KeccakHasher>)]
-    type StateTree: StateTree + Send + Sync + 'static;
+    #[blank(MptStateTree<AtomoDatabaseWriter, DefaultSerdeBackend, KeccakHasher>)]
+    type StateTree: TreeWriter;
 
     /// The type for the sync query executor.
     type SyncExecutor: SyncQueryRunnerInterface;
@@ -105,41 +114,24 @@ pub trait ApplicationInterface<C: Collection>:
 
 #[interfaces_proc::blank]
 pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
-    #[blank(InMemoryStorage)]
-    type StorageBuilder: StorageBackendConstructor + Send + Sync;
-
-    // TODO(snormore): Can we remove this and the storage builder?
-    #[blank(DefaultSerdeBackend)]
-    type Serde: SerdeBackend;
+    #[blank(AtomoDatabaseReader)]
+    type StateDatabase: DatabaseReader;
 
     // TODO(snormore): Fix this Mpt reference.
-    #[blank(MptStateTree<InMemoryStorage, DefaultSerdeBackend, KeccakHasher>)]
-    type StateTree: StateTree;
+    #[blank(MptStateTreReader<AtomoDatabaseReader, DefaultSerdeBackend, KeccakHasher>)]
+    type StateTree: TreeReader;
 
     // TODO(snormore): Set serde backend from state tree here on the atomo type?
-    fn new(
-        db: Atomo<
+    fn new(db: Self::StateDatabase, tree: Self::StateTree) -> Self;
+
+    /// Builds a new state reader from an existing atomo database and state tree.
+    fn build(
+        builder: Atomo<
             QueryPerm,
             <Self::StorageBuilder as StorageBackendConstructor>::Storage,
             Self::Serde,
         >,
-        tree: Self::StateTree,
-    ) -> Self;
-
-    // TODO(snormore): Remove this or fix it.
-    // fn atomo_from_checkpoint(
-    //     path: impl AsRef<Path>,
-    //     hash: [u8; 32],
-    //     checkpoint: &[u8],
-    // ) -> Result<
-    //     Atomo<QueryPerm, <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-    // Self::Serde>, >;
-
-    // fn atomo_from_path(
-    //     path: impl AsRef<Path>,
-    // ) -> Result<
-    //     Atomo<QueryPerm, <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-    // Self::Serde>, >;
+    ) -> Result<Self>;
 
     /// Query Metadata Table
     fn get_metadata(&self, key: &lightning_types::Metadata) -> Option<Value>;
@@ -153,7 +145,7 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
         key: StateProofKey,
     ) -> Result<(
         Option<StateProofValue>,
-        <Self::StateTree as StateTree>::Proof,
+        <<Self::StateTree as StateTree>::Reader as StateTreeReader<T>>::Proof,
     )>;
 
     /// Verify the state tree.

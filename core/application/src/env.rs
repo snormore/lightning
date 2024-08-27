@@ -45,7 +45,7 @@ use crate::genesis::GenesisPrices;
 use crate::state::{ApplicationState, QueryRunner};
 use crate::storage::AtomoStorageBuilder;
 
-pub struct Env<T: StateTree> {
+pub struct Env<D: Database, T: StateTree> {
     // TODO(snormore): Make this private, not pub.
     pub inner: ApplicationState<T>,
 }
@@ -72,40 +72,6 @@ where
         // checkpoint: Option<([u8; 32], &[u8])>,
         storage: T::StorageBuilder,
     ) -> Result<Self> {
-        // let storage = match config.storage {
-        //     StorageConfig::RocksDb => {
-        //         let db_path = config
-        //             .db_path
-        //             .as_ref()
-        //             .context("db_path must be specified for RocksDb backend")?;
-        //         let mut db_options = if let Some(db_options) = config.db_options.as_ref() {
-        //             let (options, _) = Options::load_latest(
-        //                 db_options,
-        //                 RocksEnv::new().context("Failed to create rocks db env.")?,
-        //                 false,
-        //                 // TODO(matthias): I set this lru cache size arbitrarily
-        //                 RocksCache::new_lru_cache(100),
-        //             )
-        //             .context("Failed to create rocks db options.")?;
-        //             options
-        //         } else {
-        //             Options::default()
-        //         };
-        //         db_options.create_if_missing(true);
-        //         db_options.create_missing_column_families(true);
-        //         match checkpoint {
-        //             Some((hash, checkpoint)) => AtomoStorageBuilder::new(Some(db_path.as_path()))
-        //                 .with_options(db_options)
-        //                 .from_checkpoint(hash, checkpoint),
-        //             None => {
-        //
-        // AtomoStorageBuilder::new(Some(db_path.as_path())).with_options(db_options)
-        //             },
-        //         }
-        //     },
-        //     StorageConfig::InMemory => AtomoStorageBuilder::new::<&Path>(None),
-        // };
-
         let atomo = AtomoBuilder::<T::StorageBuilder, T::Serde>::new(storage);
         let mut state = ApplicationState::<T>::build(atomo)?;
 

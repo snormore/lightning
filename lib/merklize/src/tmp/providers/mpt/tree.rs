@@ -88,21 +88,21 @@ where
     }
 }
 
-impl<B, S, H> StateTree for MptStateTree<B, S, H>
+impl<D, S, H> StateTree for MptStateTree<D, S, H>
 where
     // Send + Sync bounds required by triedb/hashdb.
     // Clone bounds required by
     // SyncQueryRunnerInterface.
-    B: StorageBackendConstructor + Send + Sync,
-    <B as StorageBackendConstructor>::Storage: StorageBackend + Send + Sync,
+    D: DatabaseRunContext + Send + Sync,
+    <D as DatabaseRunContext>::Storage: StorageBackend + Send + Sync,
     S: SerdeBackend + Send + Sync + Clone,
     H: SimpleHasher + Send + Sync + Clone,
 {
-    type StorageBuilder = B;
+    type DatabaseBuilder = D;
     type Serde = S;
     type Hasher = H;
 
-    type Reader = MptStateTreeReader<B::Storage, S, H>;
+    type Reader = MptStateTreeReader<D, S, H>;
 
     fn new() -> Self {
         Self::new()

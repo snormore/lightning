@@ -127,41 +127,20 @@ where
         }
     }
 
-    // TODO(snormore): Remove this or fix it.
-    // fn atomo_from_checkpoint(
-    //     path: impl AsRef<Path>,
-    //     hash: [u8; 32],
-    //     checkpoint: &[u8],
-    // ) -> anyhow::Result<
-    //     Atomo<QueryPerm, <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-    // Self::Serde>,
-    // > { let backend = AtomoStorageBuilder::new(Some(path.as_ref())) .from_checkpoint(hash,
-    // > checkpoint) .read_only();
+    fn build(
+        builder: AtomoBuilder<T::StorageBuilder, T::Serde>,
+    ) -> anyhow::Result<
+        Atomo<QueryPerm, <Self::StorageBuilder as StorageBackendConstructor>::Storage, Self::Serde>,
+    > {
+        // TODO(snormore): Can this be dried up with the writer impl?
+        let atomo = ApplicationState::register_tables(
+            AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
+        )
+        .build()?
+        .query();
 
-    //     let atomo = ApplicationState::register_tables(
-    //         AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
-    //     )
-    //     .build()?
-    //     .query();
-
-    //     Ok(atomo)
-    // }
-
-    // fn atomo_from_path(
-    //     path: impl AsRef<Path>,
-    // ) -> anyhow::Result<
-    //     Atomo<QueryPerm, <Self::StorageBuilder as StorageBackendConstructor>::Storage,
-    // Self::Serde>,
-    // > { let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
-
-    //     let atomo = ApplicationState::register_tables(
-    //         AtomoBuilder::<T::StorageBuilder, T::Serde>::new(backend),
-    //     )
-    //     .build()?
-    //     .query();
-
-    //     Ok(atomo)
-    // }
+        Ok(atomo)
+    }
 
     fn get_metadata(&self, key: &Metadata) -> Option<Value> {
         self.db.run(|ctx| self.metadata_table.get(ctx).get(key))

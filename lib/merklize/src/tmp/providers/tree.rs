@@ -19,12 +19,12 @@ use tracing::trace_span;
 use crate::{SimpleHasher, StateTreeReader};
 
 pub trait StateTree: Sized {
-    type StorageBuilder: StorageBackendConstructor;
+    type Database: Database,
     type Serde: SerdeBackend;
     type Hasher: SimpleHasher;
 
     type Reader: StateTreeReader<
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
+            Self::Database,
             Self::Serde,
             Self::Hasher,
         >;
@@ -37,14 +37,14 @@ pub trait StateTree: Sized {
         &self,
         db: Atomo<
             QueryPerm,
-            <Self::StorageBuilder as StorageBackendConstructor>::Storage,
+            Self::Database,
             Self::Serde,
         >,
     ) -> Self::Reader;
 
     fn register_tables(
-        builder: AtomoBuilder<Self::StorageBuilder, Self::Serde>,
-    ) -> AtomoBuilder<Self::StorageBuilder, Self::Serde>;
+        builder: DatabaseBuilder,
+    ) -> AtomoBuilder<Self::Database, Self::Serde>;
 
     /// Applies the changes in the given batch of updates to the state tree.
     ///
