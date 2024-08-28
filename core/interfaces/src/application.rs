@@ -13,10 +13,14 @@ use lightning_types::{
     ChainId,
     Committee,
     NodeIndex,
+    StateProofKey,
+    StateProofValue,
     TransactionRequest,
     TxHash,
     Value,
 };
+use merklize::trees::mpt::MptStateProof;
+use merklize::StateRootHash;
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Collection;
@@ -187,6 +191,15 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
 
     /// Returns the node's content registry.
     fn get_content_registry(&self, node_index: &NodeIndex) -> Option<BTreeSet<Blake3Hash>>;
+
+    /// Returns the state root hash from the application state.
+    fn get_state_root(&self) -> Result<StateRootHash>;
+
+    /// Returns the state proof for a given key from the application state using the state tree.
+    fn get_state_proof(
+        &self,
+        key: StateProofKey,
+    ) -> Result<(Option<StateProofValue>, MptStateProof)>;
 }
 
 #[derive(Clone, Debug)]
