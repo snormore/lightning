@@ -1,4 +1,5 @@
 use anyhow::Result;
+use atomo::batch::BoxedVec;
 use schemars::JsonSchema;
 
 /// A trait for a simple hasher that can hash data and return a 32-byte array.
@@ -70,6 +71,12 @@ impl From<SimpleHash> for [u8; 32] {
     /// Convert a `SimpleHash` to a 32-byte array.
     fn from(hash: SimpleHash) -> Self {
         hash.0
+    }
+}
+
+impl From<SimpleHash> for BoxedVec {
+    fn from(hash: SimpleHash) -> Self {
+        hash.0.to_vec().into_boxed_slice()
     }
 }
 

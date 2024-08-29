@@ -227,7 +227,9 @@ async fn node_checkpointing() -> Result<()> {
         db_options: None,
         dev: None,
     };
-    let mut env = ApplicationEnv::<FinalTypes>::new(&app_config_temp, None, None)?;
+    // TODO(snormore): What should happen here with the keystore and broadcast used for state
+    // checkpoints?
+    let mut env = ApplicationEnv::<FinalTypes>::new(&app_config_temp, None, None, None)?;
     env.apply_genesis_block(&app_config_temp)?;
 
     let storage = env.inner.get_storage_backend_unsafe();

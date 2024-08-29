@@ -4,7 +4,7 @@ use std::time::Duration;
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
 use atomo::{DefaultSerdeBackend, SerdeBackend, StorageBackend};
-use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
+use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey, SecretKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{
@@ -59,7 +59,7 @@ impl<C: Collection> ApplicationEnv<C> {
     pub fn new(
         config: &Config,
         // TODO(snormore): Encapsulate this stuff in a Checkpointer or something.
-        keystore: Option<C::KeystoreInterface>,
+        keystore: Option<&C::KeystoreInterface>,
         broadcast: Option<&C::BroadcastInterface>,
         checkpoint: Option<([u8; 32], &[u8])>,
     ) -> Result<Self> {
@@ -70,7 +70,7 @@ impl<C: Collection> ApplicationEnv<C> {
 
         Ok(Self {
             inner: state,
-            keystore,
+            keystore: keystore.cloned(),
             pubsub,
             _collection: PhantomData,
         })
@@ -174,37 +174,46 @@ impl<C: Collection> ApplicationEnv<C> {
             if let Some(pubsub) = &self.pubsub {
                 let mut pubsub = pubsub.clone();
 
-                // Broadcast BLS signature over state root to all nodes in the network.
-                let signature = vec![];
-                let attestation = CheckpointHeader::new(
-                    previous_state_root.into(),
-                    next_state_root.into(),
-                    signature,
-                );
-                let _msg_digest = pubsub
-                    .send(&CheckpointMessage::CheckpointAttestation(attestation), None)
-                    .await?;
+                if let Some(keystore) = &self.keystore {
+                    // Build and sign the checkpoint header attestation.
+                    // TODO(snormore): This should be a signer abstraction instead of the secret
+                    // key.
+                    let signer = keystore.get_bls_sk();
+                    // TODO(snormore): This should include the previous state root too.
+                    let signature = signer.sign(next_state_root.to_vec().as_slice());
+                    let attestation = CheckpointHeader::new(
+                        previous_state_root.into(),
+                        next_state_root.into(),
+                        // TODO(snormore): Fix this.
+                        signature.0.to_vec().into_boxed_slice(),
+                    );
 
-                // TODO(snormore): Wait until we have enough attestations (2/3 of all nodes) to
-                // create and persist our aggregate checkpoint header for this
-                // epoch. TODO(snormore): Can we do this inline/blocking, or do we
-                // need to do this async? Is there anything currently stopping the
-                // next block execution from stomping on us here if we do it inline?
-                let mut attestations = Vec::new();
-                loop {
-                    let msg = pubsub.recv().await;
-                    if let Some(msg) = msg {
-                        match msg {
-                            CheckpointMessage::CheckpointAttestation(attestation) => {
-                                attestations.push(attestation);
+                    // Broadcast BLS signature over state root to all nodes in the network.
+                    let _msg_digest = pubsub
+                        .send(&CheckpointMessage::CheckpointAttestation(attestation), None)
+                        .await?;
 
-                                // let node_count = self.inner.run(|ctx| ctx.)?;
-                                let node_count = 10; // TODO(snormore): Get node count from state/db
-                                if attestations.len() >= 2 * node_count / 3 {
-                                    // TODO(snormore): Persist the aggregate checkpoint header.
-                                    break;
-                                }
-                            },
+                    // TODO(snormore): Wait until we have enough attestations (2/3 of all nodes) to
+                    // create and persist our aggregate checkpoint header for this
+                    // epoch. TODO(snormore): Can we do this inline/blocking, or do we
+                    // need to do this async? Is there anything currently stopping the
+                    // next block execution from stomping on us here if we do it inline?
+                    let mut attestations = Vec::new();
+                    loop {
+                        let msg = pubsub.recv().await;
+                        if let Some(msg) = msg {
+                            match msg {
+                                CheckpointMessage::CheckpointAttestation(attestation) => {
+                                    attestations.push(attestation);
+
+                                    // let node_count = self.inner.run(|ctx| ctx.)?;
+                                    let node_count = 10; // TODO(snormore): Get node count from state/db
+                                    if attestations.len() >= 2 * node_count / 3 {
+                                        // TODO(snormore): Persist the aggregate checkpoint header.
+                                        break;
+                                    }
+                                },
+                            }
                         }
                     }
                 }

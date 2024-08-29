@@ -30,11 +30,11 @@ pub struct CheckpointHeader {
     // TODO(snormore): Hash types.
     previous_state: [u8; 32],
     next_state: [u8; 32],
-    signature: Vec<u8>, // bls signature
+    signature: Box<[u8]>, // bls signature
 }
 
 impl CheckpointHeader {
-    pub fn new(previous_state: [u8; 32], next_state: [u8; 32], signature: Vec<u8>) -> Self {
+    pub fn new(previous_state: [u8; 32], next_state: [u8; 32], signature: Box<[u8]>) -> Self {
         Self {
             previous_state,
             next_state,
@@ -47,6 +47,6 @@ impl CheckpointHeader {
 pub struct AggrCheckpointHeader {
     prev_state: [u8; 32],
     next_state: [u8; 32],
-    signature: Vec<u8>, // bls aggr signature
-    nodes: Vec<u8>,     // TODO: BitSet
+    signature: Box<[u8]>, // bls aggr signature
+    nodes: Vec<u8>,       // TODO: BitSet
 }
