@@ -4,7 +4,14 @@ use std::time::Duration;
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
 use atomo::{DefaultSerdeBackend, SerdeBackend, StorageBackend};
-use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey, SecretKey};
+use fleek_crypto::{
+    ClientPublicKey,
+    ConsensusAggregateSignature,
+    ConsensusPublicKey,
+    EthAddress,
+    NodePublicKey,
+    SecretKey,
+};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{
@@ -184,8 +191,7 @@ impl<C: Collection> ApplicationEnv<C> {
                     let attestation = CheckpointHeader::new(
                         previous_state_root.into(),
                         next_state_root.into(),
-                        // TODO(snormore): Fix this.
-                        signature.0.to_vec().into_boxed_slice(),
+                        signature,
                     );
 
                     // Broadcast BLS signature over state root to all nodes in the network.
@@ -210,6 +216,10 @@ impl<C: Collection> ApplicationEnv<C> {
                                     let node_count = 10; // TODO(snormore): Get node count from state/db
                                     if attestations.len() >= 2 * node_count / 3 {
                                         // TODO(snormore): Persist the aggregate checkpoint header.
+                                        let aggr_sign = ConsensusAggregateSignature::aggregate(
+                                            attestations.iter().map(|a| &a.signature),
+                                        );
+                                        println!("aggr_sign: {:?}", aggr_sign);
                                         break;
                                     }
                                 },

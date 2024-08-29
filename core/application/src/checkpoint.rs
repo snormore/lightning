@@ -1,4 +1,5 @@
 use derive_more::{From, IsVariant, TryInto};
+use fleek_crypto::{ConsensusAggregateSignature, ConsensusSignature};
 use lightning_interfaces::schema::LightningMessage;
 use serde::{Deserialize, Serialize};
 
@@ -28,13 +29,17 @@ impl LightningMessage for CheckpointMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckpointHeader {
     // TODO(snormore): Hash types.
-    previous_state: [u8; 32],
-    next_state: [u8; 32],
-    signature: Box<[u8]>, // bls signature
+    pub previous_state: [u8; 32],
+    pub next_state: [u8; 32],
+    pub signature: ConsensusSignature,
 }
 
 impl CheckpointHeader {
-    pub fn new(previous_state: [u8; 32], next_state: [u8; 32], signature: Box<[u8]>) -> Self {
+    pub fn new(
+        previous_state: [u8; 32],
+        next_state: [u8; 32],
+        signature: ConsensusSignature,
+    ) -> Self {
         Self {
             previous_state,
             next_state,
@@ -45,8 +50,8 @@ impl CheckpointHeader {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AggrCheckpointHeader {
-    prev_state: [u8; 32],
-    next_state: [u8; 32],
-    signature: Box<[u8]>, // bls aggr signature
-    nodes: Vec<u8>,       // TODO: BitSet
+    pub prev_state: [u8; 32],
+    pub next_state: [u8; 32],
+    pub signature: ConsensusAggregateSignature,
+    pub nodes: Vec<u8>, // TODO(snormore): BitSet
 }
