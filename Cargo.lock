@@ -152,7 +152,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "const-hex",
- "derive_more",
+ "derive_more 0.99.18",
  "hex-literal",
  "itoa",
  "keccak-asm",
@@ -3228,6 +3228,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "convert_case 0.6.0",
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "syn 2.0.72",
+ "unicode-xid 0.2.4",
+]
+
+[[package]]
 name = "difflib"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4050,7 +4072,7 @@ dependencies = [
  "cbc",
  "ctr",
  "curve25519-dalek-ng",
- "derive_more",
+ "derive_more 0.99.18",
  "digest 0.10.7",
  "ecdsa",
  "ed25519-consensus",
@@ -4104,7 +4126,7 @@ dependencies = [
  "cbc",
  "ctr",
  "curve25519-dalek-ng",
- "derive_more",
+ "derive_more 0.99.18",
  "digest 0.10.7",
  "ecdsa",
  "ed25519-consensus",
@@ -4328,7 +4350,7 @@ version = "0.0.0"
 dependencies = [
  "arrayref",
  "bincode",
- "derive_more",
+ "derive_more 0.99.18",
  "fastcrypto 0.1.8",
  "hex",
  "rand 0.8.5",
@@ -4355,7 +4377,7 @@ dependencies = [
  "base64 0.21.7",
  "borsh",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "fn-sdk",
  "hex",
  "lazy_static",
@@ -4471,7 +4493,7 @@ dependencies = [
  "arrayvec",
  "blake3-tree",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "fleek-crypto",
  "hp-fixed",
  "lightning-schema",
@@ -6396,6 +6418,7 @@ dependencies = [
  "atomo-rocks",
  "autometrics",
  "bincode",
+ "derive_more 1.0.0",
  "ethers",
  "fleek-blake3",
  "fleek-crypto",
@@ -6454,7 +6477,7 @@ dependencies = [
  "bincode",
  "blake3-tree",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "lightning-interfaces",
  "lightning-utils",
  "lightning-workspace-hack",
@@ -6507,7 +6530,7 @@ dependencies = [
  "bincode",
  "bytes",
  "dashmap",
- "derive_more",
+ "derive_more 0.99.18",
  "fleek-crypto",
  "futures",
  "fxhash",
@@ -6604,7 +6627,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "dashmap",
- "derive_more",
+ "derive_more 0.99.18",
  "fastcrypto 0.1.8",
  "fleek-blake3",
  "fleek-crypto",
@@ -6860,7 +6883,7 @@ dependencies = [
  "clap",
  "criterion",
  "dashmap",
- "derive_more",
+ "derive_more 0.99.18",
  "enum_dispatch",
  "fleek-crypto",
  "fn-sdk",
@@ -7054,7 +7077,7 @@ dependencies = [
  "affair",
  "anyhow",
  "cid 0.10.1",
- "derive_more",
+ "derive_more 0.99.18",
  "fleek-crypto",
  "lightning-application",
  "lightning-blockstore",
@@ -7552,7 +7575,7 @@ dependencies = [
  "bincode",
  "cid 0.10.1",
  "compile-time-run",
- "derive_more",
+ "derive_more 0.99.18",
  "ethers",
  "fleek-crypto",
  "hp-fixed",
@@ -11383,7 +11406,7 @@ dependencies = [
 name = "resolved-pathbuf"
 version = "0.2.0"
 dependencies = [
- "derive_more",
+ "derive_more 0.99.18",
  "resolve-path",
  "serde",
  "serde_json",
@@ -11909,7 +11932,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c453e59a955f81fb62ee5d596b450383d699f152d350e9d23a0db2adb78e4c0"
 dependencies = [
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.18",
  "parity-scale-codec 3.6.11",
  "scale-info-derive",
 ]
@@ -12651,7 +12674,7 @@ version = "0.0.8"
 dependencies = [
  "arrayref",
  "bincode",
- "derive_more",
+ "derive_more 0.99.18",
  "futures",
  "futures-task",
  "fxhash",
@@ -14752,7 +14775,7 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9bd5ff03aea02fa45b13a7980151fe45009af1980ba69f651ec367121a31609"
 dependencies = [
- "derive_more",
+ "derive_more 0.99.18",
  "regex",
  "serde",
  "unic-ucd-ident",

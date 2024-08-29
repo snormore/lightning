@@ -32,6 +32,7 @@ autometrics = { version = "0.6.0", features = ["prometheus-exporter"] }
 axum = { version = "0.6.18", features = ["tokio"] }
 bincode = "1.3.3"
 cid = "0.10.1"
+derive_more = { version = "1.0.0", features = ["full"] }
 ethers = "2.0.10"
 num-bigint = "0.4.0"
 base64 = "0.21"

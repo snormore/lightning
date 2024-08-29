@@ -9,6 +9,7 @@ edition = "2021"
 anyhow.workspace = true
 autometrics.workspace = true
 bincode.workspace = true
+derive_more.workspace = true
 ethers.workspace = true
 lazy_static.workspace = true
 serde.workspace = true

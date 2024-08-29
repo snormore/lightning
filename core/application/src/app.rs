@@ -12,6 +12,7 @@ use tracing::{error, info};
 use crate::config::{Config, StorageConfig};
 use crate::env::{ApplicationEnv, Env, UpdateWorker};
 use crate::state::QueryRunner;
+
 pub struct Application<C: Collection> {
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
     query_runner: QueryRunner,
@@ -23,6 +24,7 @@ impl<C: Collection> Application<C> {
     fn init(
         config: &C::ConfigProviderInterface,
         blockstore: &C::BlockstoreInterface,
+        broadcast: &C::BroadcastInterface,
         fdi::Cloned(waiter): fdi::Cloned<ShutdownWaiter>,
     ) -> Result<Self> {
         let config = config.get::<Self>();
@@ -33,7 +35,8 @@ impl<C: Collection> Application<C> {
             );
         }
 
-        let mut env = Env::new(&config, None).expect("Failed to initialize environment.");
+        let mut env =
+            Env::new(&config, Some(broadcast), None).expect("Failed to initialize environment.");
 
         if env.apply_genesis_block(&config)? {
             info!("Genesis block loaded into application state.");
@@ -102,7 +105,7 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut counter = 0;
 
         loop {
-            match ApplicationEnv::new(config, Some((checkpoint_hash, &checkpoint))) {
+            match ApplicationEnv::<C>::new(config, None, Some((checkpoint_hash, &checkpoint))) {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"
@@ -144,7 +147,7 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
     ///
     /// This method is unsafe because it acts directly on the underlying storage backend.
     fn reset_state_tree_unsafe(config: &Config) -> Result<()> {
-        let mut env = ApplicationEnv::new(config, None)?;
+        let mut env = ApplicationEnv::<C>::new(config, None, None)?;
         env.inner.reset_state_tree_unsafe()
     }
 }

@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
@@ -27,33 +28,47 @@ use lightning_interfaces::types::{
     TransactionResponse,
     Value,
 };
+use lightning_interfaces::SyncQueryRunnerInterface;
 use lightning_metrics::increment_counter;
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::trees::mpt::MptStateTree;
 use merklize::StateTree;
 use tracing::warn;
+use types::Topic;
 
+use crate::checkpoint::{CheckpointHeader, CheckpointMessage};
 use crate::config::Config;
 use crate::genesis::GenesisPrices;
 use crate::state::{ApplicationState, QueryRunner};
 use crate::storage::AtomoStorage;
 
-pub struct Env<B: StorageBackend, S: SerdeBackend, T: StateTree> {
+pub struct Env<C: Collection, B: StorageBackend, S: SerdeBackend, T: StateTree> {
     pub inner: ApplicationState<B, S, T>,
+    pubsub: Option<<C::BroadcastInterface as BroadcastInterface<C>>::PubSub<CheckpointMessage>>,
+    _collection: PhantomData<C>,
 }
 
 /// The canonical application state tree provider.
 pub type ApplicationStateTree = MptStateTree<AtomoStorage, DefaultSerdeBackend, KeccakHasher>;
 
 /// The canonical application environment.
-pub type ApplicationEnv = Env<AtomoStorage, DefaultSerdeBackend, ApplicationStateTree>;
+pub type ApplicationEnv<C> = Env<C, AtomoStorage, DefaultSerdeBackend, ApplicationStateTree>;
 
-impl ApplicationEnv {
-    pub fn new(config: &Config, checkpoint: Option<([u8; 32], &[u8])>) -> Result<Self> {
+impl<C: Collection> ApplicationEnv<C> {
+    pub fn new(
+        config: &Config,
+        broadcast: Option<&C::BroadcastInterface>,
+        checkpoint: Option<([u8; 32], &[u8])>,
+    ) -> Result<Self> {
         let builder = config.atomo_builder(checkpoint)?;
+        let state = ApplicationState::build(builder)?;
+
+        let pubsub = broadcast.map(|b| b.get_pubsub(Topic::Checkpoint));
 
         Ok(Self {
-            inner: ApplicationState::build(builder)?,
+            inner: state,
+            pubsub,
+            _collection: PhantomData,
         })
     }
 
@@ -67,6 +82,10 @@ impl ApplicationEnv {
         F: FnOnce() -> P,
         P: IncrementalPutInterface,
     {
+        // Get state root hash to use as previous state in checkpoint header.
+        let previous_state_root = self.inner.query().get_state_root()?;
+
+        // Execute the block and get the response.
         let response = self
             .inner
             .run(move |ctx| {
@@ -136,6 +155,9 @@ impl ApplicationEnv {
             })
             .context("Failed to execute block")?;
 
+        // Get the new state root hash to use as the next state in the checkpoint header.
+        let next_state_root = self.inner.query().get_state_root()?;
+
         if response.change_epoch {
             increment_counter!(
                 "epoch_change_by_txn",
@@ -144,6 +166,21 @@ impl ApplicationEnv {
                 )
             );
 
+            // Broadcast BLS signature over state root to all nodes in the network.
+            if let Some(pubsub) = &self.pubsub {
+                let signature = vec![];
+                let attestation = CheckpointHeader::new(
+                    previous_state_root.into(),
+                    next_state_root.into(),
+                    signature,
+                );
+                let _msg_digest = pubsub
+                    .send(&CheckpointMessage::CheckpointAttestation(attestation), None)
+                    .await?;
+            }
+
+            // TODO(snormore): This will be removed once we have a working state checkpoint and sync
+            // protocol.
             let storage = self.inner.get_storage_backend_unsafe();
             // This will return `None` only if the InMemory backend is used.
             if let Some(checkpoint) = storage.serialize() {
@@ -394,20 +431,14 @@ impl ApplicationEnv {
     }
 }
 
-impl Default for ApplicationEnv {
-    fn default() -> Self {
-        Self::new(&Config::default(), None).unwrap()
-    }
-}
-
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: ApplicationEnv,
+    env: ApplicationEnv<C>,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: ApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(env: ApplicationEnv<C>, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
@@ -430,6 +461,7 @@ mod env_tests {
 
     use super::*;
     use crate::genesis::Genesis;
+    use crate::tests::TestBinding;
 
     #[test]
     fn test_apply_genesis_block_backfills_when_missing() {
@@ -438,7 +470,7 @@ mod env_tests {
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
             .unwrap();
         let config = Config::test(genesis_path);
-        let mut env = ApplicationEnv::new(&config, None).unwrap();
+        let mut env = ApplicationEnv::<TestBinding>::new(&config, None, None).unwrap();
 
         assert!(env.apply_genesis_block(&config).unwrap());
 
