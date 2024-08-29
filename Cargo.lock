@@ -4352,6 +4352,7 @@ dependencies = [
  "bincode",
  "derive_more 0.99.18",
  "fastcrypto 0.1.8",
+ "fastcrypto-tbls",
  "hex",
  "rand 0.8.5",
  "schemars",

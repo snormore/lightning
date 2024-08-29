@@ -44,6 +44,7 @@ use crate::storage::AtomoStorage;
 
 pub struct Env<C: Collection, B: StorageBackend, S: SerdeBackend, T: StateTree> {
     pub inner: ApplicationState<B, S, T>,
+    keystore: Option<C::KeystoreInterface>,
     pubsub: Option<<C::BroadcastInterface as BroadcastInterface<C>>::PubSub<CheckpointMessage>>,
     _collection: PhantomData<C>,
 }
@@ -57,6 +58,8 @@ pub type ApplicationEnv<C> = Env<C, AtomoStorage, DefaultSerdeBackend, Applicati
 impl<C: Collection> ApplicationEnv<C> {
     pub fn new(
         config: &Config,
+        // TODO(snormore): Encapsulate this stuff in a Checkpointer or something.
+        keystore: Option<C::KeystoreInterface>,
         broadcast: Option<&C::BroadcastInterface>,
         checkpoint: Option<([u8; 32], &[u8])>,
     ) -> Result<Self> {
@@ -67,6 +70,7 @@ impl<C: Collection> ApplicationEnv<C> {
 
         Ok(Self {
             inner: state,
+            keystore,
             pubsub,
             _collection: PhantomData,
         })
@@ -497,7 +501,7 @@ mod env_tests {
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
             .unwrap();
         let config = Config::test(genesis_path);
-        let mut env = ApplicationEnv::<TestBinding>::new(&config, None, None).unwrap();
+        let mut env = ApplicationEnv::<TestBinding>::new(&config, None, None, None).unwrap();
 
         assert!(env.apply_genesis_block(&config).unwrap());
 

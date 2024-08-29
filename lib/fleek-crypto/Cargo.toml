@@ -7,9 +7,10 @@ edition = "2021"
 [dependencies]
 arrayref = "0.3.7"
 fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "55e7e568842939e01c8545a71d72e2402ad74538" }
+fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "55e7e568842939e01c8545a71d72e2402ad74538" }
 hex = "0.4.3"
 rand = "0.8"
-sec1 = "0.7.2"                                                                                                      # re-exports pkcs8
+sec1 = "0.7.2"                                                                                                           # re-exports pkcs8
 serde = { version = "1.0", features = ["derive"] }
 serde-big-array = "0.5.1"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }

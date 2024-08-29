@@ -23,6 +23,7 @@ impl<C: Collection> Application<C> {
     /// Create a new instance of the application layer using the provided configuration.
     fn init(
         config: &C::ConfigProviderInterface,
+        keystore: &C::KeystoreInterface,
         blockstore: &C::BlockstoreInterface,
         broadcast: &C::BroadcastInterface,
         fdi::Cloned(waiter): fdi::Cloned<ShutdownWaiter>,
@@ -35,8 +36,8 @@ impl<C: Collection> Application<C> {
             );
         }
 
-        let mut env =
-            Env::new(&config, Some(broadcast), None).expect("Failed to initialize environment.");
+        let mut env = Env::new(&config, Some(keystore), Some(broadcast), None)
+            .expect("Failed to initialize environment.");
 
         if env.apply_genesis_block(&config)? {
             info!("Genesis block loaded into application state.");
@@ -105,7 +106,8 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut counter = 0;
 
         loop {
-            match ApplicationEnv::<C>::new(config, None, Some((checkpoint_hash, &checkpoint))) {
+            match ApplicationEnv::<C>::new(config, None, None, Some((checkpoint_hash, &checkpoint)))
+            {
                 Ok(mut env) => {
                     info!(
                         "Successfully built database from checkpoint with hash {checkpoint_hash:?}"
@@ -147,7 +149,7 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
     ///
     /// This method is unsafe because it acts directly on the underlying storage backend.
     fn reset_state_tree_unsafe(config: &Config) -> Result<()> {
-        let mut env = ApplicationEnv::<C>::new(config, None, None)?;
+        let mut env = ApplicationEnv::<C>::new(config, None, None, None)?;
         env.inner.reset_state_tree_unsafe()
     }
 }
