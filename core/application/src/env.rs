@@ -83,6 +83,7 @@ impl<C: Collection> ApplicationEnv<C> {
         P: IncrementalPutInterface,
     {
         // Get state root hash to use as previous state in checkpoint header.
+        // TODO(snormore): Do we need to do this, the run, and the next state root atomically?
         let previous_state_root = self.inner.query().get_state_root()?;
 
         // Execute the block and get the response.
@@ -166,8 +167,10 @@ impl<C: Collection> ApplicationEnv<C> {
                 )
             );
 
-            // Broadcast BLS signature over state root to all nodes in the network.
             if let Some(pubsub) = &self.pubsub {
+                let mut pubsub = pubsub.clone();
+
+                // Broadcast BLS signature over state root to all nodes in the network.
                 let signature = vec![];
                 let attestation = CheckpointHeader::new(
                     previous_state_root.into(),
@@ -177,6 +180,30 @@ impl<C: Collection> ApplicationEnv<C> {
                 let _msg_digest = pubsub
                     .send(&CheckpointMessage::CheckpointAttestation(attestation), None)
                     .await?;
+
+                // TODO(snormore): Wait until we have enough attestations (2/3 of all nodes) to
+                // create and persist our aggregate checkpoint header for this
+                // epoch. TODO(snormore): Can we do this inline/blocking, or do we
+                // need to do this async? Is there anything currently stopping the
+                // next block execution from stomping on us here if we do it inline?
+                let mut attestations = Vec::new();
+                loop {
+                    let msg = pubsub.recv().await;
+                    if let Some(msg) = msg {
+                        match msg {
+                            CheckpointMessage::CheckpointAttestation(attestation) => {
+                                attestations.push(attestation);
+
+                                // let node_count = self.inner.run(|ctx| ctx.)?;
+                                let node_count = 10; // TODO(snormore): Get node count from state/db
+                                if attestations.len() >= 2 * node_count / 3 {
+                                    // TODO(snormore): Persist the aggregate checkpoint header.
+                                    break;
+                                }
+                            },
+                        }
+                    }
+                }
             }
 
             // TODO(snormore): This will be removed once we have a working state checkpoint and sync

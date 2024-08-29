@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, IsVariant, From, TryInto)]
 pub(crate) enum CheckpointMessage {
+    // TODO(snormore): Is this enum necessary?
     CheckpointAttestation(CheckpointHeader),
-    AggrCheckpointAttestation(AggrCheckpointHeader),
 }
 
 impl LightningMessage for CheckpointMessage {
