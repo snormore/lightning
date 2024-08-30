@@ -30,6 +30,7 @@ partial!(FinalTypes require full {
     ConsensusInterface = Consensus<Self>;
     ConfigProviderInterface = TomlConfigProvider<Self>;
     ApplicationInterface = Application<Self>;
+    ApplicationStateInterface = ApplicationState<Self>;
     BlockstoreInterface = Blockstore<Self>;
     BlockstoreServerInterface = BlockstoreServer<Self>;
     SyncronizerInterface = Syncronizer<Self>;
@@ -58,6 +59,7 @@ partial!(UseMockConsensus require full {
     ForwarderInterface = MockForwarder<Self>;
     ConfigProviderInterface = TomlConfigProvider<Self>;
     ApplicationInterface = Application<Self>;
+    ApplicationStateInterface = ApplicationState<Self>;
     BlockstoreInterface = Blockstore<Self>;
     BlockstoreServerInterface = BlockstoreServer<Self>;
     SyncronizerInterface = Syncronizer<Self>;

@@ -72,6 +72,7 @@ macro_rules! partial {
             ConfigProviderInterface,
             KeystoreInterface,
             ApplicationInterface,
+            ApplicationStateInterface,
             BlockstoreInterface,
             BlockstoreServerInterface,
             SyncronizerInterface,

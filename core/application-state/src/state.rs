@@ -7,14 +7,13 @@ use atomo::{
     Atomo,
     AtomoBuilder,
     DefaultSerdeBackend,
-    SerdeBackend,
-    StorageBackend,
     StorageBackendConstructor,
     TableSelector,
     UpdatePerm,
 };
 use fleek_crypto::{ClientPublicKey, ConsensusPublicKey, EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
+use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{
     AccountInfo,
     Blake3Hash,
@@ -34,37 +33,61 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::SyncQueryRunnerInterface;
+use lightning_interfaces::{ApplicationStateInterface, Collection, SyncQueryRunnerInterface};
+use merklize::hashers::keccak::KeccakHasher;
+use merklize::trees::mpt::MptStateTree;
 use merklize::StateTree;
 use tracing::info;
 
 use super::context::StateContext;
 use super::executor::StateExecutor;
 use super::query::QueryRunner;
-use crate::env::ApplicationStateTree;
 use crate::storage::AtomoStorage;
+
+/// The canonical application state tree provider.
+pub type ApplicationStateTree = MptStateTree<AtomoStorage, DefaultSerdeBackend, KeccakHasher>;
 
 /// The application state encapsulates the atomo database and merklized state tree, and represents
 /// the accumulated state over the applied history of transactions. Application state should only
 /// be updated through the execution of transactions.
-pub struct ApplicationState<B: StorageBackend, S: SerdeBackend, T: StateTree> {
-    db: Atomo<UpdatePerm, B, S>,
-    _tree: PhantomData<T>,
+pub struct ApplicationState<C: Collection> {
+    db: Atomo<UpdatePerm, AtomoStorage, DefaultSerdeBackend>,
+    _tree: PhantomData<ApplicationStateTree>,
+    _collection: PhantomData<C>,
 }
 
-impl ApplicationState<AtomoStorage, DefaultSerdeBackend, ApplicationStateTree> {
+impl<C: Collection> fdi::BuildGraph for ApplicationState<C> {
+    fn build_graph() -> fdi::DependencyGraph {
+        // fdi::DependencyGraph::new().with(Self::init)
+        fdi::DependencyGraph::new()
+    }
+}
+
+impl<C: Collection> ApplicationStateInterface<C> for ApplicationState<C> {
+    // type Storage = AtomoStorage;
+    // type Serde = DefaultSerdeBackend;
+    // type Tree = ApplicationStateTree;
+    type Query = QueryRunner<C>;
+
+    fn query(&self) -> Self::Query {
+        QueryRunner::<C>::new(self.db.query())
+    }
+}
+
+impl<C: Collection> ApplicationState<C> {
     /// Creates a new application state.
     pub(crate) fn new(db: Atomo<UpdatePerm, AtomoStorage, DefaultSerdeBackend>) -> Self {
         Self {
             db,
             _tree: PhantomData,
+            _collection: PhantomData,
         }
     }
 
     /// Registers the application and state tree tables, and builds the atomo database.
-    pub fn build<C>(atomo: AtomoBuilder<C, DefaultSerdeBackend>) -> Result<Self>
+    pub fn build<B>(atomo: AtomoBuilder<B, DefaultSerdeBackend>) -> Result<Self>
     where
-        C: StorageBackendConstructor<Storage = AtomoStorage>,
+        B: StorageBackendConstructor<Storage = AtomoStorage>,
     {
         let mut atomo = Self::register_tables(atomo);
 
@@ -91,8 +114,8 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend, ApplicationStateTree> {
     }
 
     /// Returns a reader for the application state.
-    pub fn query(&self) -> QueryRunner {
-        QueryRunner::new(self.db.query())
+    pub fn query(&self) -> QueryRunner<C> {
+        QueryRunner::<C>::new(self.db.query())
     }
 
     /// Returns a mutable reference to the atomo storage backend.
@@ -154,9 +177,9 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend, ApplicationStateTree> {
     }
 
     /// Registers and configures the application state tables with the atomo database builder.
-    pub fn register_tables<C: StorageBackendConstructor>(
-        builder: AtomoBuilder<C, DefaultSerdeBackend>,
-    ) -> AtomoBuilder<C, DefaultSerdeBackend> {
+    pub fn register_tables<B: StorageBackendConstructor>(
+        builder: AtomoBuilder<B, DefaultSerdeBackend>,
+    ) -> AtomoBuilder<B, DefaultSerdeBackend> {
         let mut builder = builder
             .with_table::<Metadata, Value>("metadata")
             .with_table::<EthAddress, AccountInfo>("account")
@@ -209,10 +232,17 @@ mod tests {
 
     use atomo::InMemoryStorage;
     use fleek_crypto::{AccountOwnerSecretKey, ConsensusSecretKey, NodeSecretKey, SecretKey};
+    use lightning_interfaces::partial;
     use lightning_interfaces::types::{NodePorts, Participation, Staking};
+    use lightning_test_utils::json_config::JsonConfigProvider;
 
     use super::*;
     use crate::storage::AtomoStorageBuilder;
+
+    partial!(TestBinding {
+        ConfigProviderInterface = JsonConfigProvider;
+        ApplicationStateInterface = ApplicationState<Self>;
+    });
 
     const EMPTY_STATE_ROOT: &str =
         "bc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a";
@@ -279,7 +309,7 @@ mod tests {
     #[test]
     fn test_state_is_updated_on_run() {
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(InMemoryStorage::default()));
-        let mut writer = ApplicationState::build(builder).unwrap();
+        let mut writer = ApplicationState::<TestBinding>::build(builder).unwrap();
         let reader = writer.query();
 
         // Check that the initial root hash is that of an empty state.
@@ -335,7 +365,7 @@ mod tests {
         let storage = InMemoryStorage::default();
 
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(storage.clone()));
-        let mut writer = ApplicationState::build(builder).unwrap();
+        let mut writer = ApplicationState::<TestBinding>::build(builder).unwrap();
         let reader = writer.query();
 
         // Check that the initial root hash is that of an empty state.
@@ -381,7 +411,7 @@ mod tests {
 
         // Build the state writer again, where we expect the state tree to be rebuilt.
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(storage));
-        let writer = ApplicationState::build(builder).unwrap();
+        let writer = ApplicationState::<TestBinding>::build(builder).unwrap();
         let reader = writer.query();
 
         // Check that the root hash is not that of an empty state.
@@ -400,7 +430,7 @@ mod tests {
         let storage = InMemoryStorage::default();
 
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(storage.clone()));
-        let mut writer = ApplicationState::build(builder).unwrap();
+        let mut writer = ApplicationState::<TestBinding>::build(builder).unwrap();
         let reader = writer.query();
 
         // Check that the initial root hash is that of an empty state.
@@ -450,7 +480,7 @@ mod tests {
 
         // Build the state writer again, and expect verification on startup to fail.
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(storage));
-        assert!(ApplicationState::build(builder).is_err());
+        assert!(ApplicationState::<TestBinding>::build(builder).is_err());
     }
 
     #[test]
@@ -458,7 +488,7 @@ mod tests {
         let storage = InMemoryStorage::default();
 
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(storage.clone()));
-        let mut writer = ApplicationState::build(builder).unwrap();
+        let mut writer = ApplicationState::<TestBinding>::build(builder).unwrap();
         let reader = writer.query();
 
         // Check that the initial root hash is that of an empty state.
@@ -507,7 +537,7 @@ mod tests {
 
         // Build the state writer again, where we expect the state tree to be rebuilt.
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(storage));
-        let writer = ApplicationState::build(builder).unwrap();
+        let writer = ApplicationState::<TestBinding>::build(builder).unwrap();
         let reader = writer.query();
 
         // Check that the root hash is not that of an empty state.
@@ -530,7 +560,7 @@ mod tests {
         let storage = InMemoryStorage::default();
 
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(storage.clone()));
-        let mut writer = ApplicationState::build(builder).unwrap();
+        let mut writer = ApplicationState::<TestBinding>::build(builder).unwrap();
 
         // Build some test data.
         let account_count = 500;
@@ -558,7 +588,7 @@ mod tests {
 
         // Build the state writer again, where we expect the state tree to be verified.
         let builder = AtomoBuilder::new(AtomoStorageBuilder::InMemory(storage));
-        let _writer = ApplicationState::build(builder).unwrap();
+        let _writer = ApplicationState::<TestBinding>::build(builder).unwrap();
 
         // Check that the state tree was verified on startup in a reasonable time.
         let duration = start_time.elapsed();

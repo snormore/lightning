@@ -14,6 +14,7 @@ collection!([
     ConfigProviderInterface,
     KeystoreInterface,
     ApplicationInterface,
+    ApplicationStateInterface,
     BlockstoreInterface,
     BlockstoreServerInterface,
     SyncronizerInterface,

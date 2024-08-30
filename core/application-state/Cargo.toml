@@ -1,5 +1,5 @@
 [package]
-name = "lightning-application"
+name = "lightning-application-state"
 version = "0.0.0"
 edition = "2021"
 
@@ -15,7 +15,6 @@ lazy_static.workspace = true
 serde.workspace = true
 toml = "0.7.4"
 multiaddr = "0.17.1"
-lightning-application-state = { path = "../application-state" }
 lightning-interfaces = { path = "../interfaces" }
 lightning-reputation = { path = "../reputation" }
 lightning-utils = { path = "../utils" }

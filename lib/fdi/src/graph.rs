@@ -248,6 +248,8 @@ impl DependencyGraph {
             }
         }
 
+        println!("{}", self.viz("graph"));
+
         for (tag, degree) in self
             .graph
             .keys()
@@ -261,6 +263,9 @@ impl DependencyGraph {
         while let Some(u) = queue.pop_front() {
             // The degree is zero so it is not depended on any pending things anymore.
             result.push(u);
+
+            println!("u: {:?}", u);
+            println!("queue: {:?}", queue);
 
             // Remove it from the in_degree so that we can end up with only the
             // pending items once the queue is empty. (That would mean there is
@@ -281,6 +286,9 @@ impl DependencyGraph {
                 }
             }
         }
+
+        println!("in_degree: {:?}", in_degree);
+        println!("result: {:?}", result);
 
         if !in_degree.is_empty() {
             // There is at least a cycle. We know it only involves the pending nodes.

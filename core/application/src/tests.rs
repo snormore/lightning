@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::net::IpAddr;
 use std::str::FromStr;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use affair::Socket;
 use anyhow::{anyhow, Result};
@@ -17,6 +17,7 @@ use fleek_crypto::{
 };
 use hp_fixed::signed::HpFixed;
 use hp_fixed::unsigned::HpUfixed;
+use lightning_broadcast::Broadcast;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{
     AccountInfo,
@@ -52,8 +53,15 @@ use lightning_interfaces::types::{
     MAX_MEASUREMENTS_SUBMIT,
 };
 use lightning_interfaces::PagingParams;
+use lightning_notifier::Notifier;
+use lightning_pool::{Config as PoolConfig, PoolProvider};
+use lightning_rep_collector::config::Config as RepCollConfig;
+use lightning_rep_collector::ReputationAggregator;
+use lightning_signer::Signer;
 use lightning_test_utils::json_config::JsonConfigProvider;
+use lightning_test_utils::keys::EphemeralKeystore;
 use lightning_test_utils::{random, reputation};
+use lightning_topology::Topology;
 use lightning_utils::application::QueryRunnerExt;
 use rand::seq::SliceRandom;
 use tempfile::{tempdir, TempDir};
@@ -63,9 +71,25 @@ use crate::config::Config;
 use crate::genesis::{Genesis, GenesisAccount, GenesisNode, GenesisPrices, GenesisService};
 use crate::state::QueryRunner;
 
+// partial!(TestBinding {
+//     ConfigProviderInterface = JsonConfigProvider;
+//     BroadcastInterface = Broadcast<Self>;
+//     // KeystoreInterface = EphemeralKeystore<Self>;
+//     ApplicationInterface = Application<Self>;
+//     // PoolInterface = PoolProvider<Self>;
+//     // ReputationAggregatorInterface = ReputationAggregator<Self>;
+// });
+
 partial!(TestBinding {
     ConfigProviderInterface = JsonConfigProvider;
     ApplicationInterface = Application<Self>;
+    // PoolInterface = PoolProvider<Self>;
+    KeystoreInterface = EphemeralKeystore<Self>;
+    // SignerInterface = Signer<Self>;
+    // NotifierInterface = Notifier<Self>;
+    // TopologyInterface = Topology<Self>;
+    // ReputationAggregatorInterface = ReputationAggregator<Self>;
+    BroadcastInterface = Broadcast<Self>;
 });
 
 const CHAIN_ID: ChainId = 1337;
@@ -566,9 +590,42 @@ fn init_app(temp_dir: &TempDir, config: Option<Config>) -> (ExecutionEngineSocke
 
 /// Initialize application with provided configuration.
 fn do_init_app(config: Config) -> (ExecutionEngineSocket, QueryRunner) {
+    let keystore = EphemeralKeystore::<TestBinding>::default();
+
+    // let node = Node::<TestBinding>::init_with_provider(
+    //     fdi::Provider::default()
+    //         .with(
+    //             JsonConfigProvider::default()
+    //                 .with::<Application<TestBinding>>(config)
+    //                 .with::<PoolProvider<TestBinding>>(PoolConfig {
+    //                     max_idle_timeout: Duration::from_secs(5),
+    //                     // TODO(snormore): Fix this port
+    //                     address: format!("0.0.0.0:{}", 17456 as u16).parse().unwrap(),
+    //                     ..Default::default()
+    //                 }),
+    //         )
+    //         .with(keystore),
+    // )
+    // .expect("failed to initialize node");
+
     let node = Node::<TestBinding>::init_with_provider(
         fdi::Provider::default()
-            .with(JsonConfigProvider::default().with::<Application<TestBinding>>(config)),
+            .with(JsonConfigProvider::default().with::<Application<TestBinding>>(config))
+            .with(keystore),
+        // .with(EphemeralKeystore::<TestBinding>::default())
+        // .with(
+        //     JsonConfigProvider::default()
+        //         .with::<Application<TestBinding>>(config)
+        //         .with::<PoolProvider<TestBinding>>(PoolConfig {
+        //             max_idle_timeout: Duration::from_secs(5),
+        //             // TODO(snormore): Fix this port
+        //             address: format!("0.0.0.0:{}", 17456 as u16).parse().unwrap(),
+        //             ..Default::default()
+        //         })
+        //         .with::<ReputationAggregator<TestBinding>>(RepCollConfig {
+        //             reporter_buffer_size: 1,
+        //         }),
+        // ),
     )
     .expect("failed to initialize node");
 

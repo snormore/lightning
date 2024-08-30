@@ -1,4 +1,5 @@
 mod application;
+mod application_state;
 mod archive;
 mod blockstore;
 mod blockstore_server;
@@ -28,6 +29,7 @@ mod task_broker;
 mod topology;
 
 pub use application::*;
+pub use application_state::*;
 pub use archive::*;
 pub use blockstore::*;
 pub use blockstore_server::*;

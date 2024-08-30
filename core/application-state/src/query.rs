@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::time::Duration;
 
@@ -37,15 +38,14 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::SyncQueryRunnerInterface;
+use lightning_interfaces::{Collection, SyncQueryRunnerInterface};
 use merklize::{StateRootHash, StateTree};
 
-use crate::env::ApplicationStateTree;
-use crate::state::ApplicationState;
+use crate::state::{ApplicationState, ApplicationStateTree};
 use crate::storage::{AtomoStorage, AtomoStorageBuilder};
 
 #[derive(Clone)]
-pub struct QueryRunner {
+pub struct QueryRunner<C: Collection> {
     inner: Atomo<QueryPerm, AtomoStorage>,
     metadata_table: ResolvedTableReference<Metadata, Value>,
     account_table: ResolvedTableReference<EthAddress, AccountInfo>,
@@ -67,9 +67,10 @@ pub struct QueryRunner {
     uptime_table: ResolvedTableReference<NodeIndex, u8>,
     uri_to_node: ResolvedTableReference<Blake3Hash, BTreeSet<NodeIndex>>,
     node_to_uri: ResolvedTableReference<NodeIndex, BTreeSet<Blake3Hash>>,
+    _collection: PhantomData<C>,
 }
 
-impl QueryRunner {
+impl<C: Collection> QueryRunner<C> {
     pub fn run<F, R>(&self, query: F) -> R
     where
         F: FnOnce(&mut TableSelector<AtomoStorage, DefaultSerdeBackend>) -> R,
@@ -78,7 +79,7 @@ impl QueryRunner {
     }
 }
 
-impl SyncQueryRunnerInterface for QueryRunner {
+impl<C: Collection> SyncQueryRunnerInterface for QueryRunner<C> {
     type Backend = AtomoStorage;
 
     fn new(atomo: Atomo<QueryPerm, AtomoStorage>) -> Self {
@@ -105,6 +106,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
             uri_to_node: atomo.resolve::<Blake3Hash, BTreeSet<NodeIndex>>("uri_to_node"),
             node_to_uri: atomo.resolve::<NodeIndex, BTreeSet<Blake3Hash>>("node_to_uri"),
             inner: atomo,
+            _collection: PhantomData,
         }
     }
 
@@ -117,7 +119,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
             .from_checkpoint(hash, checkpoint)
             .read_only();
 
-        let atomo = ApplicationState::register_tables(AtomoBuilder::<
+        let atomo = ApplicationState::<C>::register_tables(AtomoBuilder::<
             AtomoStorageBuilder,
             DefaultSerdeBackend,
         >::new(backend))
@@ -130,7 +132,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
     fn atomo_from_path(path: impl AsRef<Path>) -> anyhow::Result<Atomo<QueryPerm, Self::Backend>> {
         let backend = AtomoStorageBuilder::new(Some(path.as_ref())).read_only();
 
-        let atomo = ApplicationState::register_tables(AtomoBuilder::<
+        let atomo = ApplicationState::<C>::register_tables(AtomoBuilder::<
             AtomoStorageBuilder,
             DefaultSerdeBackend,
         >::new(backend))
@@ -247,7 +249,7 @@ impl SyncQueryRunnerInterface for QueryRunner {
 
     fn simulate_txn(&self, txn: TransactionRequest) -> TransactionResponse {
         self.inner.run(|ctx| {
-            let app = ApplicationState::executor(ctx);
+            let app = ApplicationState::<C>::executor(ctx);
             app.execute_transaction(txn)
         })
     }

@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use affair::AsyncWorker;
 use anyhow::{anyhow, Result};
+use lightning_application_state::{ApplicationState, QueryRunner};
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::spawn_worker;
 use lightning_interfaces::types::{ChainId, NodeInfo};
@@ -11,11 +12,10 @@ use tracing::{error, info};
 
 use crate::config::{Config, StorageConfig};
 use crate::env::{ApplicationEnv, Env, UpdateWorker};
-use crate::state::QueryRunner;
 
 pub struct Application<C: Collection> {
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
-    query_runner: QueryRunner,
+    query_runner: QueryRunner<C>,
     collection: PhantomData<C>,
 }
 
@@ -24,8 +24,8 @@ impl<C: Collection> Application<C> {
     fn init(
         config: &C::ConfigProviderInterface,
         keystore: &C::KeystoreInterface,
-        blockstore: &C::BlockstoreInterface,
         broadcast: &C::BroadcastInterface,
+        blockstore: &C::BlockstoreInterface,
         fdi::Cloned(waiter): fdi::Cloned<ShutdownWaiter>,
     ) -> Result<Self> {
         let config = config.get::<Self>();
@@ -71,7 +71,10 @@ impl<C: Collection> fdi::BuildGraph for Application<C> {
 
 impl<C: Collection> ApplicationInterface<C> for Application<C> {
     /// The type for the sync query executor.
-    type SyncExecutor = QueryRunner;
+    type SyncExecutor = QueryRunner<C>;
+
+    /// The type of the application state.
+    type State = ApplicationState<C>;
 
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.

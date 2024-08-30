@@ -4,13 +4,13 @@ use std::time::SystemTime;
 use anyhow::{anyhow, Context, Result};
 use atomo::{AtomoBuilder, DefaultSerdeBackend};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
+use lightning_application_state::storage::AtomoStorageBuilder;
 use lightning_utils::config::LIGHTNING_HOME_DIR;
 use resolved_pathbuf::ResolvedPathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::genesis::Genesis;
 use crate::network::Network;
-use crate::storage::AtomoStorageBuilder;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Config {

@@ -12,17 +12,17 @@ pub(crate) enum CheckpointMessage {
 impl LightningMessage for CheckpointMessage {
     fn encode<W: std::io::Write>(&self, _writer: &mut W) -> std::io::Result<()> {
         // TODO(snormore): Implement this
-        todo!()
+        todo!("TODO(snormore):")
     }
 
     fn decode(_buffer: &[u8]) -> anyhow::Result<Self> {
         // TODO(snormore): Implement this
-        todo!()
+        todo!("TODO(snormore):")
     }
 
     fn encode_length_delimited<W: std::io::Write>(&self, _writer: &mut W) -> std::io::Result<()> {
         // TODO(snormore): Implement this
-        todo!()
+        todo!("TODO(snormore):")
     }
 }
 
@@ -31,7 +31,7 @@ pub struct CheckpointHeader {
     // TODO(snormore): Hash types.
     pub previous_state: [u8; 32],
     pub next_state: [u8; 32],
-    pub signature: ConsensusSignature,
+    pub signature: ConsensusSignature, // TODO(should): Should this just be [u8; 48]?
 }
 
 impl CheckpointHeader {
@@ -52,6 +52,6 @@ impl CheckpointHeader {
 pub struct AggrCheckpointHeader {
     pub prev_state: [u8; 32],
     pub next_state: [u8; 32],
-    pub signature: ConsensusAggregateSignature,
-    pub nodes: Vec<u8>, // TODO(snormore): BitSet
+    pub signature: ConsensusAggregateSignature, // TODO(should): Should this just be [u8; 48]?
+    pub nodes: Vec<u8>,                         // TODO(snormore): BitSet
 }

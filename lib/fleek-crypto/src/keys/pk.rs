@@ -3,7 +3,11 @@ use std::str::FromStr;
 
 use arrayref::array_ref;
 use derive_more::{AsRef, From};
-use fastcrypto::bls12381::min_sig::{BLS12381PublicKey, BLS12381Signature, BLS12381AggregateSignature};
+use fastcrypto::bls12381::min_sig::{
+    BLS12381AggregateSignature,
+    BLS12381PublicKey,
+    BLS12381Signature,
+};
 use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use fastcrypto::encoding::{Base58, Encoding};
 use fastcrypto::secp256k1::recoverable::Secp256k1RecoverableSignature;
@@ -43,7 +47,8 @@ macro_rules! impl_pk_sig {
 
         $(
             #[derive(
-                From, AsRef, Hash, PartialEq, PartialOrd, Ord, Eq, Clone, Copy, Serialize, Deserialize,
+                From, AsRef, Hash, PartialEq, PartialOrd, Ord, Eq, Clone, Copy, Serialize,
+                Deserialize,
             )]
             pub struct $aggr_sig_name(#[serde(with = "base58_array")] pub [u8; $aggr_sig_size]);
         )?

@@ -36,6 +36,7 @@ pub use crate::{
 #[rustfmt::skip]
 pub use crate::{
     ApplicationInterface,
+    ApplicationStateInterface,
     ArchiveInterface,
     BlockstoreInterface,
     BlockstoreServerInterface,

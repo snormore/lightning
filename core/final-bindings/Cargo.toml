@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 lightning-application = { path = "../application" }
+lightning-application-state = { path = "../application-state" }
 lightning-archive = { path = "../archive" }
 lightning-blockstore = { path = "../blockstore" }
 lightning-blockstore-server = { path = "../blockstore-server" }

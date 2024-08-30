@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
 use anyhow::{Context, Result};
-use atomo::{DefaultSerdeBackend, SerdeBackend, StorageBackend};
+use atomo::StorageBackend;
 use fleek_crypto::{
     ClientPublicKey,
     ConsensusAggregateSignature,
@@ -13,6 +13,7 @@ use fleek_crypto::{
     SecretKey,
 };
 use hp_fixed::unsigned::HpUfixed;
+use lightning_application_state::{ApplicationState, QueryRunner};
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{
     AccountInfo,
@@ -37,30 +38,22 @@ use lightning_interfaces::types::{
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
 use lightning_metrics::increment_counter;
-use merklize::hashers::keccak::KeccakHasher;
-use merklize::trees::mpt::MptStateTree;
-use merklize::StateTree;
 use tracing::warn;
 use types::Topic;
 
 use crate::checkpoint::{CheckpointHeader, CheckpointMessage};
 use crate::config::Config;
 use crate::genesis::GenesisPrices;
-use crate::state::{ApplicationState, QueryRunner};
-use crate::storage::AtomoStorage;
 
-pub struct Env<C: Collection, B: StorageBackend, S: SerdeBackend, T: StateTree> {
-    pub inner: ApplicationState<B, S, T>,
+pub struct Env<C: Collection> {
+    pub inner: ApplicationState<C>,
     keystore: Option<C::KeystoreInterface>,
     pubsub: Option<<C::BroadcastInterface as BroadcastInterface<C>>::PubSub<CheckpointMessage>>,
     _collection: PhantomData<C>,
 }
 
-/// The canonical application state tree provider.
-pub type ApplicationStateTree = MptStateTree<AtomoStorage, DefaultSerdeBackend, KeccakHasher>;
-
 /// The canonical application environment.
-pub type ApplicationEnv<C> = Env<C, AtomoStorage, DefaultSerdeBackend, ApplicationStateTree>;
+pub type ApplicationEnv<C> = Env<C>;
 
 impl<C: Collection> ApplicationEnv<C> {
     pub fn new(
@@ -83,7 +76,7 @@ impl<C: Collection> ApplicationEnv<C> {
         })
     }
 
-    pub fn query_runner(&self) -> QueryRunner {
+    pub fn query_runner(&self) -> QueryRunner<C> {
         self.inner.query()
     }
 
@@ -102,7 +95,7 @@ impl<C: Collection> ApplicationEnv<C> {
             .inner
             .run(move |ctx| {
                 // Create the app/execution environment
-                let app = ApplicationState::executor(ctx);
+                let app = ApplicationState::<C>::executor(ctx);
                 let last_block_hash = app.get_block_hash();
 
                 let block_number = app.get_block_number() + 1;
@@ -204,6 +197,8 @@ impl<C: Collection> ApplicationEnv<C> {
                     // epoch. TODO(snormore): Can we do this inline/blocking, or do we
                     // need to do this async? Is there anything currently stopping the
                     // next block execution from stomping on us here if we do it inline?
+
+                    // TODO(snormore): This needs to happen asynchronously.
                     let mut attestations = Vec::new();
                     loop {
                         let msg = pubsub.recv().await;
@@ -474,7 +469,7 @@ impl<C: Collection> ApplicationEnv<C> {
     pub fn update_last_epoch_hash(&mut self, state_hash: [u8; 32]) -> Result<()> {
         self.inner
             .run(move |ctx| {
-                let app = ApplicationState::executor(ctx);
+                let app = ApplicationState::<C>::executor(ctx);
                 app.set_last_epoch_hash(state_hash);
             })
             .context("Failed to update last epoch hash")
