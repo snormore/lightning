@@ -1,10 +1,12 @@
 use std::io;
+use std::net::SocketAddr;
 
 use anyhow::{bail, Error};
 use bytes::Bytes;
 use fdi::BuildGraph;
 use lightning_types::NodeIndex;
 pub use lightning_types::RejectReason;
+use ready::ReadyWaiterState;
 use tokio_stream::Stream;
 
 use crate::collection::Collection;
@@ -43,10 +45,28 @@ pub trait PoolInterface<C: Collection>: BuildGraph + Send + Sync + Sized + 'stat
     type Requester: RequesterInterface;
     type Responder: ResponderInterface;
 
+    #[blank(EmptyReadyState)]
+    type ReadyState: ReadyWaiterState;
+
     fn open_event(&self, scope: ServiceScope) -> Self::EventHandler;
 
     fn open_req_res(&self, scope: ServiceScope) -> (Self::Requester, Self::Responder);
+
+    /// Wait for the pool to be ready and return the listen address.
+    async fn wait_for_ready(&self) -> io::Result<Self::ReadyState>;
+
+    /// Returns the local address the pool is listening on.
+    ///
+    /// This is useful for other services to connect to the pool, especially when
+    /// the pool is not bound to a specific address (i.e. `0.0.0.0:0` or `[::]:0`),
+    /// in which case the OS will assign a random available port.
+    fn listen_address(&self) -> Option<SocketAddr>;
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct EmptyReadyState;
+
+impl ReadyWaiterState for EmptyReadyState {}
 
 #[interfaces_proc::blank]
 pub trait EventHandlerInterface: Send + Sync {
