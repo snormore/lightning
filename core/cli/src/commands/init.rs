@@ -13,7 +13,7 @@ use lightning_application::app::Application;
 use lightning_application::config::Config as AppConfig;
 use lightning_application::genesis::{Genesis, GenesisNode};
 use lightning_application::network::Network;
-use lightning_final_bindings::{FinalTypes, UseMockConsensus};
+use lightning_final_bindings::UseMockConsensus;
 use lightning_handshake::config::HandshakeConfig;
 use lightning_handshake::handshake::Handshake;
 use lightning_interfaces::prelude::*;
@@ -33,6 +33,7 @@ pub async fn exec<C>(
     force: bool,
     rpc_address: Option<SocketAddr>,
     handshake_http_address: Option<SocketAddr>,
+    apply_genesis: bool,
 ) -> Result<()>
 where
     C: Collection<ConfigProviderInterface = TomlConfigProvider<C>>,
@@ -89,11 +90,11 @@ where
     } else {
         app_config.network = network;
     }
-    config.inject::<Application<FinalTypes>>(app_config);
+    config.inject::<Application<C>>(app_config.clone());
 
     // Update RPC address in the configuration if given.
     if let Some(addr) = rpc_address {
-        config.inject::<Rpc<FinalTypes>>(RpcConfig {
+        config.inject::<Rpc<C>>(RpcConfig {
             addr,
             ..Default::default()
         });
@@ -101,7 +102,7 @@ where
 
     // Update handshake HTTP address in the configuration if given.
     if let Some(addr) = handshake_http_address {
-        config.inject::<Handshake<FinalTypes>>(HandshakeConfig {
+        config.inject::<Handshake<C>>(HandshakeConfig {
             http_address: addr,
             ..Default::default()
         });
@@ -118,6 +119,25 @@ where
         "Node configuration file written to {}",
         config_path.to_str().unwrap()
     );
+
+    // Apply genesis block if configured.
+    if apply_genesis {
+        let provider = fdi::Provider::default().with(app_config.clone());
+        // TODO(snormore): Need to init app or is already running?
+        // TODO(snormore): I think we need to hit the RPC or env update socket to do this
+        // properly...
+        let app = provider.get::<Application<C>>();
+
+        app.apply_genesis()?;
+
+        // let node = Node::<C>::init_with_provider(fdi::Provider::default().with(config))
+        //     .expect("failed to initialize node");
+
+        // let app = node.provider.get::<Application<C>>();
+        // app.apply_genesis(&app_config).unwrap();
+
+        info!("Genesis block applied");
+    }
 
     Ok(())
 }

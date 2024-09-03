@@ -52,6 +52,7 @@ impl Cli {
                 force,
                 rpc_address,
                 handshake_http_address,
+                apply_genesis,
             } => {
                 init::exec::<C>(
                     config_path,
@@ -61,6 +62,7 @@ impl Cli {
                     force,
                     rpc_address,
                     handshake_http_address,
+                    apply_genesis,
                 )
                 .await
             },

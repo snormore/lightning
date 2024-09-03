@@ -76,7 +76,7 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend, ApplicationStateTree> {
             .map_err(|e| anyhow!("Failed to build atomo: {:?}", e))?;
         let mut query = db.query();
 
-        // If the tree is empty, rebuild/backfill it from the full state.
+        // If the tree is empty, rebuild/backfill it from the full state.'
         if ApplicationStateTree::is_empty_state_tree_unsafe(&mut query)? {
             info!("State tree is empty, backfilling...");
             ApplicationStateTree::clear_and_rebuild_state_tree_unsafe(&mut db)?;

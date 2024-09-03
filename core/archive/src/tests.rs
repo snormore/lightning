@@ -59,7 +59,7 @@ async fn get_node() -> Node<TestBinding> {
     .unwrap();
 
     let app = node.provider.get::<Application<TestBinding>>();
-    app.apply_genesis(&app_config).unwrap();
+    app.apply_genesis().unwrap();
 
     node.start().await;
 

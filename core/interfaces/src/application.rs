@@ -93,7 +93,7 @@ pub trait ApplicationInterface<C: Collection>:
     fn reset_state_tree_unsafe(config: &Self::Config) -> Result<()>;
 
     /// Apply genesis block to the application state, if not already applied.
-    fn apply_genesis(&self, config: &Self::Config) -> Result<bool>;
+    fn apply_genesis(&self) -> Result<bool>;
 }
 
 #[interfaces_proc::blank]

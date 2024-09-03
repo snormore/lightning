@@ -71,6 +71,9 @@ pub enum Command {
         /// Set handshake HTTP listen address in the generated configuration file.
         #[clap(long)]
         handshake_http_address: Option<SocketAddr>,
+        /// Whether to apply the genesis block.
+        #[clap(long)]
+        apply_genesis: bool,
     },
     /// Key management utilities.
     #[command(subcommand)]

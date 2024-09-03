@@ -13,6 +13,7 @@ use crate::config::{Config, StorageConfig};
 use crate::env::{ApplicationEnv, Env, UpdateWorker};
 use crate::state::QueryRunner;
 pub struct Application<C: Collection> {
+    config: Config,
     env: Arc<tokio::sync::Mutex<ApplicationEnv>>,
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
     query_runner: QueryRunner,
@@ -36,13 +37,16 @@ impl<C: Collection> Application<C> {
 
         let mut env = Env::new(&config, None).expect("Failed to initialize environment.");
 
-        // Auto-apply genesis by default; disabled only if dev.auto_apply_genesis is false.
-        if let Some(dev) = &config.dev {
-            if dev.auto_apply_genesis {
+        // Auto-apply genesis by default; disabled only if `dev.auto_apply_genesis` is false.
+        match &config.dev {
+            Some(dev) => {
+                if dev.auto_apply_genesis {
+                    env.apply_genesis_block(&config)?;
+                }
+            },
+            None => {
                 env.apply_genesis_block(&config)?;
-            }
-        } else {
-            env.apply_genesis_block(&config)?;
+            },
         }
 
         let query_runner = env.query_runner();
@@ -51,6 +55,7 @@ impl<C: Collection> Application<C> {
         let update_socket = spawn_worker!(worker, "APPLICATION", waiter, crucial);
 
         Ok(Self {
+            config,
             env,
             query_runner,
             update_socket: Mutex::new(Some(update_socket)),
@@ -155,8 +160,10 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
     }
 
     /// Apply genesis block to the application state, if not already applied.
-    fn apply_genesis(&self, config: &Config) -> Result<bool> {
+    fn apply_genesis(&self) -> Result<bool> {
         // TODO(snormore): Figure out if this is ok to do.
-        futures::executor::block_on(async { self.env.lock().await.apply_genesis_block(config) })
+        futures::executor::block_on(async {
+            self.env.lock().await.apply_genesis_block(&self.config)
+        })
     }
 }

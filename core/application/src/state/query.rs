@@ -303,9 +303,8 @@ impl SyncQueryRunnerInterface for QueryRunner {
             let shutdown_signal = shutdown.wait_for_shutdown();
             tokio::pin!(shutdown_signal);
 
-            // TODO(snormore): Make this an exponential backoff.
             let mut poll_interval = tokio::time::interval(Duration::from_millis(100));
-            let mut log_interval = tokio::time::interval(Duration::from_secs(5));
+            let mut log_interval = tokio::time::interval(Duration::from_secs(30));
 
             loop {
                 tokio::select! {
