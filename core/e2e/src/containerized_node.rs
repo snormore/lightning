@@ -1,6 +1,5 @@
 use fleek_crypto::AccountOwnerSecretKey;
 use futures::Future;
-use lightning_application::app::Application;
 use lightning_blockstore::blockstore::Blockstore;
 use lightning_final_bindings::FinalTypes;
 use lightning_interfaces::fdi::MultiThreadedProvider;
@@ -32,10 +31,6 @@ impl ContainerizedNode {
         let provider = MultiThreadedProvider::default();
         provider.insert(config.clone());
         let node = ContainedNode::<FinalTypes>::new(provider, Some(format!("NODE-{index}")));
-
-        let app = node.provider().get::<Application<FinalTypes>>();
-        app.apply_genesis(&config.get::<Application<FinalTypes>>())
-            .unwrap();
 
         Self {
             config,

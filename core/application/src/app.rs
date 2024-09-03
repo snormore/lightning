@@ -34,14 +34,16 @@ impl<C: Collection> Application<C> {
             );
         }
 
-        let env = Env::new(&config, None).expect("Failed to initialize environment.");
+        let mut env = Env::new(&config, None).expect("Failed to initialize environment.");
 
-        // TODO(snormore): Fix this.
-        // if env.apply_genesis_block(&config)? {
-        //     info!("Genesis block loaded into application state.");
-        // } else {
-        //     info!("Genesis block already exists exist in application state.");
-        // }
+        // Auto-apply genesis by default; disabled only if dev.auto_apply_genesis is false.
+        if let Some(dev) = &config.dev {
+            if dev.auto_apply_genesis {
+                env.apply_genesis_block(&config)?;
+            }
+        } else {
+            env.apply_genesis_block(&config)?;
+        }
 
         let query_runner = env.query_runner();
         let env = Arc::new(tokio::sync::Mutex::new(env));

@@ -29,12 +29,14 @@ pub struct Config {
 pub struct DevConfig {
     // Whether to update the genesis epoch start to the current time when starting the node.
     pub update_epoch_start_to_now: bool,
+    pub auto_apply_genesis: bool,
 }
 
 impl Default for DevConfig {
     fn default() -> Self {
         Self {
             update_epoch_start_to_now: true,
+            auto_apply_genesis: true,
         }
     }
 }

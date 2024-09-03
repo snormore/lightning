@@ -180,6 +180,7 @@ impl ApplicationEnv {
             let genesis = config.genesis()?;
 
             if metadata_table.get(Metadata::Epoch).is_some() {
+                tracing::info!("Genesis block already exists in application state.");
 
                 // Backfill newly added protocol parameters from the genesis configuration.
                 let mut param_table = ctx.get_table::<ProtocolParams, u128>("parameter");
@@ -381,6 +382,8 @@ impl ApplicationEnv {
             }
 
             metadata_table.insert(Metadata::Epoch, Value::Epoch(0));
+
+            tracing::info!("Genesis block loaded into application state.");
             Ok(true)
         })?
     }
