@@ -6,16 +6,16 @@ use atomo::{AtomoBuilder, DefaultSerdeBackend};
 use atomo_rocks::{Cache as RocksCache, Env as RocksEnv, Options};
 use lightning_utils::config::LIGHTNING_HOME_DIR;
 use resolved_pathbuf::ResolvedPathBuf;
+use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 
 use crate::genesis::Genesis;
 use crate::network::Network;
 use crate::storage::AtomoStorageBuilder;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct Config {
-    pub network: Option<Network>,
-    pub genesis_path: Option<ResolvedPathBuf>,
+    pub genesis: GenesisConfig,
     pub storage: StorageConfig,
     pub db_path: Option<ResolvedPathBuf>,
     pub db_options: Option<ResolvedPathBuf>,
@@ -25,7 +25,39 @@ pub struct Config {
     pub dev: Option<DevConfig>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum GenesisConfig {
+    Network(Network),
+    Path(ResolvedPathBuf),
+    #[serde(skip)]
+    None,
+}
+
+impl Serialize for Config {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match &self.genesis {
+            GenesisConfig::Network(network) => {
+                let mut state = serializer.serialize_struct("Config", 1)?;
+                state.serialize_field("network", network)?;
+                state.end()
+            },
+            GenesisConfig::Path(path) => {
+                let mut state = serializer.serialize_struct("Config", 1)?;
+                state.serialize_field("genesis_path", path)?;
+                state.end()
+            },
+            GenesisConfig::None => {
+                let state = serializer.serialize_struct("Config", 0)?;
+                state.end()
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DevConfig {
     // Whether to update the genesis epoch start to the current time when starting the node.
     pub update_epoch_start_to_now: bool,
@@ -42,8 +74,7 @@ impl Default for DevConfig {
 impl Config {
     pub fn test(genesis_path: ResolvedPathBuf) -> Self {
         Self {
-            network: None,
-            genesis_path: Some(genesis_path),
+            genesis: GenesisConfig::Path(genesis_path),
             storage: StorageConfig::InMemory,
             db_path: None,
             db_options: None,
@@ -52,17 +83,10 @@ impl Config {
     }
 
     pub fn genesis(&self) -> Result<Genesis> {
-        let mut genesis = match &self.network {
-            Some(network) => match &self.genesis_path {
-                Some(_genesis_path) => Err(anyhow!(
-                    "Cannot specify both network and genesis_path in config"
-                )),
-                None => network.genesis(),
-            },
-            None => match &self.genesis_path {
-                Some(genesis_path) => Ok(Genesis::load_from_file(genesis_path.clone())?),
-                None => Err(anyhow!("Missing network in config")),
-            },
+        let mut genesis = match &self.genesis {
+            GenesisConfig::Network(network) => network.genesis(),
+            GenesisConfig::Path(genesis_path) => Ok(Genesis::load_from_file(genesis_path.clone())?),
+            GenesisConfig::None => Err(anyhow!("Missing genesis in config")),
         }?;
         if let Some(dev) = &self.dev {
             if dev.update_epoch_start_to_now {
@@ -121,8 +145,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            network: None,
-            genesis_path: None,
+            genesis: GenesisConfig::None,
             storage: StorageConfig::RocksDb,
             db_path: Some(
                 LIGHTNING_HOME_DIR
@@ -136,7 +159,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum StorageConfig {
     InMemory,
     RocksDb,
@@ -149,50 +172,90 @@ mod config_tests {
     use super::*;
 
     #[test]
-    fn genesis_with_network_without_genesis() {
+    fn genesis_with_network() {
         let config = Config {
-            network: Some(Network::LocalnetExample),
-            genesis_path: None,
+            genesis: GenesisConfig::Network(Network::LocalnetExample),
             ..Config::default()
         };
         assert!(config.genesis().is_ok());
     }
 
     #[test]
-    fn genesis_without_network_with_genesis() {
+    fn genesis_with_path() {
         let temp_dir = tempdir().unwrap();
         let genesis_path = Genesis::default()
             .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
             .unwrap();
         let config = Config {
-            network: None,
-            genesis_path: Some(genesis_path),
+            genesis: GenesisConfig::Path(genesis_path),
             ..Config::default()
         };
         assert!(config.genesis().is_ok());
     }
 
     #[test]
-    fn genesis_missing_network_and_genesis() {
+    fn genesis_with_none() {
         let config = Config {
-            network: None,
-            genesis_path: None,
+            genesis: GenesisConfig::None,
             ..Config::default()
         };
         assert!(config.genesis().is_err());
     }
 
     #[test]
-    fn genesis_with_network_and_genesis() {
-        let temp_dir = tempdir().unwrap();
-        let genesis_path = Genesis::default()
-            .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
-            .unwrap();
+    fn test_serialization() {
         let config = Config {
-            network: Some(Network::LocalnetExample),
-            genesis_path: Some(genesis_path),
-            ..Config::default()
+            genesis: GenesisConfig::Network(Network::LocalnetExample),
+            ..Default::default()
         };
-        assert!(config.genesis().is_err());
+        let json = serde_json::to_string(&config).unwrap();
+        assert_eq!(json, r#"{"network":"testnet"}"#);
+
+        let config = Config {
+            genesis: GenesisConfig::Path("/path/to/file".try_into().unwrap()),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert_eq!(json, r#"{"genesis_path":"/path/to/file"}"#);
+
+        let config = Config {
+            genesis: GenesisConfig::None,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert_eq!(json, r#"{}"#);
+    }
+
+    #[test]
+    fn test_deserialization() {
+        let json = r#"{"network":"testnet"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config,
+            Config {
+                genesis: GenesisConfig::Network(Network::LocalnetExample),
+                ..Default::default()
+            }
+        );
+
+        let json = r#"{"genesis_path":"/path/to/file"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config,
+            Config {
+                genesis: GenesisConfig::Path("/path/to/file".try_into().unwrap()),
+                ..Default::default()
+            }
+        );
+
+        let json = r#"{}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config,
+            Config {
+                genesis: GenesisConfig::None,
+                ..Default::default()
+            }
+        );
     }
 }

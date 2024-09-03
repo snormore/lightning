@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::genesis::Genesis;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Network {
     LocalnetExample,

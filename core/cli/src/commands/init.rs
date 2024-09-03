@@ -10,7 +10,7 @@ use fleek_crypto::{
     SecretKey,
 };
 use lightning_application::app::Application;
-use lightning_application::config::Config as AppConfig;
+use lightning_application::config::{Config as AppConfig, GenesisConfig};
 use lightning_application::genesis::{Genesis, GenesisNode};
 use lightning_application::network::Network;
 use lightning_final_bindings::{FinalTypes, UseMockConsensus};
@@ -85,9 +85,9 @@ where
             genesis_path.to_str().unwrap()
         );
 
-        app_config.genesis_path = Some(genesis_path);
+        app_config.genesis = GenesisConfig::Path(genesis_path);
     } else {
-        app_config.network = network;
+        app_config.genesis = GenesisConfig::Network(network.expect("Missing network"));
     }
     config.inject::<Application<FinalTypes>>(app_config);
 

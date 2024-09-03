@@ -13,7 +13,7 @@ use fleek_crypto::{
 use futures::future::try_join_all;
 use hp_fixed::unsigned::HpUfixed;
 use lightning_application::app::Application;
-use lightning_application::config::{Config as AppConfig, StorageConfig};
+use lightning_application::config::{Config as AppConfig, GenesisConfig, StorageConfig};
 use lightning_application::genesis::{Genesis, GenesisNode};
 use lightning_archive::archive::Archive;
 use lightning_archive::config::Config as ArchiveConfig;
@@ -396,8 +396,7 @@ impl SwarmBuilder {
                 StorageConfig::InMemory
             };
             config.inject::<Application<FinalTypes>>(AppConfig {
-                network: None,
-                genesis_path: Some(genesis_path.clone()),
+                genesis: GenesisConfig::Path(genesis_path.clone()),
                 storage,
                 db_path: Some(root.join("data/app_db").try_into().unwrap()),
                 db_options: None,
