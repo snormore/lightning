@@ -192,10 +192,20 @@ pub async fn spawn_service<C: Collection>(
         let waiter = waiter.clone();
         tokio::spawn(async move {
             // Wait until we have the UDS listener listening.
-            permit.notified().await;
-            tracing::trace!("Starting the child process for service '{id}'.");
-            run_command(format!("service-{id}"), cmd, waiter, conn_path).await;
-            tracing::trace!("Exiting service '{id}' execution loop.");
+            let shutdown = waiter.clone();
+            let shutdown_signal = shutdown.wait_for_shutdown();
+            tokio::pin!(shutdown_signal);
+            tokio::select! {
+                biased;
+                _ = &mut shutdown_signal => {
+                    tracing::debug!("shutdown signal received, stopping");
+                }
+                _ = permit.notified() => {
+                    tracing::trace!("Starting the child process for service '{id}'.");
+                    run_command(format!("service-{id}"), cmd, waiter, conn_path).await;
+                    tracing::trace!("Exiting service '{id}' execution loop.");
+                }
+            }
         });
     }
 
