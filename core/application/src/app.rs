@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use affair::AsyncWorker;
@@ -13,6 +13,7 @@ use crate::config::{Config, StorageConfig};
 use crate::env::{ApplicationEnv, Env, UpdateWorker};
 use crate::state::QueryRunner;
 pub struct Application<C: Collection> {
+    env: Arc<tokio::sync::Mutex<ApplicationEnv>>,
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
     query_runner: QueryRunner,
     collection: PhantomData<C>,
@@ -33,19 +34,22 @@ impl<C: Collection> Application<C> {
             );
         }
 
-        let mut env = Env::new(&config, None).expect("Failed to initialize environment.");
+        let env = Env::new(&config, None).expect("Failed to initialize environment.");
 
-        if env.apply_genesis_block(&config)? {
-            info!("Genesis block loaded into application state.");
-        } else {
-            info!("Genesis block already exists exist in application state.");
-        }
+        // TODO(snormore): Fix this.
+        // if env.apply_genesis_block(&config)? {
+        //     info!("Genesis block loaded into application state.");
+        // } else {
+        //     info!("Genesis block already exists exist in application state.");
+        // }
 
         let query_runner = env.query_runner();
-        let worker = UpdateWorker::<C>::new(env, blockstore.clone());
+        let env = Arc::new(tokio::sync::Mutex::new(env));
+        let worker = UpdateWorker::<C>::new(env.clone(), blockstore.clone());
         let update_socket = spawn_worker!(worker, "APPLICATION", waiter, crucial);
 
         Ok(Self {
+            env,
             query_runner,
             update_socket: Mutex::new(Some(update_socket)),
             collection: PhantomData,
@@ -146,5 +150,11 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
     fn reset_state_tree_unsafe(config: &Config) -> Result<()> {
         let mut env = ApplicationEnv::new(config, None)?;
         env.inner.reset_state_tree_unsafe()
+    }
+
+    /// Apply genesis block to the application state, if not already applied.
+    fn apply_genesis(&self, config: &Config) -> Result<bool> {
+        // TODO(snormore): Figure out if this is ok to do.
+        futures::executor::block_on(async { self.env.lock().await.apply_genesis_block(config) })
     }
 }

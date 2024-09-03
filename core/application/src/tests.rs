@@ -568,11 +568,14 @@ fn init_app(temp_dir: &TempDir, config: Option<Config>) -> (ExecutionEngineSocke
 fn do_init_app(config: Config) -> (ExecutionEngineSocket, QueryRunner) {
     let node = Node::<TestBinding>::init_with_provider(
         fdi::Provider::default()
-            .with(JsonConfigProvider::default().with::<Application<TestBinding>>(config)),
+            .with(JsonConfigProvider::default().with::<Application<TestBinding>>(config.clone())),
     )
     .expect("failed to initialize node");
 
     let app = node.provider.get::<Application<TestBinding>>();
+
+    app.apply_genesis(&config).unwrap();
+
     (app.transaction_executor(), app.sync_query())
 }
 

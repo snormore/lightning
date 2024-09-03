@@ -53,7 +53,7 @@ impl<C: Collection> Resolver<C> {
             node_sk,
             node_index: OnceCell::new(),
             db,
-            query_runner,
+            query_runner: query_runner.clone(),
         };
 
         Ok(Self {
@@ -64,6 +64,16 @@ impl<C: Collection> Resolver<C> {
     /// Start the system, should not do anything if the system is already
     /// started.
     async fn start(this: fdi::Cloned<Self>, waiter: fdi::Cloned<ShutdownWaiter>) {
+        // Wait for genesis to be applied before starting the resolver.
+        if !this
+            .inner
+            .query_runner
+            .wait_for_genesis(waiter.clone())
+            .await
+        {
+            return;
+        }
+
         waiter.run_until_shutdown(this.inner.start()).await;
     }
 }
@@ -142,7 +152,11 @@ impl<C: Collection> ResolverInner<C> {
                     let node_index = self
                         .query_runner
                         .pubkey_to_index(&self.node_sk.to_pk())
-                        .expect("Called `publish` without being on the application state.");
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Called `publish` without being on the application state: {hash:?}"
+                            )
+                        });
                     self.node_index
                         .set(node_index)
                         .expect("Failed to set once cell");

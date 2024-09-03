@@ -111,7 +111,7 @@ async fn create_peer(
         fdi::Provider::default()
             .with(
                 JsonConfigProvider::default()
-                    .with::<Application<TestBinding>>(app_config)
+                    .with::<Application<TestBinding>>(app_config.clone())
                     .with::<PoolProvider<TestBinding>>(PoolConfig {
                         max_idle_timeout: Duration::from_secs(5),
                         address,
@@ -121,6 +121,9 @@ async fn create_peer(
             .with(keystore),
     )
     .expect("failed to initialize node");
+
+    let app = inner.provider.get::<Application<TestBinding>>();
+    app.apply_genesis(&app_config).unwrap();
 
     Peer {
         inner,

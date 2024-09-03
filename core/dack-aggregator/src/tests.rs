@@ -82,11 +82,13 @@ async fn init_aggregator(temp_dir: &TempDir) -> Node<TestBinding> {
         .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
         .unwrap();
 
-    Node::<TestBinding>::init_with_provider(
+    let app_config = AppConfig::test(genesis_path.clone());
+
+    let node = Node::<TestBinding>::init_with_provider(
         fdi::Provider::default()
             .with(
                 JsonConfigProvider::default()
-                    .with::<Application<TestBinding>>(AppConfig::test(genesis_path))
+                    .with::<Application<TestBinding>>(app_config.clone())
                     .with::<MockConsensus<TestBinding>>(ConsensusConfig {
                         min_ordering_time: 0,
                         max_ordering_time: 1,
@@ -101,7 +103,12 @@ async fn init_aggregator(temp_dir: &TempDir) -> Node<TestBinding> {
             )
             .with(keystore),
     )
-    .unwrap()
+    .unwrap();
+
+    let app = node.provider.get::<Application<TestBinding>>();
+    app.apply_genesis(&app_config).unwrap();
+
+    node
 }
 
 #[tokio::test]

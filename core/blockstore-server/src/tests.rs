@@ -115,11 +115,12 @@ async fn get_peers(
     let mut peers = Vec::new();
     for (i, keystore) in keystores.into_iter().enumerate() {
         let node_public_key = keystore.get_ed25519_pk();
+        let app_config = AppConfig::test(genesis_path.clone());
         let node = Node::<TestBinding>::init_with_provider(
             lightning_interfaces::fdi::Provider::default()
                 .with(
                     JsonConfigProvider::default()
-                        .with::<Application<TestBinding>>(AppConfig::test(genesis_path.clone()))
+                        .with::<Application<TestBinding>>(app_config.clone())
                         .with::<PoolProvider<TestBinding>>(PoolConfig {
                             max_idle_timeout: Duration::from_secs(5),
                             address: format!("0.0.0.0:{}", port_offset + i as u16)
@@ -142,6 +143,9 @@ async fn get_peers(
                 .with(keystore.clone()),
         )
         .unwrap();
+
+        let app = node.provider.get::<Application<TestBinding>>();
+        app.apply_genesis(&app_config).unwrap();
 
         let peer = Peer::<TestBinding> {
             inner: node,

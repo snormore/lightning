@@ -5,6 +5,7 @@ use std::time::Duration;
 use affair::Socket;
 use anyhow::Result;
 use atomo::{Atomo, InMemoryStorage, KeyIterator, QueryPerm, StorageBackend};
+use better_shutdown::ShutdownWaiter;
 use fdi::BuildGraph;
 use fleek_crypto::{ClientPublicKey, EthAddress, NodePublicKey};
 use lightning_types::{
@@ -90,6 +91,9 @@ pub trait ApplicationInterface<C: Collection>:
     ///
     /// This method is unsafe because it acts directly on the underlying storage backend.
     fn reset_state_tree_unsafe(config: &Self::Config) -> Result<()>;
+
+    /// Apply genesis block to the application state, if not already applied.
+    fn apply_genesis(&self, config: &Self::Config) -> Result<bool>;
 }
 
 #[interfaces_proc::blank]
@@ -200,6 +204,11 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
         &self,
         key: StateProofKey,
     ) -> Result<(Option<StateProofValue>, MptStateProof)>;
+
+    /// Wait for genesis block to be applied.
+    ///
+    /// Returns true if the genesis block is applied and false if the shutdown signal is received.
+    async fn wait_for_genesis(&self, shutdown: ShutdownWaiter) -> bool;
 }
 
 #[derive(Clone, Debug)]

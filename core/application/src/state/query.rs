@@ -37,7 +37,7 @@ use lightning_interfaces::types::{
     TxHash,
     Value,
 };
-use lightning_interfaces::SyncQueryRunnerInterface;
+use lightning_interfaces::{ShutdownWaiter, SyncQueryRunnerInterface};
 use merklize::{StateRootHash, StateTree};
 
 use crate::env::ApplicationStateTree;
@@ -289,5 +289,45 @@ impl SyncQueryRunnerInterface for QueryRunner {
                 .map(|value| key.value::<Serde>(value));
             Ok((value, proof))
         })
+    }
+
+    /// Wait for genesis block to be applied.
+    ///
+    /// Returns true if the genesis block is applied and false if the shutdown signal is received.
+    async fn wait_for_genesis(&self, shutdown: ShutdownWaiter) -> bool {
+        let block_number = self.get_metadata(&Metadata::BlockNumber);
+        if block_number.is_none() {
+            let waiting_message = "Genesis does not exist in application state, waiting for genesis block to be applied...";
+            tracing::warn!("{waiting_message}");
+
+            let shutdown_signal = shutdown.wait_for_shutdown();
+            tokio::pin!(shutdown_signal);
+
+            // TODO(snormore): Make this an exponential backoff.
+            let mut poll_interval = tokio::time::interval(Duration::from_millis(100));
+            let mut log_interval = tokio::time::interval(Duration::from_secs(5));
+
+            loop {
+                tokio::select! {
+                    biased;
+                    _ = &mut shutdown_signal => {
+                        tracing::debug!("shutdown signal received, stopping");
+                        return false;
+                    }
+                    _ = poll_interval.tick() => {
+                        let block_number = self.get_metadata(&Metadata::BlockNumber);
+                        if block_number.is_some() {
+                            tracing::info!("genesis block applied, starting resolver");
+                            break;
+                        }
+                    }
+                    _ = log_interval.tick() => {
+                        tracing::warn!("{waiting_message}");
+                    }
+                }
+            }
+        }
+
+        true
     }
 }

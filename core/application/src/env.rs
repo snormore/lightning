@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use affair::AsyncWorker as WorkerTrait;
@@ -31,6 +32,7 @@ use lightning_metrics::increment_counter;
 use merklize::hashers::keccak::KeccakHasher;
 use merklize::trees::mpt::MptStateTree;
 use merklize::StateTree;
+use tokio::sync::Mutex;
 use tracing::warn;
 
 use crate::config::Config;
@@ -402,12 +404,12 @@ impl Default for ApplicationEnv {
 
 /// The socket that receives all update transactions
 pub struct UpdateWorker<C: Collection> {
-    env: ApplicationEnv,
+    env: Arc<Mutex<ApplicationEnv>>,
     blockstore: C::BlockstoreInterface,
 }
 
 impl<C: Collection> UpdateWorker<C> {
-    pub fn new(env: ApplicationEnv, blockstore: C::BlockstoreInterface) -> Self {
+    pub fn new(env: Arc<Mutex<ApplicationEnv>>, blockstore: C::BlockstoreInterface) -> Self {
         Self { env, blockstore }
     }
 }
@@ -418,6 +420,8 @@ impl<C: Collection> WorkerTrait for UpdateWorker<C> {
 
     async fn handle(&mut self, req: Self::Request) -> Self::Response {
         self.env
+            .lock()
+            .await
             .run(req, || self.blockstore.put(None))
             .await
             .expect("Failed to execute block")

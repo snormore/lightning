@@ -37,9 +37,10 @@ async fn get_node() -> Node<TestBinding> {
         .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
         .unwrap();
 
+    let app_config = AppConfig::test(genesis_path);
     let node = Node::<TestBinding>::init(
         JsonConfigProvider::default()
-            .with::<Application<TestBinding>>(AppConfig::test(genesis_path))
+            .with::<Application<TestBinding>>(app_config.clone())
             .with::<Archive<TestBinding>>(ArchiveConfig {
                 is_archive: true,
                 store_path: temp_dir.path().join("archive").try_into().unwrap(),
@@ -56,6 +57,9 @@ async fn get_node() -> Node<TestBinding> {
             }),
     )
     .unwrap();
+
+    let app = node.provider.get::<Application<TestBinding>>();
+    app.apply_genesis(&app_config).unwrap();
 
     node.start().await;
 
