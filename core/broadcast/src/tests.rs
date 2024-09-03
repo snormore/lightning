@@ -122,9 +122,6 @@ async fn create_peer(
     )
     .expect("failed to initialize node");
 
-    let app = inner.provider.get::<Application<TestBinding>>();
-    app.apply_genesis().unwrap();
-
     Peer {
         inner,
         node_secret_key,

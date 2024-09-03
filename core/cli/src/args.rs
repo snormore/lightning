@@ -113,6 +113,8 @@ pub enum DevSubCmd {
     },
     /// Clear the state tree and rebuild it from scratch.
     ResetStateTree,
+    /// Apply a genesis block to the state.
+    ApplyGenesis,
 }
 
 #[derive(Subcommand, PartialEq, Eq)]

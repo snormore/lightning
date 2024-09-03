@@ -102,6 +102,7 @@ pub fn load_hmac_secret(secret_dir_path: Option<PathBuf>) -> anyhow::Result<[u8;
 
 /// The data shared with every request the rpc methods.
 pub(crate) struct Data<C: Collection> {
+    pub genesis_applier: c!(C::ApplicationInterface::GenesisApplier),
     pub query_runner: c!(C::ApplicationInterface::SyncExecutor),
     pub mempool_socket: MempoolSocket,
     pub fetcher_socket: FetcherSocket,
@@ -160,10 +161,12 @@ impl<C: Collection> Rpc<C> {
         keystore: &C::KeystoreInterface,
         fdi::Cloned(archive): fdi::Cloned<c!(C::ArchiveInterface)>,
         fdi::Cloned(query_runner): fdi::Cloned<c!(C::ApplicationInterface::SyncExecutor)>,
+        fdi::Cloned(genesis_applier): fdi::Cloned<c!(C::ApplicationInterface::GenesisApplier)>,
     ) -> anyhow::Result<Self> {
         let mut config = config_provider.get::<Self>();
 
         let data: Arc<Data<C>> = Arc::new(Data {
+            genesis_applier,
             query_runner,
             mempool_socket: forwarder.mempool_socket(),
             fetcher_socket: fetcher.get_socket(),

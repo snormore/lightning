@@ -573,7 +573,6 @@ fn do_init_app(config: Config) -> (ExecutionEngineSocket, QueryRunner) {
     .expect("failed to initialize node");
 
     let app = node.provider.get::<Application<TestBinding>>();
-    app.apply_genesis().unwrap();
 
     (app.transaction_executor(), app.sync_query())
 }

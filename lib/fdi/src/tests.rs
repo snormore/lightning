@@ -21,6 +21,7 @@ mod demo_dep {
 
     pub struct Application;
     pub struct QueryRunner;
+    pub struct GenesisApplier;
     impl Application {
         pub fn new(_store: &Blockstore) -> Self {
             Application
@@ -28,6 +29,10 @@ mod demo_dep {
 
         pub fn get_query_runner(&self) -> QueryRunner {
             QueryRunner
+        }
+
+        pub fn get_genesis_applier(&self) -> GenesisApplier {
+            GenesisApplier
         }
     }
 
@@ -59,6 +64,7 @@ mod demo_dep {
         DependencyGraph::new()
             .with_infallible(Application::new)
             .with_infallible(Application::get_query_runner)
+            .with_infallible(Application::get_genesis_applier)
             .with_infallible(Archive::new)
             .with_infallible(Blockstore::new)
             .with_infallible(Indexer::new)

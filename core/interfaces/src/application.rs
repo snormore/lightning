@@ -58,6 +58,9 @@ pub trait ApplicationInterface<C: Collection>:
     /// The type for the sync query executor.
     type SyncExecutor: SyncQueryRunnerInterface;
 
+    /// The type for applying a genesis block to the state.
+    type GenesisApplier: GenesisApplierInterface;
+
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
     ///
@@ -73,6 +76,10 @@ pub trait ApplicationInterface<C: Collection>:
     /// and is the reason why we have `Atomo` to allow us to have the same kind of behavior
     /// without slowing down the system.
     fn sync_query(&self) -> Self::SyncExecutor;
+
+    /// Returns the instance of a genesis applier which can be used to apply a genesis block to the
+    /// state.
+    fn genesis_applier(&self) -> Self::GenesisApplier;
 
     /// Will seed its underlying database with the checkpoint provided
     async fn load_from_checkpoint(
@@ -91,8 +98,10 @@ pub trait ApplicationInterface<C: Collection>:
     ///
     /// This method is unsafe because it acts directly on the underlying storage backend.
     fn reset_state_tree_unsafe(config: &Self::Config) -> Result<()>;
+}
 
-    /// Apply genesis block to the application state, if not already applied.
+#[interfaces_proc::blank]
+pub trait GenesisApplierInterface: Clone + Send + Sync + 'static {
     fn apply_genesis(&self) -> Result<bool>;
 }
 

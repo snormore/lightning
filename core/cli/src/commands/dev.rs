@@ -17,6 +17,7 @@ where
         DevSubCmd::Store { input } => store::<C>(config_path, input).await,
         DevSubCmd::Fetch { remote, hash } => fetch::<C>(config_path, hash, remote).await,
         DevSubCmd::ResetStateTree => reset_state_tree::<C>(config_path).await,
+        DevSubCmd::ApplyGenesis => apply_genesis::<C>(config_path).await,
     }
 }
 
@@ -35,6 +36,18 @@ where
     let app_config = config.get::<<C as Collection>::ApplicationInterface>();
 
     C::ApplicationInterface::reset_state_tree_unsafe(&app_config)
+}
+
+async fn apply_genesis<C>(config_path: ResolvedPathBuf) -> Result<()>
+where
+    C: Collection<ConfigProviderInterface = TomlConfigProvider<C>>,
+{
+    // let config = TomlConfigProvider::<C>::load(config_path)?;
+    // let app_config = config.get::<<C as Collection>::ApplicationInterface>();
+
+    // C::ApplicationInterface::apply_genesis(&app_config)
+
+    todo!("TODO(snormore): implement this")
 }
 
 async fn store<C>(config_path: ResolvedPathBuf, input: Vec<PathBuf>) -> Result<()>

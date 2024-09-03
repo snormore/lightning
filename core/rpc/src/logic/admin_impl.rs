@@ -4,6 +4,7 @@ use jsonrpsee::core::RpcResult;
 use lightning_firewall::{CommandCenter, FirewallCommand};
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{Blake3Hash, CompressionAlgorithm};
+use lightning_interfaces::GenesisApplierInterface;
 
 use crate::api::AdminApiServer;
 use crate::error::RPCError;
@@ -72,5 +73,15 @@ impl<C: Collection> AdminApiServer for AdminApi<C> {
 
     async fn ping(&self) -> RpcResult<String> {
         Ok("pong".to_string())
+    }
+
+    /// Apply a genesis block to the state.
+    async fn apply_genesis(&self) -> RpcResult<()> {
+        self.data
+            .genesis_applier
+            .apply_genesis()
+            .map_err(|e| RPCError::custom(e.to_string()))?;
+
+        Ok(())
     }
 }

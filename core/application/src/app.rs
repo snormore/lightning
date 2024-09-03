@@ -5,16 +5,15 @@ use std::time::Duration;
 use affair::AsyncWorker;
 use anyhow::{anyhow, Result};
 use lightning_interfaces::prelude::*;
-use lightning_interfaces::spawn_worker;
 use lightning_interfaces::types::{ChainId, NodeInfo};
+use lightning_interfaces::{spawn_worker, GenesisApplierInterface};
 use tracing::{error, info};
 
 use crate::config::{Config, StorageConfig};
 use crate::env::{ApplicationEnv, Env, UpdateWorker};
 use crate::state::QueryRunner;
 pub struct Application<C: Collection> {
-    config: Config,
-    env: Arc<tokio::sync::Mutex<ApplicationEnv>>,
+    apply_genesis: ApplicationGenesisApplier,
     update_socket: Mutex<Option<ExecutionEngineSocket>>,
     query_runner: QueryRunner,
     collection: PhantomData<C>,
@@ -55,8 +54,7 @@ impl<C: Collection> Application<C> {
         let update_socket = spawn_worker!(worker, "APPLICATION", waiter, crucial);
 
         Ok(Self {
-            config,
-            env,
+            apply_genesis: ApplicationGenesisApplier::new(config, env),
             query_runner,
             update_socket: Mutex::new(Some(update_socket)),
             collection: PhantomData,
@@ -80,6 +78,9 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
     /// The type for the sync query executor.
     type SyncExecutor = QueryRunner;
 
+    /// The type for applying a genesis block to the state.
+    type GenesisApplier = ApplicationGenesisApplier;
+
     /// Returns a socket that should be used to submit transactions to be executed
     /// by the application layer.
     ///
@@ -101,6 +102,15 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
     /// without slowing down the system.
     fn sync_query(&self) -> Self::SyncExecutor {
         self.query_runner.clone()
+    }
+
+    /// Returns the instance of a genesis applier which can be used to apply a genesis block to the
+    /// state.
+    ///
+    /// This contains a reference to env wrapped in Arc/Mutex, so it is safe to clone and use in
+    /// other components, such as the RPC components.
+    fn genesis_applier(&self) -> Self::GenesisApplier {
+        self.apply_genesis.clone()
     }
 
     async fn load_from_checkpoint(
@@ -158,7 +168,21 @@ impl<C: Collection> ApplicationInterface<C> for Application<C> {
         let mut env = ApplicationEnv::new(config, None)?;
         env.inner.reset_state_tree_unsafe()
     }
+}
 
+#[derive(Clone)]
+pub struct ApplicationGenesisApplier {
+    config: Config,
+    env: Arc<tokio::sync::Mutex<ApplicationEnv>>,
+}
+
+impl ApplicationGenesisApplier {
+    pub fn new(config: Config, env: Arc<tokio::sync::Mutex<ApplicationEnv>>) -> Self {
+        Self { config, env }
+    }
+}
+
+impl GenesisApplierInterface for ApplicationGenesisApplier {
     /// Apply genesis block to the application state, if not already applied.
     fn apply_genesis(&self) -> Result<bool> {
         // TODO(snormore): Figure out if this is ok to do.

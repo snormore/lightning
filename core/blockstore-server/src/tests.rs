@@ -144,9 +144,6 @@ async fn get_peers(
         )
         .unwrap();
 
-        let app = node.provider.get::<Application<TestBinding>>();
-        app.apply_genesis().unwrap();
-
         let peer = Peer::<TestBinding> {
             inner: node,
             node_public_key,

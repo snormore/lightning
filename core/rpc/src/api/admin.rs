@@ -22,4 +22,8 @@ pub trait AdminApi {
 
     #[method(name = "ping")]
     async fn ping(&self) -> RpcResult<String>;
+
+    /// Apply a genesis block to the state.
+    #[method(name = "apply_genesis")]
+    async fn apply_genesis(&self) -> RpcResult<()>;
 }

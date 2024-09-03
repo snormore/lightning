@@ -105,9 +105,6 @@ async fn init_aggregator(temp_dir: &TempDir) -> Node<TestBinding> {
     )
     .unwrap();
 
-    let app = node.provider.get::<Application<TestBinding>>();
-    app.apply_genesis().unwrap();
-
     node
 }
 

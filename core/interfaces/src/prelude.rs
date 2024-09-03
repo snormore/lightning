@@ -77,6 +77,7 @@ pub use crate::{
     SignerInterface,
     Subscriber,
     SyncQueryRunnerInterface,
+    GenesisApplierInterface,
     SyncronizerInterface,
     TopologyInterface,
     UntrustedStream,
