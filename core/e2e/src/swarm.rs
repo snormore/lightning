@@ -461,7 +461,10 @@ fn build_config(
             .try_into()
             .expect("Failed to resolve path"),
     });
-    config.inject::<Rpc<FinalTypes>>(RpcConfig::default_with_port(ports.rpc));
+    config.inject::<Rpc<FinalTypes>>(RpcConfig {
+        hmac_secret_dir: root.join("rpc").try_into().expect("failed to resolve path"),
+        ..RpcConfig::default_with_port(ports.rpc)
+    });
 
     config.inject::<Consensus<FinalTypes>>(ConsensusConfig {
         store_path: root
