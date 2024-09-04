@@ -210,6 +210,9 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     /// Returns true if the genesis block was applied is already applied.
     /// Returns immediately if the genesis block was already applied.
     async fn wait_for_genesis(&self) -> bool;
+
+    // Returns whether the genesis block has been applied.
+    fn has_genesis(&self) -> bool;
 }
 
 #[derive(Clone, Debug)]

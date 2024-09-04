@@ -76,12 +76,6 @@ impl QueryRunner {
     {
         self.inner.run(query)
     }
-
-    /// Returns whether the genesis block has been applied.
-    fn has_genesis(&self) -> bool {
-        // This is consistent with the logic in `Env::apply_genesis_block`.
-        self.get_metadata(&Metadata::Epoch).is_some()
-    }
 }
 
 impl SyncQueryRunnerInterface for QueryRunner {
@@ -316,5 +310,11 @@ impl SyncQueryRunnerInterface for QueryRunner {
         }
 
         true
+    }
+
+    /// Returns whether the genesis block has been applied.
+    fn has_genesis(&self) -> bool {
+        // This is consistent with the logic in `Env::apply_genesis_block`.
+        self.get_metadata(&Metadata::Epoch).is_some()
     }
 }
