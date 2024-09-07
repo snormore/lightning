@@ -79,13 +79,11 @@ impl<C: Collection> Checkpointer<C> {
     fn spawn(this: fdi::Ref<Self>, shutdown: fdi::Cloned<ShutdownWaiter>) -> Result<()> {
         tracing::debug!("spawning checkpointer");
 
+        let waiter = shutdown.clone();
         spawn!(
-            async move {
-                this.start(shutdown.clone())
-                    .await
-                    .expect("checkpointer failed")
-            },
-            "CHECKPOINTER"
+            async move { this.start(waiter).await.expect("checkpointer failed") },
+            "CHECKPOINTER",
+            crucial(shutdown)
         );
 
         Ok(())
@@ -99,9 +97,7 @@ impl<C: Collection> Checkpointer<C> {
         tracing::debug!("starting checkpointer");
 
         // Wait for genesis to be applied before starting the checkpointer.
-        if !self.app_query.wait_for_genesis().await {
-            return Ok(());
-        }
+        self.app_query.wait_for_genesis().await;
 
         tracing::debug!("genesis applied, starting checkpointer");
 
@@ -143,6 +139,10 @@ impl<C: Collection> Checkpointer<C> {
         // Notify that we are ready.
         tracing::debug!("notifying that we are ready");
         self.ready.notify(());
+
+        // Wait for shutdown.
+        tracing::debug!("waiting for shutdown");
+        shutdown.wait_for_shutdown().await;
 
         tracing::debug!("shutdown checkpointer");
         Ok(())

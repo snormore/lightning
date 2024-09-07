@@ -14,7 +14,9 @@ pub struct BlockExecutedNotification {
 #[derive(Clone, Debug)]
 pub struct EpochChangedNotification {
     pub current_epoch: u64,
+    // TODO(snormore): Add type for EpochStateDigest.
     pub last_epoch_hash: [u8; 32],
+    // TODO(snormore): Use StateRootHash type here.
     pub previous_state_root: [u8; 32],
     pub new_state_root: [u8; 32],
 }

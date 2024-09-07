@@ -80,6 +80,10 @@ impl<C: Collection> Node<C> {
         self.provider.trigger("start");
     }
 
+    pub fn shutdown_waiter(&self) -> Option<ShutdownWaiter> {
+        self.shutdown.as_ref().map(|s| s.waiter())
+    }
+
     /// Shutdown the node
     pub async fn shutdown(&mut self) {
         let mut shutdown = self

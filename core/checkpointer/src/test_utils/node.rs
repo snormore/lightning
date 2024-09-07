@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use lightning_application::Application;
 use lightning_interfaces::prelude::*;
 use lightning_notifier::Notifier;
+use lightning_pool::PoolProvider;
 use lightning_test_utils::keys::EphemeralKeystore;
 use ready::tokio::TokioReadyWaiter;
 use types::NodeIndex;
@@ -19,6 +20,7 @@ pub struct TestNode {
     pub checkpointer: fdi::Ref<Checkpointer<TestNodeComponents>>,
     pub keystore: fdi::Ref<EphemeralKeystore<TestNodeComponents>>,
     pub notifier: fdi::Ref<Notifier<TestNodeComponents>>,
+    pub pool: fdi::Ref<PoolProvider<TestNodeComponents>>,
 }
 
 impl TestNode {

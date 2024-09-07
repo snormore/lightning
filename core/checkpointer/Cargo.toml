@@ -22,6 +22,7 @@ tracing.workspace = true
 
 
 [dev-dependencies]
+console-subscriber.workspace = true
 futures.workspace = true
 hp-fixed.workspace = true
 lightning-application.workspace = true

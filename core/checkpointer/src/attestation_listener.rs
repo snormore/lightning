@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use atomo::{DefaultSerdeBackend, SerdeBackend};
 use bit_set::BitSet;
 use fleek_crypto::{
@@ -51,15 +51,19 @@ impl<C: Collection> AttestationListener<C> {
     ///
     /// This method spawns a new task and returns immediately. It does not block
     /// until the task is complete.
-    pub fn spawn(self, shutdown: ShutdownWaiter) -> JoinHandle<Result<()>> {
+    pub fn spawn(self, shutdown: ShutdownWaiter) -> JoinHandle<()> {
+        let waiter = shutdown.clone();
         spawn!(
             async move {
-                shutdown
+                waiter
                     .run_until_shutdown(self.start())
                     .await
-                    .unwrap_or(Ok(()))
+                    .unwrap_or(Ok(())) // Shutdown was triggered, so we return Ok(())
+                    .context("attestation listener task failed")
+                    .unwrap()
             },
-            "CHECKPOINTER: attestation listener"
+            "CHECKPOINTER: attestation listener",
+            crucial(shutdown)
         )
     }
 
@@ -94,18 +98,23 @@ impl<C: Collection> AttestationListener<C> {
         checkpoint_header: CheckpointHeader,
     ) -> Result<()> {
         let epoch = checkpoint_header.epoch;
-        let nodes = self.app_query.get_active_nodes();
-        let node_consensus_key = nodes
-            .iter()
-            .find(|node| node.index == checkpoint_header.node_id)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Node {} not found in active nodes",
+
+        // TODO(snormore): Should we ignore headers from nodes that are not in the active set or in
+        // some other set?
+
+        let node_consensus_key = match self
+            .app_query
+            .get_node_info(&checkpoint_header.node_id, |node| node.consensus_key)
+        {
+            Some(key) => key,
+            None => {
+                tracing::warn!(
+                    "checkpointer header node {} not found",
                     checkpoint_header.node_id
-                )
-            })?
-            .info
-            .consensus_key;
+                );
+                return Ok(());
+            },
+        };
 
         // Save the incoming checkpoint header attestation to the database.
         self.validate_checkpoint_header(&checkpoint_header, node_consensus_key)?;
@@ -121,6 +130,8 @@ impl<C: Collection> AttestationListener<C> {
             },
             None => {
                 // Get the number of active nodes from the application query runner.
+                // TODO(snormore): Is this the right set of nodes to use here?
+                let nodes = self.app_query.get_active_nodes();
                 let nodes_count = nodes.len();
 
                 // Check for supermajority of checkpoint headers for the epoch.
@@ -166,13 +177,18 @@ impl<C: Collection> AttestationListener<C> {
             let state_root_headers = &headers_by_state_root[&header.next_state_root];
 
             if state_root_headers.len() > (2 * nodes_count) / 3 {
+                tracing::info!("checkpoint supermajority reached for epoch {}", epoch);
+
                 // Get the node's own checkpoint header for the epoch.
                 let node_header = headers
                     .iter()
                     .find(|header| header.node_id == self.node_id)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("node's own checkpoint header not found in database.")
-                    })?;
+                    .unwrap_or_else(|| {
+                        // TODO(snormore): We should use the previous root has from our own database
+                        // here, and not just use the the one from the first header.
+                        headers.iter().peekable().peek().expect("no headers found")
+                    });
+
                 // TODO(snormore): What should happen if the node's own checkpoint header
                 // is not found in the database?
                 // - The previous state root comes from the node's own checkpoint header, otherwise
@@ -180,18 +196,29 @@ impl<C: Collection> AttestationListener<C> {
                 // - Should we not move forward here without it?
                 // - Should we move forward and use the previous state root from another node if
                 //   there's a supermajority without us?
+                // - Should we require that previous state roots match across the supermajority?
                 // - Should we not have the previous state root on the aggregate header at all?
                 // TODO(snormore): Write a test for this scenario.
 
                 // We have a supermajority of attestations in agreement for the epoch.
-                let aggregate_header =
-                    self.build_aggregate_checkpoint_header(epoch, node_header, state_root_headers)?;
+                let aggregate_header = self.build_aggregate_checkpoint_header(
+                    epoch,
+                    // We use the previous state root from the node's own checkpoint header.
+                    node_header.previous_state_root,
+                    // The next state root is equal across them all, so we can use any.
+                    node_header.next_state_root,
+                    state_root_headers,
+                )?;
 
                 // Save the aggregate signature to the local database.
                 self.db
                     .set_aggregate_checkpoint_header(epoch, aggregate_header);
 
+                // TODO(snormore): Emit an `EpochCheckpointNotification` via the notifier.
+
                 break;
+            } else {
+                tracing::debug!("missing supermajority of checkpoints for epoch {}", epoch);
             }
         }
 
@@ -201,7 +228,8 @@ impl<C: Collection> AttestationListener<C> {
     fn build_aggregate_checkpoint_header(
         &self,
         epoch: Epoch,
-        node_header: &CheckpointHeader,
+        previous_state_root: [u8; 32],
+        next_state_root: [u8; 32],
         state_root_headers: &HashSet<&CheckpointHeader>,
     ) -> Result<AggregateCheckpointHeader> {
         // Aggregate the signatures.
@@ -229,10 +257,8 @@ impl<C: Collection> AttestationListener<C> {
         // Create the aggregate checkpoint header.
         let aggregate_header = AggregateCheckpointHeader {
             epoch,
-            // We use the previous state root from the node's own checkpoint header.
-            previous_state_root: node_header.previous_state_root,
-            // The next state root is equal across them all, so we can use any.
-            next_state_root: node_header.next_state_root,
+            previous_state_root,
+            next_state_root,
             signature: aggregate_signature,
             nodes,
         };

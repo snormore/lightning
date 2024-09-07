@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use atomo::{DefaultSerdeBackend, SerdeBackend};
 use fleek_crypto::SecretKey;
 use lightning_interfaces::prelude::*;
@@ -36,19 +36,23 @@ impl<C: Collection> EpochChangeListener<C> {
         pubsub: c!(C::BroadcastInterface::PubSub<CheckpointBroadcastMessage>),
         notifier: C::NotifierInterface,
         shutdown: ShutdownWaiter,
-    ) -> (JoinHandle<Result<()>>, TokioReadyWaiter<()>) {
+    ) -> (JoinHandle<()>, TokioReadyWaiter<()>) {
         let task = Task::<C>::new(node_id, db, keystore, pubsub, notifier);
         let ready = TokioReadyWaiter::<()>::new();
         let ready_sender = ready.clone();
 
+        let waiter = shutdown.clone();
         let handle = spawn!(
             async move {
-                shutdown
+                waiter
                     .run_until_shutdown(task.start(ready_sender))
                     .await
-                    .unwrap_or(Ok(()))
+                    .unwrap_or(Ok(())) // Shutdown was triggered, so we return Ok(())
+                    .context("epoch change listener task failed")
+                    .unwrap()
             },
-            "CHECKPOINTER: epoch change listener"
+            "CHECKPOINTER: epoch change listener",
+            crucial(shutdown)
         );
 
         (handle, ready)
@@ -105,6 +109,9 @@ impl<C: Collection> Task<C> {
     }
 
     async fn handle_epoch_changed(&self, epoch_changed: EpochChangedNotification) -> Result<()> {
+        // TODO(snormore): Should we check if a checkpoint header already exists for this epoch, and
+        // skip the attestation if it has been?
+
         // Build our checkpoint attestation for the new epoch.
         let signer = self.keystore.get_bls_sk();
         let mut attestation = CheckpointHeader {

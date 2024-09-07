@@ -113,7 +113,9 @@ impl Emitter for NotificationsEmitter {
     fn epoch_changed(
         &self,
         current_epoch: u64,
+        // TODO(snormore): Add type for EpochStateDigest.
         last_epoch_hash: [u8; 32],
+        // TODO(snormore): Use StateRootHash type here.
         previous_state_root: [u8; 32],
         new_state_root: [u8; 32],
     ) {

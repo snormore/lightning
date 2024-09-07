@@ -2415,12 +2415,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "console-api"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86ed14aa9c9f927213c6e4f3ef75faaad3406134efe84ba2cb7983431d5f0931"
+dependencies = [
+ "futures-core",
+ "prost 0.13.1",
+ "prost-types 0.13.1",
+ "tonic 0.12.1",
+ "tracing-core",
+]
+
+[[package]]
 name = "console-subscriber"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7481d4c57092cd1c19dd541b92bdce883de840df30aa5d03fd48a3935c01842e"
 dependencies = [
- "console-api",
+ "console-api 0.6.0",
  "crossbeam-channel",
  "crossbeam-utils",
  "futures-task",
@@ -2433,6 +2446,32 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic 0.10.2",
+ "tracing",
+ "tracing-core",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "console-subscriber"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2e3a111a37f3333946ebf9da370ba5c5577b18eb342ec683eb488dd21980302"
+dependencies = [
+ "console-api 0.8.0",
+ "crossbeam-channel",
+ "crossbeam-utils",
+ "futures-task",
+ "hdrhistogram",
+ "humantime",
+ "hyper-util",
+ "prost 0.13.1",
+ "prost-types 0.13.1",
+ "serde",
+ "serde_json",
+ "thread_local",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.12.1",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -6917,6 +6956,7 @@ dependencies = [
  "atomo",
  "atomo-rocks",
  "bit-set 0.8.0",
+ "console-subscriber 0.4.0",
  "fleek-crypto",
  "futures",
  "hp-fixed",
@@ -6959,7 +6999,7 @@ dependencies = [
  "aya-log",
  "clap",
  "clap_complete",
- "console-subscriber",
+ "console-subscriber 0.2.0",
  "fleek-blake3",
  "fleek-crypto",
  "futures",
@@ -8125,6 +8165,7 @@ dependencies = [
  "proc-macro2 1.0.86",
  "prost 0.11.9",
  "prost 0.12.6",
+ "prost 0.13.1",
  "prost-types 0.12.6",
  "protobuf",
  "quinn",
@@ -8176,6 +8217,7 @@ dependencies = [
  "tokio-util 0.7.11",
  "toml_datetime",
  "toml_edit 0.20.2",
+ "tonic 0.12.1",
  "tower",
  "tower-http 0.3.5",
  "tower-http 0.5.2",
@@ -11221,6 +11263,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9091c90b0a32608e984ff2fa4091273cbdd755d54935c51d520887f4a1dbd5b0"
 dependencies = [
  "prost 0.12.6",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cee5168b05f49d4b0ca581206eb14a7b22fafd963efe729ac48eb03266e25cc2"
+dependencies = [
+ "prost 0.13.1",
 ]
 
 [[package]]
