@@ -124,8 +124,7 @@ impl<C: Collection> AttestationListener<C> {
         }
 
         // Save the incoming checkpoint header attestation to the database.
-        self.db
-            .add_checkpoint_header(epoch, checkpoint_header.clone());
+        self.db.set_node_checkpoint_header(epoch, checkpoint_header);
 
         // If there is a supermajority of eligible nodes in agreement, build and save an aggregate
         // checkpoint header.

@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 use types::NodeIndex;
 
 use crate::aggregate_builder::AggregateCheckpointBuilder;
-use crate::database::CheckpointerDatabase;
+use crate::database::{CheckpointerDatabase, CheckpointerDatabaseQuery};
 use crate::message::CheckpointBroadcastMessage;
 use crate::rocks::RocksCheckpointerDatabase;
 
@@ -131,6 +131,21 @@ impl<C: Collection> Task<C> {
             return Ok(());
         }
 
+        // Ignore if a checkpoint header for this epoch from the same node already exists.
+        if self
+            .db
+            .query()
+            .get_node_checkpoint_header(epoch, self.node_id)
+            .is_some()
+        {
+            tracing::debug!(
+                "ignoring epoch changed notification for epoch {}, node already has checkpoint header",
+                epoch
+            );
+            return Ok(());
+        }
+
+        // Build our checkpoint attestation for the new epoch.
         // Build our checkpoint attestation for the new epoch.
         let signer = self.keystore.get_bls_sk();
         let mut attestation = CheckpointHeader {
@@ -145,7 +160,8 @@ impl<C: Collection> Task<C> {
         attestation.signature = signer.sign(serialized_attestation.as_slice());
 
         // Save our own checkpoint attestation to the database.
-        self.db.add_checkpoint_header(epoch, attestation.clone());
+        self.db
+            .set_node_checkpoint_header(epoch, attestation.clone());
 
         // Broadcast our checkpoint attestation to the network.
         self.pubsub

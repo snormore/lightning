@@ -48,7 +48,7 @@ impl<C: Collection> AggregateCheckpointBuilder<C> {
         let headers = self.db.query().get_checkpoint_headers(epoch);
 
         let mut headers_by_state_root = HashMap::new();
-        for header in headers.iter() {
+        for header in headers.values() {
             headers_by_state_root
                 .entry(header.next_state_root)
                 .or_insert_with(HashSet::new)

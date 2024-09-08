@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -119,9 +119,9 @@ impl TestNetwork {
         &self,
         epoch: Epoch,
         condition: F,
-    ) -> Result<HashMap<NodeIndex, HashSet<CheckpointHeader>>, WaitUntilError>
+    ) -> Result<HashMap<NodeIndex, HashMap<NodeIndex, CheckpointHeader>>, WaitUntilError>
     where
-        F: Fn(&HashMap<NodeIndex, HashSet<CheckpointHeader>>) -> bool,
+        F: Fn(&HashMap<NodeIndex, HashMap<NodeIndex, CheckpointHeader>>) -> bool,
     {
         const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -134,9 +134,9 @@ impl TestNetwork {
         epoch: Epoch,
         condition: F,
         timeout: Duration,
-    ) -> Result<HashMap<NodeIndex, HashSet<CheckpointHeader>>, WaitUntilError>
+    ) -> Result<HashMap<NodeIndex, HashMap<NodeIndex, CheckpointHeader>>, WaitUntilError>
     where
-        F: Fn(&HashMap<NodeIndex, HashSet<CheckpointHeader>>) -> bool,
+        F: Fn(&HashMap<NodeIndex, HashMap<NodeIndex, CheckpointHeader>>) -> bool,
     {
         const DELAY: Duration = Duration::from_millis(100);
 
@@ -240,7 +240,7 @@ impl TestNetwork {
         &self,
         agg_header: AggregateCheckpointHeader,
         node_id: NodeIndex,
-        headers_by_node: HashMap<NodeIndex, HashSet<CheckpointHeader>>,
+        headers_by_node: HashMap<NodeIndex, HashMap<NodeIndex, CheckpointHeader>>,
     ) -> Result<bool> {
         // Get public keys of all nodes in the aggregate header.
         let mut pks = agg_header
@@ -258,7 +258,7 @@ impl TestNetwork {
 
         // Get checkpoint header attestations for each node from the database.
         let mut attestations = headers_by_node[&node_id]
-            .iter()
+            .values()
             .filter(|h| agg_header.nodes.contains(h.node_id as usize))
             .collect::<Vec<_>>();
         attestations.sort_by_key(|header| header.node_id);
