@@ -554,9 +554,6 @@ async fn test_attestation_from_ineligible_node() -> Result<()> {
 
 #[tokio::test]
 async fn test_attestation_with_invalid_signature() -> Result<()> {
-    // TODO(snormore): Remove this tracing setup when finished debugging.
-    crate::test_utils::init_tracing();
-
     let mut network = TestNetworkBuilder::new().with_num_nodes(2).build().await?;
     let epoch = 1001;
 
@@ -595,11 +592,118 @@ async fn test_attestation_with_invalid_signature() -> Result<()> {
     Ok(())
 }
 
-// #[tokio::test]
-// async fn test_attestations_with_inconsistent_state_roots_no_supermajority() -> Result<()> {
-//     // TODO(snormore): Implement this test.
-//     Ok(())
-// }
+#[tokio::test]
+async fn test_attestations_with_inconsistent_state_roots_no_supermajority() -> Result<()> {
+    let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await?;
+    let epoch = 1001;
+
+    // Send epoch change notifications to each node with different state roots.
+    network
+        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [3; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(1, epoch, [4; 32], [5; 32].into(), [6; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(2, epoch, [7; 32], [8; 32].into(), [9; 32].into())
+        .await;
+
+    // Check that the nodes have stored any checkpoint headers.
+    let _headers_by_node = network
+        .wait_for_checkpoint_headers(epoch, |headers_by_node| {
+            headers_by_node
+                .values()
+                .map(|headers| headers.len())
+                .collect::<Vec<_>>()
+                == vec![3, 3, 3]
+        })
+        .await?;
+
+    // Check that the nodes have not stored the aggregate checkpoint header, because they could not
+    // reach agreement on state roots.
+    let result = network
+        .wait_for_aggregate_checkpoint_header_with_timeout(
+            epoch,
+            |header_by_node| header_by_node.values().all(|header| header.is_some()),
+            Duration::from_secs(1),
+        )
+        .await;
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+
+    // Shutdown the network.
+    network.shutdown().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_attestations_with_inconsistent_state_roots_still_supermajority() -> Result<()> {
+    let mut network = TestNetworkBuilder::new().with_num_nodes(4).build().await?;
+    let epoch = 1001;
+
+    // Send epoch change notifications to each node, with a different state root to just one, so
+    // that we still have a supermajority.
+    network
+        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [3; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(1, epoch, [10; 32], [11; 32].into(), [12; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32].into(), [3; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(3, epoch, [1; 32], [2; 32].into(), [3; 32].into())
+        .await;
+
+    // Check that the nodes have stored any checkpoint headers.
+    let headers_by_node = network
+        .wait_for_checkpoint_headers(epoch, |headers_by_node| {
+            headers_by_node
+                .values()
+                .map(|headers| headers.len())
+                .collect::<Vec<_>>()
+                >= vec![3, 3, 3, 3]
+            // Note: This is >= 3 because there may be a supermajority at 3 attestations, with an
+            // aggregate header saved, at which point the node will ignore the fourth because an
+            // aggregate checkpoint exists already, depending on the ordering processing.
+        })
+        .await?;
+
+    // Check that the nodes have not stored the aggregate checkpoint header, because they could not
+    // reach agreement on state roots.
+    let agg_header_by_node = network
+        .wait_for_aggregate_checkpoint_header(epoch, |header_by_node| {
+            header_by_node.values().all(|header| header.is_some())
+        })
+        .await?;
+    assert_eq!(agg_header_by_node.len(), 4);
+
+    for (node_id, agg_header) in agg_header_by_node.iter() {
+        // Verify the aggregate header signature.
+        assert!(network.verify_aggregate_checkpointer_header(
+            agg_header.clone(),
+            *node_id,
+            headers_by_node.clone(),
+        )?);
+
+        // Check that the aggregate header is correct.
+        assert_eq!(
+            agg_header,
+            &AggregateCheckpointHeader {
+                epoch,
+                state_root: [3; 32].into(),
+                nodes: BitSet::from_iter(vec![0, 2, 3]),
+                // The signature is verified separately.
+                signature: agg_header.signature,
+            }
+        );
+    }
+
+    // Shutdown the network.
+    network.shutdown().await;
+    Ok(())
+}
 
 // #[tokio::test]
 // async fn test_duplicate_epoch_change_notifications_on_same_epoch() -> Result<()> {
