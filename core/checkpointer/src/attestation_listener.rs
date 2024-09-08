@@ -6,7 +6,7 @@ use lightning_interfaces::types::CheckpointHeader;
 use tokio::task::JoinHandle;
 
 use crate::aggregate_builder::AggregateCheckpointBuilder;
-use crate::database::{CheckpointerDatabase, CheckpointerDatabaseQuery};
+use crate::database::CheckpointerDatabase;
 use crate::message::CheckpointBroadcastMessage;
 use crate::rocks::RocksCheckpointerDatabase;
 
@@ -88,21 +88,6 @@ impl<C: Collection> AttestationListener<C> {
         checkpoint_header: CheckpointHeader,
     ) -> Result<()> {
         let epoch = checkpoint_header.epoch;
-
-        // Ignore if an aggregate checkpoint header exists for the epoch already.
-        if self
-            .db
-            .query()
-            .get_aggregate_checkpoint_header(epoch)
-            .is_some()
-        {
-            tracing::debug!(
-                "ignoring incoming checkpoint header for epoch {}, aggregate checkpoint already exists",
-                epoch
-            );
-            return Ok(());
-        }
-
         // Ignore if from node that is not in the eligible node set.
         let nodes = self.aggregate.get_eligible_nodes();
         if !nodes.contains_key(&checkpoint_header.node_id) {

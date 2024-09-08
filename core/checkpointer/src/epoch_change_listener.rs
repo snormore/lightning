@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 use types::NodeIndex;
 
 use crate::aggregate_builder::AggregateCheckpointBuilder;
-use crate::database::{CheckpointerDatabase, CheckpointerDatabaseQuery};
+use crate::database::CheckpointerDatabase;
 use crate::message::CheckpointBroadcastMessage;
 use crate::rocks::RocksCheckpointerDatabase;
 
@@ -120,20 +120,6 @@ impl<C: Collection> Task<C> {
 
     async fn handle_epoch_changed(&self, epoch_changed: EpochChangedNotification) -> Result<()> {
         let epoch = epoch_changed.current_epoch;
-
-        // Ignore if an aggregate checkpoint header exists for the epoch already.
-        if self
-            .db
-            .query()
-            .get_aggregate_checkpoint_header(epoch)
-            .is_some()
-        {
-            tracing::debug!(
-                "ignoring epoch changed notification for epoch {}, aggregate checkpoint already exists",
-                epoch
-            );
-            return Ok(());
-        }
 
         // Ignore if we're not in the eligible set of nodes.
         let nodes = self.aggregate.get_eligible_nodes();

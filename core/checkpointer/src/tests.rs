@@ -663,10 +663,7 @@ async fn test_attestations_with_inconsistent_state_roots_still_supermajority() -
                 .values()
                 .map(|headers| headers.len())
                 .collect::<Vec<_>>()
-                >= vec![3, 3, 3, 3]
-            // Note: This is >= 3 because there may be a supermajority at 3 attestations, with an
-            // aggregate header saved, at which point the node will ignore the fourth because an
-            // aggregate checkpoint exists already, depending on the ordering processing.
+                >= vec![4, 4, 4, 4]
         })
         .await?;
 
@@ -706,31 +703,7 @@ async fn test_attestations_with_inconsistent_state_roots_still_supermajority() -
 }
 
 // #[tokio::test]
-// async fn test_duplicate_epoch_change_notifications_on_same_epoch() -> Result<()> {
-//     // TODO(snormore): Implement this test.
-//     Ok(())
-// }
-
-// #[tokio::test]
-// async fn test_different_epoch_change_notification_on_same_epoch() -> Result<()> {
-//     // TODO(snormore): Implement this test.
-//     Ok(())
-// }
-
-// #[tokio::test]
 // async fn test_duplicate_attestations() -> Result<()> {
-//     // TODO(snormore): Implement this test.
-//     Ok(())
-// }
-
-// #[tokio::test]
-// async fn test_too_few_attestations() -> Result<()> {
-//     // TODO(snormore): Implement this test.
-//     Ok(())
-// }
-
-// #[tokio::test]
-// async fn test_missing_attestations() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
