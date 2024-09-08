@@ -390,17 +390,25 @@ impl<C: Collection> FleekApiServer for FleekApi<C> {
         Ok((sub_dag_index, self.data.query_runner.get_epoch_info().epoch))
     }
 
-    /// Returns the state root for the given epoch.
+    /// Returns the state root hash from the application state.
+    ///
+    /// If an epoch is provided, the state root hash for that epoch is returned, otherwise the
+    /// current state root hash is returned.
+    ///
+    /// Historic state roots are available from any full node, and does not need to be an archive
+    /// node. There is a history of state roots stored in the application state.
     async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<StateRootHash> {
         Ok(self
             .data
-            .query_runner(epoch)
-            .await?
-            .get_state_root()
+            .query_runner
+            .get_state_root(epoch)
             .map_err(|e| RPCError::custom(e.to_string()))?)
     }
 
     /// Returns the state proof for a given key and epoch.
+    ///
+    /// If epoch is provided, the state proof for that epoch is returned, otherwise the current
+    /// state proof is returned. Historic state proofs are available only from archive nodes.
     async fn get_state_proof(
         &self,
         key: StateProofKey,

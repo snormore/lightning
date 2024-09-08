@@ -267,10 +267,22 @@ impl SyncQueryRunnerInterface for QueryRunner {
             .run(|ctx| self.node_to_uri.get(ctx).get(node_index))
     }
 
-    /// Returns the state tree root hash from the application state.
-    fn get_state_root(&self) -> Result<StateRootHash> {
-        self.run(|ctx| ApplicationStateTree::get_state_root(ctx))
-            .map_err(From::from)
+    /// Returns the state root hash from the application state.
+    ///
+    /// If an epoch is provided, the state root hash for that epoch is returned, otherwise the
+    /// current state root hash is returned.
+    fn get_state_root(&self, epoch: Option<Epoch>) -> Result<StateRootHash> {
+        if let Some(epoch) = epoch {
+            self.inner
+                .run(|ctx| {
+                    let state_roots_table = ctx.get_table::<Epoch, StateRootHash>("state_roots");
+                    state_roots_table.get(epoch)
+                })
+                .ok_or_else(|| anyhow::anyhow!("State root not found for epoch {}", epoch))
+        } else {
+            self.run(|ctx| ApplicationStateTree::get_state_root(ctx))
+                .map_err(From::from)
+        }
     }
 
     /// Returns the state proof for a given key from the application state using the state tree.

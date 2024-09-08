@@ -1280,6 +1280,12 @@ async fn test_node_startup_without_genesis() {
         assert!(metadata_table.get(Metadata::BlockNumber).is_none());
     });
 
+    // Check that the state root is the empty tree root.
+    assert_eq!(
+        query.get_state_root(None).unwrap(),
+        "bc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a"
+    );
+
     // Apply the genesis.
     assert!(app.apply_genesis(test_genesis()).await.unwrap());
 
@@ -1295,6 +1301,12 @@ async fn test_node_startup_without_genesis() {
             Value::BlockNumber(0)
         );
     });
+
+    // Check that the state root has changed.
+    assert_eq!(
+        query.get_state_root(None).unwrap(),
+        "c7d3b430f35cd46334425bd1201ef00cbd00042d6438003a467e8cf78933e342"
+    );
 }
 
 #[tokio::test]
@@ -1309,6 +1321,13 @@ async fn test_epoch_change() {
 
     let epoch = 0;
     let nonce = 1;
+
+    // Check that the current state root matches the state root in the state root history table.
+    let state_root = query_runner.get_state_root(None).unwrap();
+    assert_eq!(
+        state_root,
+        query_runner.get_state_root(Some(epoch)).unwrap()
+    );
 
     // Have (required_signals - 1) say they are ready to change epoch
     // make sure the epoch doesn't change each time someone signals
@@ -1331,6 +1350,62 @@ async fn test_epoch_change() {
 
     // Query epoch info and make sure it incremented to new epoch
     assert_eq!(query_runner.get_epoch_info().epoch, 1);
+
+    // Check that the new state root is stored in the state root history table, and does not match
+    // the previous epoch state root.
+    let new_state_root = query_runner.get_state_root(None).unwrap();
+    assert_ne!(new_state_root, state_root);
+
+    // Note that currently after block execution, if the epoch has changed, the app env will follow
+    // up with a state update of `Metadata::LastEpochHash` as the digest of the serialized state
+    // database. So the current state root will be different than the one we get from the state root
+    // history table for the new epoch.
+    assert_ne!(
+        new_state_root,
+        query_runner.get_state_root(Some(epoch)).unwrap()
+    );
+}
+
+#[tokio::test]
+async fn test_no_epoch_change() {
+    let temp_dir = tempdir().unwrap();
+
+    // Create a genesis committee and seed the application state with it.
+    let committee_size = 4;
+    let (committee, _keystore) = create_genesis_committee(committee_size);
+    let (update_socket, query_runner) = test_init_app(&temp_dir, committee);
+
+    let epoch = 0;
+
+    // Check that the current state root matches the state root in the state root history table.
+    let state_root = query_runner.get_state_root(None).unwrap();
+    assert_eq!(
+        state_root,
+        query_runner.get_state_root(Some(epoch)).unwrap()
+    );
+
+    // Execute some updates.
+    let owner_secret_key = AccountOwnerSecretKey::generate();
+    let deposit = 1000_u64.into();
+    let update1 = prepare_deposit_update(&deposit, &owner_secret_key, 1);
+    let update2 = prepare_deposit_update(&deposit, &owner_secret_key, 2);
+    let _ = run_updates!(vec![update1, update2], &update_socket);
+    assert_eq!(
+        get_flk_balance(&query_runner, &owner_secret_key.to_pk().into()),
+        (HpUfixed::<18>::from(2u16) * deposit)
+    );
+
+    // Check that the epoch has not changed.
+    assert_eq!(query_runner.get_epoch_info().epoch, epoch);
+
+    // Check that the stored current state root has changed.
+    assert_ne!(query_runner.get_state_root(None).unwrap(), state_root);
+
+    // Check that the stored epoch state root has not changed.
+    assert_eq!(
+        query_runner.get_state_root(Some(epoch)).unwrap(),
+        state_root
+    );
 }
 
 #[tokio::test]

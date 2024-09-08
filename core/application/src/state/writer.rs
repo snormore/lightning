@@ -35,7 +35,7 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
-use merklize::StateTree;
+use merklize::{StateRootHash, StateTree};
 use tracing::info;
 
 use super::context::StateContext;
@@ -143,11 +143,26 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend, ApplicationStateTree> {
         F: FnOnce(&mut TableSelector<AtomoStorage, DefaultSerdeBackend>) -> R,
     {
         self.db.run(|ctx| {
+            // Get the epoch before the mutation.
+            let epoch_before = get_epoch(ctx);
+
+            // Run the mutation.
             let result = mutation(ctx);
+
+            // Get the epoch after the mutation.
+            let epoch_after = get_epoch(ctx);
 
             // Update the state tree with the batch of changes in the current run context.
             ApplicationStateTree::update_state_tree_from_context_changes(ctx)
                 .context("Failed to update state tree")?;
+
+            // If the epoch has changed, save the state root to the state roots history table.
+            if epoch_before != epoch_after && epoch_after.is_some() {
+                let mut state_roots_table = ctx.get_table::<Epoch, StateRootHash>("state_roots");
+                let state_root = ApplicationStateTree::get_state_root(ctx)?;
+                tracing::debug!("Saving state root for epoch {epoch_after:?}: {state_root:?}");
+                state_roots_table.insert(epoch_after.unwrap(), state_root);
+            }
 
             Ok(result)
         })
@@ -180,6 +195,7 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend, ApplicationStateTree> {
             .with_table::<NodeIndex, u8>("uptime")
             .with_table::<Blake3Hash, BTreeSet<NodeIndex>>("uri_to_node")
             .with_table::<NodeIndex, BTreeSet<Blake3Hash>>("node_to_uri")
+            .with_table::<Epoch, StateRootHash>("state_roots")
             .enable_iter("current_epoch_served")
             .enable_iter("rep_measurements")
             .enable_iter("submitted_rep_measurements")
@@ -201,6 +217,18 @@ impl ApplicationState<AtomoStorage, DefaultSerdeBackend, ApplicationStateTree> {
 
         builder
     }
+}
+
+fn get_epoch(ctx: &mut TableSelector<AtomoStorage, DefaultSerdeBackend>) -> Option<Epoch> {
+    ctx.get_table::<Metadata, Value>("metadata")
+        .get(&Metadata::Epoch)
+        .and_then(|value| {
+            if let Value::Epoch(epoch) = value {
+                Some(epoch)
+            } else {
+                None
+            }
+        })
 }
 
 #[cfg(test)]

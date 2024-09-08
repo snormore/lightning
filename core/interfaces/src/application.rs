@@ -197,7 +197,10 @@ pub trait SyncQueryRunnerInterface: Clone + Send + Sync + 'static {
     fn get_content_registry(&self, node_index: &NodeIndex) -> Option<BTreeSet<Blake3Hash>>;
 
     /// Returns the state root hash from the application state.
-    fn get_state_root(&self) -> Result<StateRootHash>;
+    ///
+    /// If an epoch is provided, the state root hash for that epoch is returned, otherwise the
+    /// current state root hash is returned.
+    fn get_state_root(&self, epoch: Option<Epoch>) -> Result<StateRootHash>;
 
     /// Returns the state proof for a given key from the application state using the state tree.
     fn get_state_proof(
