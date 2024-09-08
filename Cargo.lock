@@ -6976,6 +6976,7 @@ dependencies = [
  "lightning-topology",
  "lightning-utils",
  "lightning-workspace-hack",
+ "merklize",
  "pretty_assertions",
  "rand 0.8.5",
  "ready",
@@ -7464,6 +7465,7 @@ dependencies = [
  "lightning-interfaces",
  "lightning-utils",
  "lightning-workspace-hack",
+ "merklize",
  "tokio",
 ]
 
@@ -8016,6 +8018,7 @@ dependencies = [
  "hp-fixed",
  "ink-quill",
  "lightning-workspace-hack",
+ "merklize",
  "multiaddr",
  "num-bigint",
  "num-derive 0.4.2",

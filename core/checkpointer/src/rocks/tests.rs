@@ -102,8 +102,8 @@ fn random_checkpoint_header(epoch: Epoch) -> CheckpointHeader {
     CheckpointHeader {
         epoch,
         node_id: NodeIndex::from(rng.gen::<u32>()),
-        previous_state_root: rng.gen::<[u8; 32]>(),
-        next_state_root: rng.gen::<[u8; 32]>(),
+        previous_state_root: rng.gen::<[u8; 32]>().into(),
+        next_state_root: rng.gen::<[u8; 32]>().into(),
         serialized_state_digest: rng.gen::<[u8; 32]>(),
         signature: ConsensusSignature({
             let mut sig = [0u8; 48];
@@ -120,8 +120,7 @@ fn random_aggregate_checkpoint_header(epoch: Epoch) -> AggregateCheckpointHeader
 
     AggregateCheckpointHeader {
         epoch,
-        previous_state_root: rng.gen::<[u8; 32]>(),
-        next_state_root: rng.gen::<[u8; 32]>(),
+        state_root: rng.gen::<[u8; 32]>().into(),
         signature: ConsensusAggregateSignature({
             let mut sig = [0u8; 48];
             for item in &mut sig {

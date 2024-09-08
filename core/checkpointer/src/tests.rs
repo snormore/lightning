@@ -28,7 +28,7 @@ async fn test_checkpointer_over_epoch_changes() -> Result<()> {
     for epoch in 0..1 {
         // Emit epoch changed notification to all nodes.
         network
-            .notify_epoch_changed(epoch, [2; 32], [3; 32], [1; 32])
+            .notify_epoch_changed(epoch, [2; 32].into(), [3; 32].into(), [1; 32])
             .await;
 
         // Check that the nodes have received and stored the checkpoint headers.
@@ -50,8 +50,8 @@ async fn test_checkpointer_over_epoch_changes() -> Result<()> {
                     &CheckpointHeader {
                         node_id: header.node_id,
                         epoch,
-                        previous_state_root: [2; 32],
-                        next_state_root: [3; 32],
+                        previous_state_root: [2; 32].into(),
+                        next_state_root: [3; 32].into(),
                         serialized_state_digest: [1; 32],
                         // The signature is verified separately.
                         signature: header.signature,
@@ -79,8 +79,7 @@ async fn test_checkpointer_over_epoch_changes() -> Result<()> {
                 agg_header,
                 &AggregateCheckpointHeader {
                     epoch,
-                    previous_state_root: [2; 32],
-                    next_state_root: [3; 32],
+                    state_root: [3; 32].into(),
                     nodes: BitSet::from_iter(vec![0, 1, 2]),
                     // The signature is verified separately.
                     signature: agg_header.signature,
@@ -104,13 +103,13 @@ async fn test_checkpointer_no_supermajority_of_attestations() -> Result<()> {
     // Here we have 2 nodes with the same next state root, and 1 node with a different next state
     // root. They all have the same epochs, serialized state digests, and previous state roots.
     network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32], [10; 32])
+        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [10; 32].into())
         .await;
     network
-        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32], [10; 32])
+        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32].into(), [10; 32].into())
         .await;
     network
-        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32], [11; 32])
+        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32].into(), [11; 32].into())
         .await;
 
     // Check that the nodes have received and stored the checkpoint headers.
@@ -132,8 +131,6 @@ async fn test_checkpointer_no_supermajority_of_attestations() -> Result<()> {
 
     // Check that the nodes have not stored an aggregate checkpoint header, because there is no
     // supermajority.
-    // TODO(snormore): Consider adding a EpochCheckpointNotification type to the notifier and using
-    // the non-receipt of it as our check here.
     let result = network
         .wait_for_aggregate_checkpoint_header_with_timeout(
             epoch,
@@ -158,10 +155,10 @@ async fn test_checkpointer_missing_epoch_change_notification_no_supermajority() 
     // supermajority.
     // Here we emit epoch changed notifications to two of the nodes, and not the third.
     network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32], [10; 32])
+        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [10; 32].into())
         .await;
     network
-        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32], [10; 32])
+        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32].into(), [10; 32].into())
         .await;
 
     // Check that the nodes have received and stored the checkpoint headers.
@@ -185,8 +182,6 @@ async fn test_checkpointer_missing_epoch_change_notification_no_supermajority() 
 
     // Check that the nodes have not stored an aggregate checkpoint header, because there is no
     // supermajority.
-    // TODO(snormore): Consider adding a EpochCheckpointNotification type to the notifier and using
-    // the non-receipt of it as our check here.
     let result = network
         .wait_for_aggregate_checkpoint_header_with_timeout(
             epoch,
@@ -212,13 +207,13 @@ async fn test_checkpointer_missing_epoch_change_notification_still_supermajority
     // Here we emit epoch changed notifications to three of the nodes, and not the fourth, so that
     // there is still a supermajority.
     network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32], [10; 32])
+        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [10; 32].into())
         .await;
     network
-        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32], [10; 32])
+        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32].into(), [10; 32].into())
         .await;
     network
-        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32], [10; 32])
+        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32].into(), [10; 32].into())
         .await;
 
     // Check that the nodes have received and stored the checkpoint headers.
@@ -259,8 +254,7 @@ async fn test_checkpointer_missing_epoch_change_notification_still_supermajority
             agg_header,
             &AggregateCheckpointHeader {
                 epoch,
-                previous_state_root: [2; 32],
-                next_state_root: [10; 32],
+                state_root: [10; 32].into(),
                 nodes: BitSet::from_iter(vec![0, 1, 2]),
                 // The signature is verified separately.
                 signature: agg_header.signature,
@@ -293,6 +287,12 @@ async fn test_checkpointer_missing_epoch_change_notification_still_supermajority
 
 // #[tokio::test]
 // async fn test_checkpointer_different_epoch_change_notification_on_same_epoch() -> Result<()> {
+//     // TODO(snormore): Implement this test.
+//     Ok(())
+// }
+
+// #[tokio::test]
+// async fn test_checkpointer_aggregate_checkpoint_header_already_exists() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }

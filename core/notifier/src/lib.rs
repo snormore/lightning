@@ -9,6 +9,7 @@ use lightning_interfaces::{
     OwnedShutdownSignal,
 };
 use lightning_utils::application::QueryRunnerExt;
+use merklize::StateRootHash;
 use tokio::pin;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
@@ -113,11 +114,9 @@ impl Emitter for NotificationsEmitter {
     fn epoch_changed(
         &self,
         current_epoch: u64,
-        // TODO(snormore): Add type for EpochStateDigest.
         last_epoch_hash: [u8; 32],
-        // TODO(snormore): Use StateRootHash type here.
-        previous_state_root: [u8; 32],
-        new_state_root: [u8; 32],
+        previous_state_root: StateRootHash,
+        new_state_root: StateRootHash,
     ) {
         let _ = self.epoch_changed.send(EpochChangedNotification {
             current_epoch,

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use fdi::BuildGraph;
 use lightning_types::{Block, BlockExecutionResponse};
+use merklize::StateRootHash;
 
 use crate::collection::Collection;
 
@@ -14,11 +15,9 @@ pub struct BlockExecutedNotification {
 #[derive(Clone, Debug)]
 pub struct EpochChangedNotification {
     pub current_epoch: u64,
-    // TODO(snormore): Add type for EpochStateDigest.
     pub last_epoch_hash: [u8; 32],
-    // TODO(snormore): Use StateRootHash type here.
-    pub previous_state_root: [u8; 32],
-    pub new_state_root: [u8; 32],
+    pub previous_state_root: StateRootHash,
+    pub new_state_root: StateRootHash,
 }
 
 /// # Notifier
@@ -48,8 +47,8 @@ pub trait Emitter: Clone + Send + Sync + 'static {
         &self,
         epoch: u64,
         hash: [u8; 32],
-        previous_state_root: [u8; 32],
-        new_state_root: [u8; 32],
+        previous_state_root: StateRootHash,
+        new_state_root: StateRootHash,
     );
 
     /// Notify the waiters about new block.

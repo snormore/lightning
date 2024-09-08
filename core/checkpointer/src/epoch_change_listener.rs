@@ -109,8 +109,7 @@ impl<C: Collection> Task<C> {
     }
 
     async fn handle_epoch_changed(&self, epoch_changed: EpochChangedNotification) -> Result<()> {
-        // TODO(snormore): Should we check if a checkpoint header already exists for this epoch, and
-        // skip the attestation if it has been?
+        // TODO(snormore): Ignore if an aggregate checkpoint header exists for the epoch already.
 
         // Build our checkpoint attestation for the new epoch.
         let signer = self.keystore.get_bls_sk();

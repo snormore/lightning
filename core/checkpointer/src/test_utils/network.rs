@@ -13,6 +13,7 @@ use lightning_interfaces::{
     KeystoreInterface,
     NotifierInterface,
 };
+use merklize::StateRootHash;
 use tempfile::TempDir;
 
 use super::{wait_until, TestNode, WaitUntilError};
@@ -54,8 +55,8 @@ impl TestNetwork {
     pub async fn notify_epoch_changed(
         &self,
         epoch: Epoch,
-        previous_state_root: [u8; 32],
-        new_state_root: [u8; 32],
+        previous_state_root: StateRootHash,
+        new_state_root: StateRootHash,
         last_epoch_hash: [u8; 32],
     ) {
         for node in self.nodes() {
@@ -75,11 +76,9 @@ impl TestNetwork {
         &self,
         node_id: NodeIndex,
         epoch: Epoch,
-        // TODO(snormore): Add type for EpochStateDigest.
         last_epoch_hash: [u8; 32],
-        // TODO(snormore): Use StateRootHash type here.
-        previous_state_root: [u8; 32],
-        new_state_root: [u8; 32],
+        previous_state_root: StateRootHash,
+        new_state_root: StateRootHash,
     ) {
         self.node(node_id)
             .expect("node not found")

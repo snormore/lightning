@@ -13,6 +13,7 @@ fleek-crypto.workspace = true
 lightning-interfaces.workspace = true
 lightning-utils.workspace = true
 lightning-workspace-hack.workspace = true
+merklize.workspace = true
 ready.workspace = true
 resolved-pathbuf.workspace = true
 serde.workspace = true

@@ -112,7 +112,6 @@ impl<C: Collection> Checkpointer<C> {
         // Spawns a new tokio task and continues execution immediately.
         tracing::debug!("spawning attestation listener");
         let _attestation_listener_handle = AttestationListener::<C>::new(
-            node_id,
             self.db.clone(),
             self.pubsub.clone(),
             self.app_query.clone(),
