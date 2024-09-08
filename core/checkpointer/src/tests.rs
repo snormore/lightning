@@ -808,8 +808,6 @@ async fn test_multiple_different_epoch_change_notifications_for_same_epoch() {
         .unwrap();
     let epoch = 1001;
 
-    // Expectation: Should save the first only, and ignore any others.
-
     // Send epoch change notifications to each node with different state roots.
     network
         .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [3; 32].into())
@@ -884,54 +882,83 @@ async fn test_multiple_different_epoch_change_notifications_for_same_epoch() {
     network.shutdown().await;
 }
 
-// #[tokio::test]
-// async fn test_multiple_different_attestations_from_same_node() {
-//     let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await.unwrap();
-//     let epoch = 1001;
+#[tokio::test]
+async fn test_multiple_different_attestations_from_same_node() {
+    let mut network = TestNetworkBuilder::new()
+        .with_num_nodes(2)
+        .build()
+        .await
+        .unwrap();
+    let epoch = 1001;
 
-//     // Expectation: Should save the first only, and ignore any others.
+    // Broadcast the same attestation multiple times.
+    let mut header = CheckpointHeader {
+        epoch,
+        node_id: 0,
+        previous_state_root: [1; 32].into(),
+        next_state_root: [2; 32].into(),
+        serialized_state_digest: [3; 32],
+        signature: ConsensusSignature::default(),
+    };
+    header.signature = network
+        .node(0)
+        .unwrap()
+        .get_consensus_secret_key()
+        .sign(DefaultSerdeBackend::serialize(&header).as_slice());
+    network
+        .broadcast_checkpoint_header_via_node(0, header)
+        .await
+        .unwrap();
 
-//     // Send epoch change notifications to each node with different state roots.
-//     network
-//         .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [3; 32].into())
-//         .await;
-//     network
-//         .notify_node_epoch_changed(1, epoch, [4; 32], [5; 32].into(), [6; 32].into())
-//         .await;
-//     network
-//         .notify_node_epoch_changed(2, epoch, [7; 32], [8; 32].into(), [9; 32].into())
-//         .await;
+    // Check that the node has stored the attestation.
+    let headers_by_node = network
+        .wait_for_checkpoint_headers(epoch, |headers_by_node| {
+            headers_by_node
+                .iter()
+                .map(|(node_id, headers)| (*node_id, headers.len()))
+                .collect::<HashMap<_, _>>()
+                == HashMap::from_iter(vec![(0, 0), (1, 1)])
+        })
+        .await
+        .unwrap();
+    assert_eq!(headers_by_node.len(), 2);
 
-//     // Check that the nodes have stored any checkpoint headers.
-//     let _headers_by_node = network
-//         .wait_for_checkpoint_headers(epoch, |headers_by_node| {
-//             headers_by_node
+    // Broadcast another, different attestation from the same node.
+    let mut header = CheckpointHeader {
+        epoch,
+        node_id: 0,
+        previous_state_root: [4; 32].into(),
+        next_state_root: [5; 32].into(),
+        serialized_state_digest: [6; 32],
+        signature: ConsensusSignature::default(),
+    };
+    header.signature = network
+        .node(0)
+        .unwrap()
+        .get_consensus_secret_key()
+        .sign(DefaultSerdeBackend::serialize(&header).as_slice());
+    network
+        .broadcast_checkpoint_header_via_node(0, header)
+        .await
+        .unwrap();
 
-//     // Shutdown the network.
-//     network.shutdown().await;
-//
-// }
+    // Check that the node has not stored the second attestation.
+    let result = network
+        .wait_for_checkpoint_headers_with_timeout(
+            epoch,
+            |headers_by_node| {
+                headers_by_node
+                    .iter()
+                    .map(|(node_id, headers)| (*node_id, headers.len()))
+                    .collect::<HashMap<_, _>>()
+                    == HashMap::from_iter(vec![(0, 0), (1, 2)])
+            },
+            Duration::from_secs(1),
+        )
+        .await;
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
 
-// #[tokio::test]
-// async fn test_duplicate_attestations() {
-//     // TODO(snormore): Implement this test.
-//
-// }
-
-// #[tokio::test]
-// async fn test_checkpointer_panic_causes_shutdown() {
-//     // TODO(snormore): Implement this test.
-//
-// }
-
-// #[tokio::test]
-// async fn test_epoch_change_listener_panic_causes_shutdown() {
-//     // TODO(snormore): Implement this test.
-//
-// }
-
-// #[tokio::test]
-// async fn test_attestation_listener_panic_causes_shutdown() {
-//     // TODO(snormore): Implement this test.
-//
-// }
+    // Shutdown the network.
+    network.shutdown().await;
+}

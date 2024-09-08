@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use fleek_crypto::ConsensusSecretKey;
 use lightning_application::Application;
 use lightning_broadcast::Broadcast;
 use lightning_interfaces::prelude::*;
@@ -38,6 +39,10 @@ impl TestNode {
         self.app
             .sync_query()
             .pubkey_to_index(&self.keystore.get_ed25519_pk())
+    }
+
+    pub fn get_consensus_secret_key(&self) -> ConsensusSecretKey {
+        self.keystore.get_bls_sk()
     }
 }
 
