@@ -128,8 +128,15 @@ impl<C: Collection> AttestationListener<C> {
             },
         };
 
-        // Validate the incoming checkpoint header.
-        self.validate_checkpoint_header(&checkpoint_header, node_consensus_key)?;
+        // Validate the incoming checkpoint header; ignore if invalid.
+        if let Err(e) = self.validate_checkpoint_header(&checkpoint_header, node_consensus_key) {
+            tracing::info!(
+                "ignoring incoming checkpoint header for epoch {}, invalid signature: {:?}",
+                epoch,
+                e
+            );
+            return Ok(());
+        }
 
         // Save the incoming checkpoint header attestation to the database.
         self.db
@@ -152,8 +159,8 @@ impl<C: Collection> AttestationListener<C> {
             signature: ConsensusSignature::default(),
             ..header.clone()
         });
-        if !node_consensus_key.verify(&header.signature, &serialized_signed_header) {
-            return Err(anyhow::anyhow!("Invalid checkpoint header signature"));
+        if !node_consensus_key.verify(&header.signature, &serialized_signed_header)? {
+            return Err(anyhow::anyhow!("invalid checkpoint header signature"));
         }
 
         Ok(())

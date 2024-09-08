@@ -5,18 +5,27 @@ use anyhow::Result;
 use atomo::{DefaultSerdeBackend, SerdeBackend};
 use fleek_crypto::{ConsensusSignature, PublicKey};
 use futures::future::join_all;
-use lightning_interfaces::types::{AggregateCheckpointHeader, CheckpointHeader, Epoch, NodeIndex};
+use lightning_interfaces::types::{
+    AggregateCheckpointHeader,
+    CheckpointHeader,
+    Epoch,
+    NodeIndex,
+    Topic,
+};
 use lightning_interfaces::{
+    BroadcastInterface,
     CheckpointerInterface,
     CheckpointerQueryInterface,
     Emitter,
     KeystoreInterface,
     NotifierInterface,
+    PubSub,
 };
 use merklize::StateRootHash;
 use tempfile::TempDir;
 
 use super::{wait_until, TestNode, WaitUntilError};
+use crate::message::CheckpointBroadcastMessage;
 
 /// A network of test nodes.
 ///
@@ -87,6 +96,23 @@ impl TestNetwork {
             .epoch_changed(epoch, last_epoch_hash, previous_state_root, new_state_root);
     }
 
+    /// Send a checkpoint attestation to a specific node via their broadcaster pubsub.
+    pub async fn broadcast_checkpoint_header_via_node(
+        &self,
+        node_id: NodeIndex,
+        header: CheckpointHeader,
+    ) -> Result<()> {
+        self.node(node_id)
+            .expect("node not found")
+            .broadcast
+            .get_pubsub::<CheckpointBroadcastMessage>(Topic::Checkpoint)
+            .send(&CheckpointBroadcastMessage::CheckpointHeader(header), None)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
+
+        Ok(())
+    }
+
     /// Wait for the checkpoint headers to be received and stored by the checkpointer, and matching
     /// the given condition function.
     pub async fn wait_for_checkpoint_headers<F>(
@@ -98,6 +124,20 @@ impl TestNetwork {
         F: Fn(&HashMap<NodeIndex, HashSet<CheckpointHeader>>) -> bool,
     {
         const TIMEOUT: Duration = Duration::from_secs(10);
+
+        self.wait_for_checkpoint_headers_with_timeout(epoch, condition, TIMEOUT)
+            .await
+    }
+
+    pub async fn wait_for_checkpoint_headers_with_timeout<F>(
+        &self,
+        epoch: Epoch,
+        condition: F,
+        timeout: Duration,
+    ) -> Result<HashMap<NodeIndex, HashSet<CheckpointHeader>>, WaitUntilError>
+    where
+        F: Fn(&HashMap<NodeIndex, HashSet<CheckpointHeader>>) -> bool,
+    {
         const DELAY: Duration = Duration::from_millis(100);
 
         wait_until(
@@ -119,7 +159,7 @@ impl TestNetwork {
                     None
                 }
             },
-            TIMEOUT,
+            timeout,
             DELAY,
         )
         .await
@@ -135,7 +175,7 @@ impl TestNetwork {
                 ..header.clone()
             })
             .as_slice(),
-        ))
+        )?)
     }
 
     /// Wait for the aggregate checkpoint header to be received and stored by the checkpointer, and

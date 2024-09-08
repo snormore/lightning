@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use lightning_application::Application;
+use lightning_broadcast::Broadcast;
 use lightning_interfaces::prelude::*;
 use lightning_notifier::Notifier;
 use lightning_pool::PoolProvider;
@@ -21,6 +22,7 @@ pub struct TestNode {
     pub keystore: fdi::Ref<EphemeralKeystore<TestNodeComponents>>,
     pub notifier: fdi::Ref<Notifier<TestNodeComponents>>,
     pub pool: fdi::Ref<PoolProvider<TestNodeComponents>>,
+    pub broadcast: fdi::Ref<Broadcast<TestNodeComponents>>,
 }
 
 impl TestNode {

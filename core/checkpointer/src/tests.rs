@@ -1,12 +1,16 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use atomo::{DefaultSerdeBackend, SerdeBackend};
 use bit_set::BitSet;
+use fleek_crypto::{ConsensusSignature, SecretKey};
 use lightning_interfaces::types::{AggregateCheckpointHeader, CheckpointHeader};
+use lightning_interfaces::KeystoreInterface;
+use lightning_test_utils::keys::EphemeralKeystore;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
-use crate::test_utils::{TestNetworkBuilder, TestNodeBuilder, WaitUntilError};
+use crate::test_utils::{TestNetworkBuilder, TestNodeBuilder, TestNodeComponents, WaitUntilError};
 
 #[tokio::test]
 async fn test_start_shutdown() -> Result<()> {
@@ -19,7 +23,7 @@ async fn test_start_shutdown() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_over_epoch_changes() -> Result<()> {
+async fn test_supermajority_over_epoch_changes() -> Result<()> {
     let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await?;
 
     for epoch in 0..10 {
@@ -266,9 +270,6 @@ async fn test_missing_epoch_change_notification_still_supermajority() -> Result<
 
 #[tokio::test]
 async fn test_aggregate_checkpoint_header_already_exists() -> Result<()> {
-    // TODO(snormore): Remove this tracing setup when finished debugging.
-    crate::test_utils::init_tracing();
-
     let mut network = TestNetworkBuilder::new().with_num_nodes(1).build().await?;
     let epoch = 1001;
 
@@ -375,7 +376,7 @@ async fn test_delayed_epoch_change_notification() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_multiple_different_epochs_simultaneously() -> Result<()> {
+async fn test_multiple_different_epoch_change_notifications_simultaneously() -> Result<()> {
     let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await?;
     let epoch1 = 1001;
     let epoch2 = 1002;
@@ -506,11 +507,93 @@ async fn test_multiple_different_epochs_simultaneously() -> Result<()> {
     Ok(())
 }
 
-// #[tokio::test]
-// async fn test_attestation_with_invalid_signature() -> Result<()> {
-//     // TODO(snormore): Implement this test.
-//     Ok(())
-// }
+#[tokio::test]
+async fn test_attestation_from_ineligible_node() -> Result<()> {
+    let mut network = TestNetworkBuilder::new().with_num_nodes(2).build().await?;
+    let epoch = 1001;
+
+    // Send an invalid attestation to the node via the broadcaster.
+    let other_node_keystore = EphemeralKeystore::<TestNodeComponents>::default();
+    let other_node_consensus_sk = other_node_keystore.get_bls_sk();
+    let mut header = CheckpointHeader {
+        epoch,
+        // From some some other non-existent node.
+        node_id: 10,
+        previous_state_root: [1; 32].into(),
+        next_state_root: [2; 32].into(),
+        serialized_state_digest: [3; 32],
+        signature: ConsensusSignature::default(),
+    };
+    header.signature =
+        other_node_consensus_sk.sign(DefaultSerdeBackend::serialize(&header).as_slice());
+    network
+        .broadcast_checkpoint_header_via_node(0, header)
+        .await?;
+
+    // Check that the node has not stored the invalid checkpoint header.
+    let result = network
+        .wait_for_checkpoint_headers_with_timeout(
+            epoch,
+            |headers_by_node| {
+                headers_by_node
+                    .values()
+                    .map(|headers| headers.len())
+                    .collect::<Vec<_>>()
+                    == vec![1]
+            },
+            Duration::from_secs(1),
+        )
+        .await;
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+
+    // Shutdown the network.
+    network.shutdown().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_attestation_with_invalid_signature() -> Result<()> {
+    // TODO(snormore): Remove this tracing setup when finished debugging.
+    crate::test_utils::init_tracing();
+
+    let mut network = TestNetworkBuilder::new().with_num_nodes(2).build().await?;
+    let epoch = 1001;
+
+    // Send an invalid attestation to the node via the broadcaster.
+    let header = CheckpointHeader {
+        epoch,
+        node_id: 1,
+        previous_state_root: [1; 32].into(),
+        next_state_root: [2; 32].into(),
+        serialized_state_digest: [3; 32],
+        signature: ConsensusSignature::default(),
+    };
+    network
+        .broadcast_checkpoint_header_via_node(0, header)
+        .await?;
+
+    // Check that the node has not stored the invalid checkpoint header.
+    let result = network
+        .wait_for_checkpoint_headers_with_timeout(
+            epoch,
+            |headers_by_node| {
+                headers_by_node
+                    .values()
+                    .map(|headers| headers.len())
+                    .collect::<Vec<_>>()
+                    == vec![1]
+            },
+            Duration::from_secs(1),
+        )
+        .await;
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+
+    // Shutdown the network.
+    network.shutdown().await;
+    Ok(())
+}
 
 // #[tokio::test]
 // async fn test_attestations_with_inconsistent_state_roots_no_supermajority() -> Result<()> {

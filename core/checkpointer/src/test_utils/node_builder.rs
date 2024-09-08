@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use lightning_application::{Application, ApplicationConfig};
+use lightning_broadcast::Broadcast;
 use lightning_interfaces::prelude::*;
 use lightning_notifier::Notifier;
 use lightning_pool::{Config as PoolConfig, PoolProvider};
@@ -98,6 +99,7 @@ impl TestNodeBuilder {
             keystore: node.provider.get::<EphemeralKeystore<TestNodeComponents>>(),
             notifier: node.provider.get::<Notifier<TestNodeComponents>>(),
             pool: node.provider.get::<PoolProvider<TestNodeComponents>>(),
+            broadcast: node.provider.get::<Broadcast<TestNodeComponents>>(),
 
             inner: node,
             before_genesis_ready,
