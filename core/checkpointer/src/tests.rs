@@ -374,14 +374,146 @@ async fn test_delayed_epoch_change_notification() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_multiple_different_epochs_simultaneously() -> Result<()> {
+    let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await?;
+    let epoch1 = 1001;
+    let epoch2 = 1002;
+
+    // Emit epoch changed notifications to all nodes for both epochs, interleaved for each node.
+    network
+        .notify_node_epoch_changed(0, epoch1, [11; 32], [12; 32].into(), [110; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(0, epoch2, [21; 32], [22; 32].into(), [210; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(1, epoch1, [11; 32], [12; 32].into(), [110; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(1, epoch2, [21; 32], [22; 32].into(), [210; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(2, epoch1, [11; 32], [12; 32].into(), [110; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(2, epoch2, [21; 32], [22; 32].into(), [210; 32].into())
+        .await;
+
+    // Check that the nodes have received and stored the checkpoint headers for both epochs.
+    let epoch1_headers_by_node = network
+        .wait_for_checkpoint_headers(epoch1, |headers_by_node| {
+            headers_by_node.values().all(|headers| headers.len() == 3)
+        })
+        .await?;
+    for (_node_id, headers) in epoch1_headers_by_node.iter() {
+        assert_eq!(headers.len(), 3);
+        for header in headers.iter() {
+            assert!(network.verify_checkpointer_header_signature(header.clone())?);
+            assert_eq!(
+                header,
+                &CheckpointHeader {
+                    node_id: header.node_id,
+                    epoch: epoch1,
+                    previous_state_root: [12; 32].into(),
+                    next_state_root: [110; 32].into(),
+                    serialized_state_digest: [11; 32],
+                    // The signature is verified separately.
+                    signature: header.signature,
+                }
+            );
+        }
+    }
+    let epoch2_headers_by_node = network
+        .wait_for_checkpoint_headers(epoch2, |headers_by_node| {
+            headers_by_node.values().all(|headers| headers.len() == 3)
+        })
+        .await?;
+    for (_node_id, headers) in epoch2_headers_by_node.iter() {
+        assert_eq!(headers.len(), 3);
+        for header in headers.iter() {
+            assert!(network.verify_checkpointer_header_signature(header.clone())?);
+            assert_eq!(
+                header,
+                &CheckpointHeader {
+                    node_id: header.node_id,
+                    epoch: epoch2,
+                    previous_state_root: [22; 32].into(),
+                    next_state_root: [210; 32].into(),
+                    serialized_state_digest: [21; 32],
+                    // The signature is verified separately.
+                    signature: header.signature,
+                }
+            );
+        }
+    }
+
+    // Check that the nodes have constructed and stored the aggregate checkpoint headers for both
+    // epochs.
+    let agg_header_by_node = network
+        .wait_for_aggregate_checkpoint_header(epoch1, |header_by_node| {
+            header_by_node.values().all(|header| header.is_some())
+        })
+        .await?;
+    for (node_id, agg_header) in agg_header_by_node.iter() {
+        // Verify the aggregate header signature.
+        assert!(network.verify_aggregate_checkpointer_header(
+            agg_header.clone(),
+            *node_id,
+            epoch1_headers_by_node.clone(),
+        )?);
+
+        // Check that the aggregate header is correct.
+        assert_eq!(
+            agg_header,
+            &AggregateCheckpointHeader {
+                epoch: epoch1,
+                state_root: [110; 32].into(),
+                nodes: BitSet::from_iter(vec![0, 1, 2]),
+                // The signature is verified separately.
+                signature: agg_header.signature,
+            }
+        );
+    }
+    let agg_header_by_node = network
+        .wait_for_aggregate_checkpoint_header(epoch2, |header_by_node| {
+            header_by_node.values().all(|header| header.is_some())
+        })
+        .await?;
+    for (node_id, agg_header) in agg_header_by_node.iter() {
+        // Verify the aggregate header signature.
+        assert!(network.verify_aggregate_checkpointer_header(
+            agg_header.clone(),
+            *node_id,
+            epoch2_headers_by_node.clone(),
+        )?);
+
+        // Check that the aggregate header is correct.
+        assert_eq!(
+            agg_header,
+            &AggregateCheckpointHeader {
+                epoch: epoch2,
+                state_root: [210; 32].into(),
+                nodes: BitSet::from_iter(vec![0, 1, 2]),
+                // The signature is verified separately.
+                signature: agg_header.signature,
+            }
+        );
+    }
+
+    // Shutdown the network.
+    network.shutdown().await;
+    Ok(())
+}
+
 // #[tokio::test]
-// async fn test_different_epochs() -> Result<()> {
+// async fn test_attestation_with_invalid_signature() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_fake_and_corrupt_attestation() -> Result<()> {
+// async fn test_attestations_with_inconsistent_state_roots_no_supermajority() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
