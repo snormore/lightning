@@ -9,7 +9,7 @@ use tempfile::tempdir;
 use crate::test_utils::{TestNetworkBuilder, TestNodeBuilder, WaitUntilError};
 
 #[tokio::test]
-async fn test_checkpointer_start_shutdown() -> Result<()> {
+async fn test_start_shutdown() -> Result<()> {
     let temp_dir = tempdir()?;
     let _node = TestNodeBuilder::new(temp_dir.path().to_path_buf())
         .build()
@@ -19,13 +19,10 @@ async fn test_checkpointer_start_shutdown() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_checkpointer_over_epoch_changes() -> Result<()> {
-    // TODO(snormore): Remove this tracing setup when finished debugging.
-    crate::test_utils::init_tracing();
-
+async fn test_over_epoch_changes() -> Result<()> {
     let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await?;
 
-    for epoch in 0..1 {
+    for epoch in 0..10 {
         // Emit epoch changed notification to all nodes.
         network
             .notify_epoch_changed(epoch, [2; 32].into(), [3; 32].into(), [1; 32])
@@ -94,7 +91,7 @@ async fn test_checkpointer_over_epoch_changes() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_checkpointer_no_supermajority_of_attestations() -> Result<()> {
+async fn test_no_supermajority_of_attestations() -> Result<()> {
     let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await?;
     let epoch = 1001;
 
@@ -147,7 +144,7 @@ async fn test_checkpointer_no_supermajority_of_attestations() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_checkpointer_missing_epoch_change_notification_no_supermajority() -> Result<()> {
+async fn test_missing_epoch_change_notification_no_supermajority() -> Result<()> {
     let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await?;
     let epoch = 1001;
 
@@ -198,7 +195,7 @@ async fn test_checkpointer_missing_epoch_change_notification_no_supermajority() 
 }
 
 #[tokio::test]
-async fn test_checkpointer_missing_epoch_change_notification_still_supermajority() -> Result<()> {
+async fn test_missing_epoch_change_notification_still_supermajority() -> Result<()> {
     let mut network = TestNetworkBuilder::new().with_num_nodes(4).build().await?;
     let epoch = 1001;
 
@@ -267,68 +264,172 @@ async fn test_checkpointer_missing_epoch_change_notification_still_supermajority
     Ok(())
 }
 
+#[tokio::test]
+async fn test_aggregate_checkpoint_header_already_exists() -> Result<()> {
+    // TODO(snormore): Remove this tracing setup when finished debugging.
+    crate::test_utils::init_tracing();
+
+    let mut network = TestNetworkBuilder::new().with_num_nodes(1).build().await?;
+    let epoch = 1001;
+
+    // Emit epoch changed notifications.
+    network
+        .notify_epoch_changed(epoch, [3; 32].into(), [10; 32].into(), [1; 32])
+        .await;
+
+    // Get the stored checkpoint headers.
+    let _headers_by_node = network
+        .wait_for_checkpoint_headers(epoch, |headers| headers.len() == 1)
+        .await?;
+
+    // Get the stored aggregate checkpoint header.
+    let agg_header_by_node = network
+        .wait_for_aggregate_checkpoint_header(epoch, |header_by_node| {
+            header_by_node.values().all(|header| header.is_some())
+        })
+        .await?;
+    assert_eq!(agg_header_by_node.len(), 1);
+    let expected_agg_header = AggregateCheckpointHeader {
+        epoch,
+        state_root: [10; 32].into(),
+        nodes: BitSet::from_iter(vec![0]),
+        signature: agg_header_by_node[&0].signature,
+    };
+    assert_eq!(agg_header_by_node[&0], expected_agg_header);
+
+    // Emit the same epoch changed notification again, with a different state root so that
+    // the resulting aggregate checkpoint header is different.
+    network
+        .notify_epoch_changed(epoch, [4; 32].into(), [11; 32].into(), [2; 32])
+        .await;
+
+    // Check that the node has not stored a new aggregate checkpoint header.
+    let agg_header_by_node = network
+        .wait_for_aggregate_checkpoint_header(epoch, |header_by_node| {
+            header_by_node.values().all(|header| header.is_some())
+        })
+        .await?;
+    assert_eq!(agg_header_by_node.len(), 1);
+    assert_eq!(agg_header_by_node[&0], expected_agg_header);
+
+    // Shutdown the network.
+    network.shutdown().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delayed_epoch_change_notification() -> Result<()> {
+    let mut network = TestNetworkBuilder::new().with_num_nodes(3).build().await?;
+    let epoch = 1001;
+
+    // Emit epoch changed notification to 2 of 3 nodes.
+    network
+        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [10; 32].into())
+        .await;
+    network
+        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32].into(), [10; 32].into())
+        .await;
+
+    // Wait for 2 checkpoint headers to be stored in all 3 nodes.
+    let _headers_by_node = network
+        .wait_for_checkpoint_headers(epoch, |headers_by_node| {
+            headers_by_node.values().all(|headers| headers.len() == 2)
+        })
+        .await?;
+
+    // Emit epoch changed notification to the third node.
+    network
+        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32].into(), [10; 32].into())
+        .await;
+
+    // Wait for the third node to receive the epoch changed notification, broadcast it's checkpoint
+    // header, and for it to be stored in all the nodes.
+    let _headers_by_node = network
+        .wait_for_checkpoint_headers(epoch, |headers_by_node| {
+            headers_by_node.values().all(|headers| headers.len() == 3)
+        })
+        .await?;
+
+    // Check that the third node has constructed and stored the aggregate checkpoint header, in this
+    // case the responsibility of the epoch change listener itself because nodes don't broadcast to
+    // themselves.
+    let agg_header_by_node = network
+        .wait_for_aggregate_checkpoint_header(epoch, |header_by_node| {
+            header_by_node.values().all(|header| header.is_some())
+        })
+        .await?;
+    assert_eq!(agg_header_by_node.len(), 3);
+    assert_eq!(
+        agg_header_by_node[&0],
+        AggregateCheckpointHeader {
+            epoch,
+            state_root: [10; 32].into(),
+            nodes: BitSet::from_iter(vec![0, 1, 2]),
+            signature: agg_header_by_node[&0].signature,
+        }
+    );
+
+    // Shutdown the network.
+    network.shutdown().await;
+    Ok(())
+}
+
 // #[tokio::test]
-// async fn test_checkpointer_different_epochs() -> Result<()> {
+// async fn test_different_epochs() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_fake_and_corrupt_attestation() -> Result<()> {
+// async fn test_fake_and_corrupt_attestation() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_duplicate_epoch_change_notifications_on_same_epoch() -> Result<()> {
+// async fn test_duplicate_epoch_change_notifications_on_same_epoch() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_different_epoch_change_notification_on_same_epoch() -> Result<()> {
+// async fn test_different_epoch_change_notification_on_same_epoch() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_aggregate_checkpoint_header_already_exists() -> Result<()> {
+// async fn test_duplicate_attestations() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_duplicate_attestations() -> Result<()> {
+// async fn test_too_few_attestations() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_too_few_attestations() -> Result<()> {
+// async fn test_missing_attestations() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_missing_attestations() -> Result<()> {
+// async fn test_panic_causes_shutdown() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_panic_causes_shutdown() -> Result<()> {
+// async fn test_epoch_change_listener_panic_causes_shutdown() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }
 
 // #[tokio::test]
-// async fn test_checkpointer_epoch_change_listener_panic_causes_shutdown() -> Result<()> {
-//     // TODO(snormore): Implement this test.
-//     Ok(())
-// }
-
-// #[tokio::test]
-// async fn test_checkpointer_attestation_listener_panic_causes_shutdown() -> Result<()> {
+// async fn test_attestation_listener_panic_causes_shutdown() -> Result<()> {
 //     // TODO(snormore): Implement this test.
 //     Ok(())
 // }

@@ -1,21 +1,11 @@
-use std::collections::{HashMap, HashSet};
-
 use anyhow::{Context, Result};
 use atomo::{DefaultSerdeBackend, SerdeBackend};
-use bit_set::BitSet;
-use fleek_crypto::{
-    ConsensusAggregateSignature,
-    ConsensusPublicKey,
-    ConsensusSignature,
-    PublicKey,
-};
+use fleek_crypto::{ConsensusPublicKey, ConsensusSignature, PublicKey};
 use lightning_interfaces::prelude::*;
-use lightning_interfaces::types::{AggregateCheckpointHeader, CheckpointHeader};
-use lightning_utils::application::QueryRunnerExt;
-use merklize::StateRootHash;
+use lightning_interfaces::types::CheckpointHeader;
 use tokio::task::JoinHandle;
-use types::{Epoch, NodeIndex};
 
+use crate::aggregate_builder::AggregateCheckpointBuilder;
 use crate::database::{CheckpointerDatabase, CheckpointerDatabaseQuery};
 use crate::message::CheckpointBroadcastMessage;
 use crate::rocks::RocksCheckpointerDatabase;
@@ -28,6 +18,7 @@ use crate::rocks::RocksCheckpointerDatabase;
 /// database for sharing with other nodes and clients in the future.
 pub struct AttestationListener<C: Collection> {
     db: RocksCheckpointerDatabase,
+    aggregate: AggregateCheckpointBuilder<C>,
     pubsub: c!(C::BroadcastInterface::PubSub<CheckpointBroadcastMessage>),
     app_query: c!(C::ApplicationInterface::SyncExecutor),
 }
@@ -39,6 +30,7 @@ impl<C: Collection> AttestationListener<C> {
         app_query: c!(C::ApplicationInterface::SyncExecutor),
     ) -> Self {
         Self {
+            aggregate: AggregateCheckpointBuilder::new(db.clone(), app_query.clone()),
             db,
             pubsub,
             app_query,
@@ -97,10 +89,31 @@ impl<C: Collection> AttestationListener<C> {
     ) -> Result<()> {
         let epoch = checkpoint_header.epoch;
 
-        // TODO(snormore): Ignore if from node that's not in the active set?
-        // TODO(snormore): Ignore if a checkpoint header exists for the same epoch and node.
-        // TODO(snormore): Ignore if an aggregate checkpoint header exists for the epoch already.
+        // Ignore if an aggregate checkpoint header exists for the epoch already.
+        if self
+            .db
+            .query()
+            .get_aggregate_checkpoint_header(epoch)
+            .is_some()
+        {
+            tracing::debug!(
+                "ignoring incoming checkpoint header for epoch {}, aggregate checkpoint already exists",
+                epoch
+            );
+            return Ok(());
+        }
 
+        // Ignore if from node that is not in the eligible node set.
+        let nodes = self.aggregate.get_eligible_nodes();
+        if !nodes.contains_key(&checkpoint_header.node_id) {
+            tracing::debug!(
+                "ignoring incoming checkpoint header for epoch {}, node not in eligible node set",
+                epoch
+            );
+            return Ok(());
+        }
+
+        // Get the node's consensus BLS public key.
         let node_consensus_key = match self
             .app_query
             .get_node_info(&checkpoint_header.node_id, |node| node.consensus_key)
@@ -115,30 +128,17 @@ impl<C: Collection> AttestationListener<C> {
             },
         };
 
-        // Save the incoming checkpoint header attestation to the database.
+        // Validate the incoming checkpoint header.
         self.validate_checkpoint_header(&checkpoint_header, node_consensus_key)?;
+
+        // Save the incoming checkpoint header attestation to the database.
         self.db
             .add_checkpoint_header(epoch, checkpoint_header.clone());
 
-        // Check if we can build an aggregate checkpoint header for the epoch.
-        let aggr_header = self.db.query().get_aggregate_checkpoint_header(epoch);
-        match aggr_header {
-            Some(_) => {
-                // There is already an aggregate checkpoint header in the database for this epoch,
-                // so we don't need to process any more checkpoint headers for this epoch.
-            },
-            None => {
-                // Get the number of active nodes from the application query runner.
-                // TODO(snormore): Confirm that this is the right set of nodes to use here.
-                let nodes = self.app_query.get_active_nodes();
-                let nodes_count = nodes.len();
-
-                // Check for supermajority of checkpoint headers for the epoch.
-                // If found, aggregate the signatures and save an aggregate checkpoint header to the
-                // local database.
-                self.check_for_supermajority(epoch, nodes_count)?;
-            },
-        }
+        // If there is a supermajority of eligible nodes in agreement, build and save an aggregate
+        // checkpoint header.
+        self.aggregate
+            .build_and_save_aggregate_if_supermajority(epoch, nodes.len())?;
 
         Ok(())
     }
@@ -157,76 +157,5 @@ impl<C: Collection> AttestationListener<C> {
         }
 
         Ok(())
-    }
-
-    // Check if we have a supermajority of attestations that are in agreement for the epoch, and
-    // build an aggregate checkpoint header, and save it to the local database.
-    //
-    // We assume that the checkpoint header signatures have been validated and deduplicated by the
-    // time they reach this point.
-    fn check_for_supermajority(&self, epoch: Epoch, nodes_count: usize) -> Result<()> {
-        let headers = self.db.query().get_checkpoint_headers(epoch);
-
-        let mut headers_by_state_root = HashMap::new();
-        for header in headers.iter() {
-            headers_by_state_root
-                .entry(header.next_state_root)
-                .or_insert_with(HashSet::new)
-                .insert(header);
-            let state_root_headers = &headers_by_state_root[&header.next_state_root];
-
-            if state_root_headers.len() > (2 * nodes_count) / 3 {
-                tracing::info!("checkpoint supermajority reached for epoch {}", epoch);
-
-                // We have a supermajority of attestations in agreement for the epoch.
-                let aggregate_header = self.build_aggregate_checkpoint_header(
-                    epoch,
-                    header.next_state_root,
-                    state_root_headers,
-                )?;
-
-                // Save the aggregate signature to the local database.
-                self.db
-                    .set_aggregate_checkpoint_header(epoch, aggregate_header);
-
-                break;
-            } else {
-                tracing::debug!("missing supermajority of checkpoints for epoch {}", epoch);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn build_aggregate_checkpoint_header(
-        &self,
-        epoch: Epoch,
-        state_root: StateRootHash,
-        state_root_headers: &HashSet<&CheckpointHeader>,
-    ) -> Result<AggregateCheckpointHeader> {
-        // Aggregate the signatures.
-        let signatures = state_root_headers
-            .iter()
-            .map(|header| header.signature)
-            .collect::<Vec<_>>();
-        let aggregate_signature = ConsensusAggregateSignature::aggregate(signatures.iter())
-            .map_err(|e| anyhow::anyhow!(e))?;
-
-        // Build the nodes bit set.
-        let nodes = BitSet::<NodeIndex>::from_iter(
-            state_root_headers
-                .iter()
-                .map(|header| header.node_id as usize),
-        );
-
-        // Create the aggregate checkpoint header.
-        let aggregate_header = AggregateCheckpointHeader {
-            epoch,
-            state_root,
-            signature: aggregate_signature,
-            nodes,
-        };
-
-        Ok(aggregate_header)
     }
 }

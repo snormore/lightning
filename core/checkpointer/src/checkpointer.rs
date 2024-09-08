@@ -99,8 +99,6 @@ impl<C: Collection> Checkpointer<C> {
         // Wait for genesis to be applied before starting the checkpointer.
         self.app_query.wait_for_genesis().await;
 
-        tracing::debug!("genesis applied, starting checkpointer");
-
         // Get this node's index from the application query runner.
         let node_public_key = self.keystore.get_ed25519_pk();
         let node_id = self
@@ -110,7 +108,6 @@ impl<C: Collection> Checkpointer<C> {
 
         // Consume checkpoint attestations from the broadcaster.
         // Spawns a new tokio task and continues execution immediately.
-        tracing::debug!("spawning attestation listener");
         let _attestation_listener_handle = AttestationListener::<C>::new(
             self.db.clone(),
             self.pubsub.clone(),
@@ -120,23 +117,21 @@ impl<C: Collection> Checkpointer<C> {
 
         // Listen for epoch changes from the notifier.
         // Spawns a new tokio task and continues execution immediately.
-        tracing::debug!("spawning epoch change listener");
         let (_, epoch_change_listener_ready) = EpochChangeListener::<C>::spawn(
             node_id,
             self.db.clone(),
             self.keystore.clone(),
             self.pubsub.clone(),
             self.notifier.clone(),
+            self.app_query.clone(),
             shutdown.clone(),
         );
 
         // Wait for the epoch change listener to be ready and subscribe to the epoch changed
         // notifier.
-        tracing::debug!("waiting for epoch change listener to be ready");
         epoch_change_listener_ready.wait().await;
 
         // Notify that we are ready.
-        tracing::debug!("notifying that we are ready");
         self.ready.notify(());
 
         // Wait for shutdown.

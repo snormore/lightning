@@ -11,12 +11,18 @@ use ready::ReadyWaiter;
 use tokio::task::JoinHandle;
 use types::NodeIndex;
 
-use crate::database::CheckpointerDatabase;
+use crate::aggregate_builder::AggregateCheckpointBuilder;
+use crate::database::{CheckpointerDatabase, CheckpointerDatabaseQuery};
 use crate::message::CheckpointBroadcastMessage;
 use crate::rocks::RocksCheckpointerDatabase;
 
 /// The epoch change listener is responsible for detecting when the current epoch has
 /// changed and then broadcasting a checkpoint attestation for the new epoch.
+///
+/// The epoch change listener also needs to build and save an aggregate checkpoint for the new
+/// epoch if a supermajority of eligible nodes have attested to the checkpoint header for the epoch.
+/// We need to do this here as well because other nodes may have already received their epoch change
+/// notification and broadcasted checkpoint headers for the new epoch.
 pub struct EpochChangeListener<C: Collection> {
     _collection: PhantomData<C>,
 }
@@ -35,9 +41,10 @@ impl<C: Collection> EpochChangeListener<C> {
         keystore: C::KeystoreInterface,
         pubsub: c!(C::BroadcastInterface::PubSub<CheckpointBroadcastMessage>),
         notifier: C::NotifierInterface,
+        app_query: c!(C::ApplicationInterface::SyncExecutor),
         shutdown: ShutdownWaiter,
     ) -> (JoinHandle<()>, TokioReadyWaiter<()>) {
-        let task = Task::<C>::new(node_id, db, keystore, pubsub, notifier);
+        let task = Task::<C>::new(node_id, db, keystore, pubsub, notifier, app_query);
         let ready = TokioReadyWaiter::<()>::new();
         let ready_sender = ready.clone();
 
@@ -61,6 +68,7 @@ impl<C: Collection> EpochChangeListener<C> {
 struct Task<C: Collection> {
     node_id: NodeIndex,
     db: RocksCheckpointerDatabase,
+    aggregate: AggregateCheckpointBuilder<C>,
     keystore: C::KeystoreInterface,
     pubsub: c!(C::BroadcastInterface::PubSub<CheckpointBroadcastMessage>),
     notifier: C::NotifierInterface,
@@ -73,9 +81,11 @@ impl<C: Collection> Task<C> {
         keystore: C::KeystoreInterface,
         pubsub: c!(C::BroadcastInterface::PubSub<CheckpointBroadcastMessage>),
         notifier: C::NotifierInterface,
+        app_query: c!(C::ApplicationInterface::SyncExecutor),
     ) -> Self {
         Self {
             node_id,
+            aggregate: AggregateCheckpointBuilder::new(db.clone(), app_query.clone()),
             db,
             keystore,
             pubsub,
@@ -109,12 +119,36 @@ impl<C: Collection> Task<C> {
     }
 
     async fn handle_epoch_changed(&self, epoch_changed: EpochChangedNotification) -> Result<()> {
-        // TODO(snormore): Ignore if an aggregate checkpoint header exists for the epoch already.
+        let epoch = epoch_changed.current_epoch;
+
+        // Ignore if an aggregate checkpoint header exists for the epoch already.
+        if self
+            .db
+            .query()
+            .get_aggregate_checkpoint_header(epoch)
+            .is_some()
+        {
+            tracing::debug!(
+                "ignoring epoch changed notification for epoch {}, aggregate checkpoint already exists",
+                epoch
+            );
+            return Ok(());
+        }
+
+        // Ignore if we're not in the eligible set of nodes.
+        let nodes = self.aggregate.get_eligible_nodes();
+        if !nodes.contains_key(&self.node_id) {
+            tracing::debug!(
+                "ignoring epoch changed notification for epoch {}, node not in eligible set",
+                epoch
+            );
+            return Ok(());
+        }
 
         // Build our checkpoint attestation for the new epoch.
         let signer = self.keystore.get_bls_sk();
         let mut attestation = CheckpointHeader {
-            epoch: epoch_changed.current_epoch,
+            epoch,
             node_id: self.node_id,
             previous_state_root: epoch_changed.previous_state_root,
             next_state_root: epoch_changed.new_state_root,
@@ -124,17 +158,21 @@ impl<C: Collection> Task<C> {
         let serialized_attestation = DefaultSerdeBackend::serialize(&attestation);
         attestation.signature = signer.sign(serialized_attestation.as_slice());
 
+        // Save our own checkpoint attestation to the database.
+        self.db.add_checkpoint_header(epoch, attestation.clone());
+
         // Broadcast our checkpoint attestation to the network.
         self.pubsub
             .send(
-                &CheckpointBroadcastMessage::CheckpointHeader(attestation.clone()),
+                &CheckpointBroadcastMessage::CheckpointHeader(attestation),
                 None,
             )
             .await?;
 
-        // Save our own checkpoint attestation to the database.
-        self.db
-            .add_checkpoint_header(epoch_changed.current_epoch, attestation);
+        // Check for supermajority of checkpoint headers for the epoch, in case we have already
+        // received the checkpoint headers from other nodes or if we're the only node.
+        self.aggregate
+            .build_and_save_aggregate_if_supermajority(epoch, nodes.len())?;
 
         Ok(())
     }
