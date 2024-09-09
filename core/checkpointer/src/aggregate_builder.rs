@@ -25,8 +25,6 @@ impl<C: Collection> AggregateCheckpointBuilder<C> {
     }
 
     /// Returns the eligible node set for checking supermajority.
-    ///
-    /// TODO(snormore): Confirm that this is the right set of nodes to use here.
     pub fn get_eligible_nodes(&self) -> HashMap<NodeIndex, NodeInfo> {
         self.app_query
             .get_active_nodes()
@@ -35,8 +33,9 @@ impl<C: Collection> AggregateCheckpointBuilder<C> {
             .collect()
     }
 
-    // Check if we have a supermajority of attestations that are in agreement for the epoch, and
-    // build an aggregate checkpoint header, and save it to the local database.
+    // Check if we have a supermajority of attestations that are in agreement on the next state root
+    // for the epoch. If so, build an aggregate checkpoint header, and save it to the local
+    // database.
     //
     // We assume that the checkpoint header signatures have been validated and deduplicated by the
     // time they reach this point.
