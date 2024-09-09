@@ -397,16 +397,16 @@ async fn test_delayed_epoch_change_notification() {
 
     // Wait for the third node to receive the epoch changed notification, broadcast it's checkpoint
     // header, and for it to be stored in all the nodes.
-    let _headers_by_node = network
+    let headers_by_node = network
         .wait_for_checkpoint_headers(epoch, |headers_by_node| {
             headers_by_node.values().all(|headers| headers.len() == 3)
         })
         .await
         .unwrap();
 
-    // Check that the third node has constructed and stored the aggregate checkpoint header, in this
-    // case the responsibility of the epoch change listener itself because nodes don't broadcast to
-    // themselves.
+    // Check that all the nodes have constructed and stored the aggregate checkpoint header. In the
+    // case of the third node, it's the responsibility of the epoch change listener itself because
+    // nodes don't broadcast to themselves.
     let agg_header_by_node = network
         .wait_for_aggregate_checkpoint_header(epoch, |header_by_node| {
             header_by_node.values().all(|header| header.is_some())
@@ -414,15 +414,27 @@ async fn test_delayed_epoch_change_notification() {
         .await
         .unwrap();
     assert_eq!(agg_header_by_node.len(), 3);
-    assert_eq!(
-        agg_header_by_node[&0],
-        AggregateCheckpointHeader {
-            epoch,
-            state_root: [10; 32].into(),
-            nodes: BitSet::from_iter(vec![0, 1, 2]),
-            signature: agg_header_by_node[&0].signature,
-        }
-    );
+    for (node_id, agg_header) in agg_header_by_node.iter() {
+        assert!(
+            network
+                .verify_aggregate_checkpointer_header(
+                    agg_header.clone(),
+                    *node_id,
+                    headers_by_node.clone(),
+                )
+                .unwrap()
+        );
+        assert_eq!(
+            agg_header,
+            &AggregateCheckpointHeader {
+                epoch,
+                state_root: [10; 32].into(),
+                nodes: BitSet::from_iter(vec![0, 1, 2]),
+                // The signature is verified separately.
+                signature: agg_header.signature,
+            }
+        );
+    }
 
     // Shutdown the network.
     network.shutdown().await;
