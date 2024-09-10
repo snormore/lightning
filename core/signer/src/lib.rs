@@ -297,7 +297,8 @@ impl AsyncWorker for SignerWorker {
 impl<C: Collection> BuildGraph for Signer<C> {
     fn build_graph() -> fdi::DependencyGraph {
         fdi::DependencyGraph::new().with_infallible(
-            Self::init.with_event_handler("start", Self::start.wrap_with_block_on()),
+            Self::init
+                .with_event_handler("start", Self::start.wrap_with_spawn_named("SIGNER: start")),
         )
     }
 }
