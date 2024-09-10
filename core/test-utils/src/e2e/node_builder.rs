@@ -56,7 +56,7 @@ impl TestNodeBuilder {
             .shutdown_waiter()
             .expect("node missing shutdown waiter");
 
-        // Wait for pool to be ready before building genesis.
+        // Wait for components to be ready before building genesis.
         let before_genesis_ready = TokioReadyWaiter::new();
         {
             let pool = node.provider.get::<PoolProvider<TestNodeComponents>>();
@@ -83,13 +83,20 @@ impl TestNodeBuilder {
             );
         }
 
-        // Wait for checkpointer to be ready after genesis.
+        // Wait for components to be ready after genesis.
         let after_genesis_ready = TokioReadyWaiter::new();
         {
+            let app_query = node
+                .provider
+                .get::<Application<TestNodeComponents>>()
+                .sync_query();
             let after_genesis_ready = after_genesis_ready.clone();
             let shutdown = shutdown.clone();
             spawn!(
                 async move {
+                    // Wait for genesis to be applied.
+                    app_query.wait_for_genesis().await;
+
                     // Notify that we are ready.
                     after_genesis_ready.notify(());
                 },

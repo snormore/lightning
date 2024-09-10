@@ -95,8 +95,6 @@ impl<C: Collection> Signer<C> {
         notifier: fdi::Ref<C::NotifierInterface>,
         fdi::Cloned(query_runner): fdi::Cloned<c![C::ApplicationInterface::SyncExecutor]>,
     ) {
-        query_runner.wait_for_genesis().await;
-
         let subscriber = notifier.subscribe_block_executed();
         let worker = this.worker.clone();
 
@@ -297,8 +295,7 @@ impl AsyncWorker for SignerWorker {
 impl<C: Collection> BuildGraph for Signer<C> {
     fn build_graph() -> fdi::DependencyGraph {
         fdi::DependencyGraph::new().with_infallible(
-            Self::init
-                .with_event_handler("start", Self::start.wrap_with_spawn_named("SIGNER: start")),
+            Self::init.with_event_handler("start", Self::start.wrap_with_block_on()),
         )
     }
 }
