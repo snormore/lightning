@@ -57,6 +57,7 @@ use lightning_interfaces::types::{
     MAX_MEASUREMENTS_SUBMIT,
 };
 use lightning_interfaces::PagingParams;
+use lightning_test_utils::e2e::TestNetworkBuilder;
 use lightning_test_utils::json_config::JsonConfigProvider;
 use lightning_test_utils::{random, reputation};
 use lightning_utils::application::QueryRunnerExt;
@@ -1238,24 +1239,31 @@ fn content_registry(query_runner: &QueryRunner, node: &NodeIndex) -> Vec<Blake3H
 //////////////////////////////////////////////////////////////////////////////////
 
 #[tokio::test]
-async fn test_genesis_configuration() {
-    let temp_dir = tempdir().unwrap();
+async fn test_genesis_is_applied() {
+    let network = TestNetworkBuilder::new()
+        .with_num_nodes(2)
+        .with_genesis_mutator(|genesis| {
+            genesis.min_stake = 100;
+            for node in genesis.node_info.iter_mut() {
+                node.stake.staked = HpUfixed::<18>::from(0u32);
+            }
+        })
+        .build()
+        .await
+        .unwrap();
 
-    // Init application + get the query and update socket
-    let (_, query_runner) = init_app(&temp_dir, None);
-    // Get the genesis parameters plus the initial committee
-    let genesis = test_genesis();
-    let genesis_committee = genesis.node_info;
-    // For every member of the genesis committee they should have an initial stake of the min stake
-    // Query to make sure that holds true
-    for node in genesis_committee {
-        let balance = get_staked(&query_runner, &node.primary_public_key);
-        assert_eq!(HpUfixed::<18>::from(genesis.min_stake), balance);
+    // For every member of the genesis committee they should have an initial stake of the min
+    // stake in the application state.
+    for (node_id, node) in network.node_by_id {
+        let query = node.app.sync_query();
+        assert_eq!(query.get_node_table_iter(|iter| iter.count()), 2);
+        let info = query.get_node_info(&node_id, |n| n).unwrap();
+        assert_eq!(info.stake.staked, HpUfixed::<18>::from(100u32));
     }
 }
 
 #[tokio::test]
-async fn test_node_startup_without_genesis() {
+async fn test_init_without_genesis() {
     let config = ApplicationConfig {
         network: None,
         genesis_path: None,
@@ -1298,39 +1306,47 @@ async fn test_node_startup_without_genesis() {
 }
 
 #[tokio::test]
-async fn test_epoch_change() {
-    let temp_dir = tempdir().unwrap();
-
-    // Create a genesis committee and seed the application state with it.
-    let committee_size = 4;
-    let (committee, keystore) = create_genesis_committee(committee_size);
-    let (update_socket, query_runner) = test_init_app(&temp_dir, committee);
-    let required_signals = calculate_required_signals(committee_size);
-
+async fn test_epoch_changed() {
+    let network = TestNetworkBuilder::new()
+        .with_num_nodes(3)
+        .with_genesis_mutator(|genesis| {
+            genesis.min_stake = 100;
+            for node in genesis.node_info.iter_mut() {
+                node.stake.staked = HpUfixed::<18>::from(0u32);
+            }
+        })
+        .build()
+        .await
+        .unwrap();
     let epoch = 0;
-    let nonce = 1;
 
-    // Have (required_signals - 1) say they are ready to change epoch
-    // make sure the epoch doesn't change each time someone signals
-    for node in keystore.iter().take(required_signals - 1) {
-        // Make sure epoch didn't change
-        let res = change_epoch!(&update_socket, &node.node_secret_key, nonce, epoch);
-        assert!(!res.change_epoch);
+    // Submit a transaction to change the epoch for less than the supermajority of nodes.
+    // The transactions should be forwarded to the other nodes and executed.
+    let transaction = network
+        .node(0)
+        .new_update_transaction(UpdateMethod::ChangeEpoch { epoch });
+    network.node(0).run_transaction(transaction).await.unwrap();
+    let transaction = network
+        .node(1)
+        .new_update_transaction(UpdateMethod::ChangeEpoch { epoch });
+    network.node(0).run_transaction(transaction).await.unwrap();
+
+    // Check that the epoch is not changed across all nodes.
+    for node in network.nodes() {
+        assert_eq!(node.app.sync_query().get_epoch_info().epoch, epoch);
     }
-    // check that the current epoch is still 0
-    assert_eq!(query_runner.get_epoch_info().epoch, 0);
 
-    // Have the last needed committee member signal the epoch change and make sure it changes
-    let res = change_epoch!(
-        &update_socket,
-        &keystore[required_signals].node_secret_key,
-        nonce,
-        epoch
-    );
-    assert!(res.change_epoch);
+    // Submit a transaction to change the epoch to reach the supermajority of nodes, and actually
+    // change the epoch this time.
+    let transaction = network
+        .node(2)
+        .new_update_transaction(UpdateMethod::ChangeEpoch { epoch });
+    network.node(0).run_transaction(transaction).await.unwrap();
 
-    // Query epoch info and make sure it incremented to new epoch
-    assert_eq!(query_runner.get_epoch_info().epoch, 1);
+    // Check that the epoch is changed across all nodes.
+    for node in network.nodes() {
+        assert_eq!(node.app.sync_query().get_epoch_info().epoch, epoch + 1);
+    }
 }
 
 #[tokio::test]

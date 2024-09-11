@@ -9,6 +9,7 @@ use ready::ReadyWaiter;
 use tempfile::tempdir;
 
 use super::{wait_until, TestGenesisBuilder, TestNetwork, TestNode, TestNodeBuilder};
+use crate::consensus::{Config as MockConsensusConfig, MockConsensusGroup};
 
 pub type GenesisMutator = Arc<dyn Fn(&mut Genesis)>;
 
@@ -43,14 +44,24 @@ impl TestNetworkBuilder {
     pub async fn build(self) -> Result<TestNetwork> {
         let temp_dir = tempdir()?;
 
+        // Build the shared mock consensus group.
+        // TODO(snormore): This should be configurable using `with_mock_consensus`, otherwise use
+        // real consensus.
+        let consensus_group_start = Arc::new(tokio::sync::Notify::new());
+        let consensus_group = MockConsensusGroup::new(
+            MockConsensusConfig::default(),
+            Some(consensus_group_start.clone()),
+        );
+
         // Build and start the nodes.
-        let mut nodes =
-            join_all((0..self.num_nodes).map(|i| {
-                TestNodeBuilder::new(temp_dir.path().join(format!("node-{}", i))).build()
-            }))
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut nodes = join_all((0..self.num_nodes).map(|i| {
+            TestNodeBuilder::new(temp_dir.path().join(format!("node-{}", i)))
+                .with_mock_consensus_group(consensus_group.clone())
+                .build()
+        }))
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
 
         // Wait for ready before building genesis.
         join_all(
@@ -85,6 +96,9 @@ impl TestNetworkBuilder {
 
         // Wait for ready after genesis.
         join_all(nodes.iter_mut().map(|node| node.after_genesis_ready.wait())).await;
+
+        // Notify the shared mock consensus group that it can start.
+        consensus_group_start.notify_waiters();
 
         let network = TestNetwork::new(temp_dir, nodes).await?;
         Ok(network)
