@@ -1,6 +1,8 @@
+mod app;
 mod bindings;
 mod genesis;
 mod network;
+mod network_app;
 mod network_builder;
 mod network_checkpointer;
 mod network_notifier;
@@ -11,11 +13,13 @@ mod node_rpc;
 mod tracing;
 mod wait;
 
+pub use app::*;
 pub use bindings::*;
 pub use genesis::*;
 pub use network::*;
 pub use network_builder::*;
 pub use node::*;
+pub use node_app::*;
 pub use node_builder::*;
 #[allow(unused_imports)]
 pub use tracing::*;

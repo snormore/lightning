@@ -17,7 +17,7 @@ pub type GenesisMutator = Arc<dyn Fn(&mut Genesis)>;
 pub struct TestNetworkBuilder {
     pub num_nodes: u32,
     pub genesis_mutator: Option<GenesisMutator>,
-    pub use_mock_consensus: bool,
+    pub mock_consensus_config: Option<MockConsensusConfig>,
 }
 
 impl TestNetworkBuilder {
@@ -25,7 +25,13 @@ impl TestNetworkBuilder {
         Self {
             num_nodes: 3,
             genesis_mutator: None,
-            use_mock_consensus: true,
+            mock_consensus_config: Some(MockConsensusConfig {
+                max_ordering_time: 1,
+                min_ordering_time: 0,
+                probability_txn_lost: 0.0,
+                new_block_interval: Duration::from_secs(0),
+                ..Default::default()
+            }),
         }
     }
 
@@ -42,13 +48,13 @@ impl TestNetworkBuilder {
         self
     }
 
-    pub fn with_mock_consensus(mut self) -> Self {
-        self.use_mock_consensus = true;
+    pub fn with_mock_consensus(mut self, config: MockConsensusConfig) -> Self {
+        self.mock_consensus_config = Some(config);
         self
     }
 
     pub fn without_mock_consensus(mut self) -> Self {
-        self.use_mock_consensus = false;
+        self.mock_consensus_config = None;
         self
     }
 
@@ -57,23 +63,16 @@ impl TestNetworkBuilder {
         let temp_dir = tempdir()?;
 
         // Configure mock consensus if enabled.
-        let (consensus_group, consensus_group_start) = if self.use_mock_consensus {
-            // Build the shared mock consensus group.
-            let consensus_group_start = Arc::new(tokio::sync::Notify::new());
-            let consensus_group = MockConsensusGroup::new(
-                MockConsensusConfig {
-                    max_ordering_time: 1,
-                    min_ordering_time: 0,
-                    probability_txn_lost: 0.0,
-                    new_block_interval: Duration::from_secs(0),
-                    ..Default::default()
-                },
-                Some(consensus_group_start.clone()),
-            );
-            (Some(consensus_group), Some(consensus_group_start))
-        } else {
-            (None, None)
-        };
+        let (consensus_group, consensus_group_start) =
+            if let Some(config) = &self.mock_consensus_config {
+                // Build the shared mock consensus group.
+                let consensus_group_start = Arc::new(tokio::sync::Notify::new());
+                let consensus_group =
+                    MockConsensusGroup::new(config.clone(), Some(consensus_group_start.clone()));
+                (Some(consensus_group), Some(consensus_group_start))
+            } else {
+                (None, None)
+            };
 
         // Build and start the nodes.
         let mut nodes = join_all((0..self.num_nodes).map(|i| {
@@ -126,7 +125,7 @@ impl TestNetworkBuilder {
             consensus_group_start.notify_waiters();
         }
 
-        let network = TestNetwork::new(temp_dir, nodes).await?;
+        let network = TestNetwork::new(temp_dir, genesis, nodes).await?;
         Ok(network)
     }
 

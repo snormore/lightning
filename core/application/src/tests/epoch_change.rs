@@ -3,13 +3,12 @@ use std::collections::BTreeMap;
 use fleek_crypto::{AccountOwnerSecretKey, ConsensusSecretKey, NodeSecretKey, SecretKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
+    DeliveryAcknowledgmentProof,
     ExecutionData,
     ExecutionError,
-    Metadata,
-    ProtocolParamKey,
-    ProtocolParamValue,
+    TransactionReceipt,
+    TransactionResponse,
     UpdateMethod,
-    Value,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
 use lightning_utils::application::QueryRunnerExt;
