@@ -7,6 +7,11 @@ use lightning_blockstore::blockstore::Blockstore;
 use lightning_blockstore::config::Config as BlockstoreConfig;
 use lightning_broadcast::Broadcast;
 use lightning_checkpointer::{Checkpointer, CheckpointerConfig, CheckpointerDatabaseConfig};
+use lightning_committee_beacon::{
+    CommitteeBeaconComponent,
+    CommitteeBeaconConfig,
+    CommitteeBeaconDatabaseConfig,
+};
 use lightning_interfaces::prelude::*;
 use lightning_node::Node;
 use lightning_notifier::Notifier;
@@ -68,6 +73,13 @@ impl TestNodeBuilder {
         config.inject::<Checkpointer<TestNodeComponents>>(CheckpointerConfig {
             database: CheckpointerDatabaseConfig {
                 path: self.home_dir.join("checkpointer").try_into().unwrap(),
+            },
+        });
+
+        // Configure committee beacon component.
+        config.inject::<CommitteeBeaconComponent<TestNodeComponents>>(CommitteeBeaconConfig {
+            database: CommitteeBeaconDatabaseConfig {
+                path: self.home_dir.join("committee-beacon").try_into().unwrap(),
             },
         });
 
@@ -173,6 +185,9 @@ impl TestNodeBuilder {
             app,
             broadcast: node.provider.get::<Broadcast<TestNodeComponents>>(),
             checkpointer: node.provider.get::<Checkpointer<TestNodeComponents>>(),
+            committee_beacon: node
+                .provider
+                .get::<CommitteeBeaconComponent<TestNodeComponents>>(),
             forwarder: node.provider.get::<MockForwarder<TestNodeComponents>>(),
             keystore: node.provider.get::<EphemeralKeystore<TestNodeComponents>>(),
             notifier: node.provider.get::<Notifier<TestNodeComponents>>(),

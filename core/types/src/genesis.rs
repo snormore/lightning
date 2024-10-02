@@ -58,6 +58,8 @@ pub struct Genesis {
     pub latencies: Option<Vec<GenesisLatency>>,
     #[serde(with = "humantime_serde")]
     pub reputation_ping_timeout: Duration,
+    pub committee_selection_beacon_commit_phase_duration: u64,
+    pub committee_selection_beacon_reveal_phase_duration: u64,
 }
 
 impl Genesis {

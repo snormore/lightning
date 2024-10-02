@@ -413,6 +413,8 @@ pub(crate) fn test_genesis() -> Genesis {
         total_served: HashMap::new(),
         latencies: None,
         reputation_ping_timeout: Duration::from_secs(1),
+        committee_selection_beacon_commit_phase_duration: 10,
+        committee_selection_beacon_reveal_phase_duration: 10,
     }
 }
 
