@@ -5,10 +5,11 @@ use anyhow::Result;
 use futures::future::join_all;
 use lightning_interfaces::types::Genesis;
 use lightning_interfaces::{ApplicationInterface, PoolInterface};
+use lightning_utils::transaction::{poll_until, PollUntilError};
 use ready::ReadyWaiter;
 use tempfile::tempdir;
 
-use super::{wait_until, TestGenesisBuilder, TestNetwork, TestNode, TestNodeBuilder};
+use super::{TestGenesisBuilder, TestNetwork, TestNode, TestNodeBuilder};
 use crate::consensus::{Config as MockConsensusConfig, MockConsensusGroup};
 
 pub type GenesisMutator = Arc<dyn Fn(&mut Genesis)>;
@@ -129,33 +130,25 @@ impl TestNetworkBuilder {
         Ok(network)
     }
 
-    pub async fn wait_for_connected_peers(&self, nodes: &[TestNode]) -> Result<()> {
-        wait_until(
+    pub async fn wait_for_connected_peers(&self, nodes: &[TestNode]) -> Result<(), PollUntilError> {
+        poll_until(
             || async {
                 let peers_by_node = join_all(nodes.iter().map(|node| node.pool.connected_peers()))
                     .await
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| {
-                        tracing::error!("error getting node connected peers: {}", e);
-                        e
-                    })
-                    .ok()?;
+                    .map_err(|e| PollUntilError::ConditionError(e.to_string()))?;
 
-                if !(peers_by_node
+                peers_by_node
                     .iter()
-                    .all(|peers| peers.len() == nodes.len() - 1))
-                {
-                    None
-                } else {
-                    Some(())
-                }
+                    .all(|peers| peers.len() == nodes.len() - 1)
+                    .then_some(())
+                    .ok_or(PollUntilError::ConditionNotSatisfied)
             },
             Duration::from_secs(3),
             Duration::from_millis(200),
         )
         .await
-        .map_err(From::from)
     }
 }
 

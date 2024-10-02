@@ -26,24 +26,18 @@ async fn test_uptime_participation() {
     let peer2 = network.node(3);
 
     // Add records in the content registry for the peers.
-    node.execute_transaction(
-        UpdateMethod::UpdateContentRegistry {
+    peer1
+        .execute_transaction_from_node(UpdateMethod::UpdateContentRegistry {
             updates: vec![Default::default()],
-        },
-        peer1.get_node_signer(),
-        1,
-    )
-    .await
-    .unwrap();
-    node.execute_transaction(
-        UpdateMethod::UpdateContentRegistry {
+        })
+        .await
+        .unwrap();
+    peer2
+        .execute_transaction_from_node(UpdateMethod::UpdateContentRegistry {
             updates: vec![Default::default()],
-        },
-        peer2.get_node_signer(),
-        1,
-    )
-    .await
-    .unwrap();
+        })
+        .await
+        .unwrap();
 
     // Check that the content registries have been updated.
     let peer1_content_registry = node
@@ -70,26 +64,22 @@ async fn test_uptime_participation() {
             (peer1.index(), test_reputation_measurements(20)),
             (peer2.index(), test_reputation_measurements(40)),
         ]);
-    node.execute_transaction(
-        UpdateMethod::SubmitReputationMeasurements { measurements },
-        network.node(0).get_node_signer(),
-        1,
-    )
-    .await
-    .unwrap();
+    network
+        .node(0)
+        .execute_transaction_from_node(UpdateMethod::SubmitReputationMeasurements { measurements })
+        .await
+        .unwrap();
 
     // Submit reputation measurements from node 1, for peer 1 and 2.
     let measurements = BTreeMap::from_iter(vec![
         (peer1.index(), test_reputation_measurements(30)),
         (peer2.index(), test_reputation_measurements(45)),
     ]);
-    node.execute_transaction(
-        UpdateMethod::SubmitReputationMeasurements { measurements },
-        network.node(1).get_node_signer(),
-        1,
-    )
-    .await
-    .unwrap();
+    network
+        .node(1)
+        .execute_transaction_from_node(UpdateMethod::SubmitReputationMeasurements { measurements })
+        .await
+        .unwrap();
 
     // Change epoch and wait for it to be complete.
     network.change_epoch_and_wait_for_complete().await.unwrap();

@@ -12,8 +12,9 @@ use lightning_interfaces::types::{
     UpdateMethod,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
-use lightning_test_utils::e2e::{wait_until, ExecuteTransactionError, TestNetwork, WaitUntilError};
+use lightning_test_utils::e2e::TestNetwork;
 use lightning_utils::application::QueryRunnerExt;
+use lightning_utils::transaction::{poll_until, ApplicationClientError, PollUntilError};
 use tempfile::tempdir;
 
 use super::utils::*;
@@ -43,18 +44,19 @@ async fn test_epoch_changed() {
         .unwrap();
 
     // Check that the epoch has not been changed within some time period.
-    let result = wait_until(
+    let result = poll_until(
         || async {
             network
                 .nodes()
                 .all(|node| node.get_epoch() != epoch)
                 .then_some(())
+                .ok_or(PollUntilError::ConditionNotSatisfied)
         },
         Duration::from_secs(1),
         Duration::from_millis(100),
     )
     .await;
-    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+    assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
     // Execute an epoch change transaction from enough nodes to trigger an epoch change.
     node3
@@ -64,12 +66,12 @@ async fn test_epoch_changed() {
 
     // Wait for epoch to be incremented across all nodes, even the one that did not send an epoch
     // change transaction.
-    wait_until(
+    poll_until(
         || async {
-            network
-                .nodes()
-                .all(|node| node.get_epoch() == epoch + 1)
-                .then_some(())
+            Ok((
+                (),
+                network.nodes().all(|node| node.get_epoch() == epoch + 1),
+            ))
         },
         Duration::from_secs(5),
         Duration::from_millis(100),
@@ -165,7 +167,7 @@ async fn test_epoch_change_reverts_epoch_already_changed() {
         .execute_transaction_from_node(UpdateMethod::ChangeEpoch { epoch })
         .await;
     match result {
-        Err(ExecuteTransactionError::NotSuccess((_, TransactionReceipt { response, .. }))) => {
+        Err(ApplicationClientError::NotSuccess((_, TransactionReceipt { response, .. }))) => {
             assert_eq!(
                 response,
                 TransactionResponse::Revert(ExecutionError::EpochAlreadyChanged)

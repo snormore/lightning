@@ -3,13 +3,14 @@ use std::time::Duration;
 use anyhow::Result;
 use futures::future::join_all;
 use lightning_interfaces::prelude::*;
+use lightning_utils::transaction::{poll_until, PollUntilError};
 use types::{Epoch, UpdateMethod};
 
-use super::{wait_until, TestNetwork, WaitUntilError};
+use super::TestNetwork;
 
 impl TestNetwork {
     /// Execute epoch change transaction from all nodes and wait for epoch to be incremented.
-    pub async fn change_epoch_and_wait_for_complete(&self) -> Result<Epoch, WaitUntilError> {
+    pub async fn change_epoch_and_wait_for_complete(&self) -> Result<Epoch, PollUntilError> {
         // Execute epoch change transaction from all nodes.
         let new_epoch = self.change_epoch().await;
 
@@ -31,12 +32,13 @@ impl TestNetwork {
         epoch + 1
     }
 
-    pub async fn wait_for_epoch_change(&self, new_epoch: Epoch) -> Result<(), WaitUntilError> {
-        wait_until(
+    pub async fn wait_for_epoch_change(&self, new_epoch: Epoch) -> Result<(), PollUntilError> {
+        poll_until(
             || async {
                 self.nodes()
                     .all(|node| node.get_epoch() == new_epoch)
                     .then_some(())
+                    .ok_or(PollUntilError::ConditionNotSatisfied)
             },
             Duration::from_secs(5),
             Duration::from_millis(100),

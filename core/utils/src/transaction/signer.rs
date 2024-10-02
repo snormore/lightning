@@ -5,8 +5,7 @@ use fleek_crypto::{
     TransactionSender,
     TransactionSignature,
 };
-use lightning_interfaces::types::{ChainId, UpdateMethod, UpdatePayload, UpdateRequest};
-use lightning_interfaces::ToDigest;
+use lightning_interfaces::SyncQueryRunnerInterface;
 
 #[derive(Clone)]
 pub enum TransactionSigner {
@@ -32,23 +31,18 @@ impl TransactionSigner {
             TransactionSigner::NodeMain(sk) => TransactionSignature::NodeMain(sk.sign(digest)),
         }
     }
-}
 
-/// Build and sign a new update transaction.
-pub fn new_update_transaction(
-    method: UpdateMethod,
-    chain_id: ChainId,
-    nonce: u64,
-    signer: TransactionSigner,
-) -> UpdateRequest {
-    let payload = UpdatePayload {
-        sender: signer.to_sender(),
-        nonce,
-        method,
-        chain_id,
-    };
-    let digest = payload.to_digest();
-    let signature = signer.sign(&digest);
-
-    UpdateRequest { payload, signature }
+    pub fn get_nonce<Q: SyncQueryRunnerInterface>(&self, app_query: &Q) -> u64 {
+        match self {
+            TransactionSigner::AccountOwner(sk) => app_query
+                .get_account_info(&sk.to_pk().into(), |a| a.nonce)
+                .unwrap_or_default(),
+            TransactionSigner::NodeMain(sk) => {
+                let node_index = app_query.pubkey_to_index(&sk.to_pk()).unwrap();
+                app_query
+                    .get_node_info(&node_index, |n| n.nonce)
+                    .unwrap_or_default()
+            },
+        }
+    }
 }

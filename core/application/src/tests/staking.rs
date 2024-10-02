@@ -733,14 +733,10 @@ async fn test_withdraw_unstaked_works_properly() {
     let prev_balance = node.get_flk_balance(node.get_owner_address());
 
     // Execute withdraw unstaked transaction.
-    node.execute_transaction(
-        UpdateMethod::WithdrawUnstaked {
-            node: node.keystore.get_ed25519_pk(),
-            recipient: Some(node.get_owner_address()),
-        },
-        node.get_owner_signer(),
-        4,
-    )
+    node.execute_transaction_from_owner(UpdateMethod::WithdrawUnstaked {
+        node: node.keystore.get_ed25519_pk(),
+        recipient: Some(node.get_owner_address()),
+    })
     .await
     .unwrap();
 

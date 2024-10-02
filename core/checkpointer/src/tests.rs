@@ -6,13 +6,9 @@ use bit_set::BitSet;
 use fleek_crypto::{ConsensusSignature, SecretKey};
 use lightning_interfaces::types::{AggregateCheckpoint, CheckpointAttestation};
 use lightning_interfaces::KeystoreInterface;
-use lightning_test_utils::e2e::{
-    TestNetworkBuilder,
-    TestNodeBuilder,
-    TestNodeComponents,
-    WaitUntilError,
-};
+use lightning_test_utils::e2e::{TestNetworkBuilder, TestNodeBuilder, TestNodeComponents};
 use lightning_test_utils::keys::EphemeralKeystore;
+use lightning_utils::transaction::PollUntilError;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
@@ -165,7 +161,7 @@ async fn test_no_supermajority_of_attestations() {
         )
         .await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+    assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
     // Shutdown the network.
     network.shutdown().await;
@@ -224,7 +220,7 @@ async fn test_missing_epoch_change_notification_no_supermajority() {
         )
         .await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+    assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
     // Shutdown the network.
     network.shutdown().await;
@@ -642,7 +638,7 @@ async fn test_attestation_from_ineligible_node() {
         )
         .await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+    assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
     // Shutdown the network.
     network.shutdown().await;
@@ -686,7 +682,7 @@ async fn test_attestation_with_invalid_signature() {
         )
         .await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+    assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
     // Shutdown the network.
     network.shutdown().await;
@@ -734,7 +730,7 @@ async fn test_attestations_with_inconsistent_state_roots_no_supermajority() {
         )
         .await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+    assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
     // Shutdown the network.
     network.shutdown().await;
@@ -892,7 +888,7 @@ async fn test_multiple_different_epoch_change_notifications_for_same_epoch() {
         )
         .await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+    assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
     // Shutdown the network.
     network.shutdown().await;
@@ -971,7 +967,7 @@ async fn test_multiple_different_attestations_from_same_node() {
         )
         .await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), WaitUntilError::Timeout);
+    assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
     // Shutdown the network.
     network.shutdown().await;

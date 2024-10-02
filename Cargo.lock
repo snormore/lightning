@@ -8038,6 +8038,7 @@ dependencies = [
  "resolved-pathbuf",
  "serde",
  "serde_json",
+ "thiserror",
  "tokio",
  "toml 0.7.8",
  "tracing",

@@ -17,10 +17,11 @@ use lightning_notifier::Notifier;
 use lightning_pool::PoolProvider;
 use lightning_rep_collector::MyReputationReporter;
 use lightning_rpc::Rpc;
+use lightning_utils::transaction::TransactionSigner;
 use ready::tokio::TokioReadyWaiter;
 use types::{NodeIndex, NodeInfo};
 
-use super::{TestNodeComponents, TransactionSigner};
+use super::TestNodeComponents;
 use crate::consensus::MockForwarder;
 use crate::keys::EphemeralKeystore;
 

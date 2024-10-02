@@ -11,9 +11,10 @@ use lightning_interfaces::Weight;
 use lightning_notifier::Notifier;
 use lightning_signer::Signer;
 use lightning_test_utils::consensus::{Config as ConsensusConfig, MockConsensus, MockForwarder};
-use lightning_test_utils::e2e::{wait_until, TestNetwork};
+use lightning_test_utils::e2e::TestNetwork;
 use lightning_test_utils::json_config::JsonConfigProvider;
 use lightning_test_utils::keys::EphemeralKeystore;
+use lightning_utils::transaction::{poll_until, PollUntilError};
 use tempfile::tempdir;
 
 use crate::aggregator::ReputationAggregator;
@@ -311,7 +312,7 @@ async fn test_reputation_calculation_and_query() {
     reporter2.report_bytes_received(bob, 19_000, Some(Duration::from_millis(350)));
 
     // Wait until all measurements have been submitted to the application.
-    wait_until(
+    poll_until(
         || async {
             let alice_rep = app_query
                 .get_reputation_measurements(&alice)
@@ -319,11 +320,10 @@ async fn test_reputation_calculation_and_query() {
             let bob_rep = app_query
                 .get_reputation_measurements(&bob)
                 .unwrap_or(Vec::new());
-            if alice_rep.len() == 2 && bob_rep.len() == 2 {
-                Some(())
-            } else {
-                None
-            }
+
+            (alice_rep.len() == 2 && bob_rep.len() == 2)
+                .then_some(())
+                .ok_or(PollUntilError::ConditionNotSatisfied)
         },
         Duration::from_secs(20),
         Duration::from_millis(100),

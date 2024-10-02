@@ -5,7 +5,7 @@ use fleek_crypto::{AccountOwnerSecretKey, EthAddress, SecretKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_application::env::ApplicationStateTree;
 use lightning_interfaces::prelude::*;
-use lightning_test_utils::e2e::{new_update_transaction, TestNetworkBuilder, TransactionSigner};
+use lightning_test_utils::e2e::TestNetworkBuilder;
 use lightning_types::{
     AccountInfo,
     AggregateCheckpoint,
@@ -22,6 +22,7 @@ use lightning_types::{
     Value,
 };
 use lightning_utils::application::QueryRunnerExt;
+use lightning_utils::transaction::TransactionBuilder;
 use merklize::{StateProof, StateRootHash};
 use types::ProtocolParamKey;
 
@@ -40,11 +41,11 @@ async fn test_rpc_send_txn() {
     let nonce = node.get_nonce();
     FleekApiClient::send_txn(
         &node.rpc_client().unwrap(),
-        new_update_transaction(
+        TransactionBuilder::from_update(
             UpdateMethod::ChangeEpoch { epoch: 1 },
             chain_id,
             nonce + 1,
-            TransactionSigner::AccountOwner(node.owner_secret_key.clone()),
+            &node.get_owner_signer(),
         )
         .into(),
     )
