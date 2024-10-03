@@ -159,7 +159,7 @@ mod config_tests {
             genesis_path: None,
             ..Default::default()
         };
-        assert!(config.genesis().is_ok());
+        config.genesis().unwrap().unwrap();
     }
 
     #[test]
@@ -173,7 +173,7 @@ mod config_tests {
             genesis_path: Some(genesis_path),
             ..Default::default()
         };
-        assert!(config.genesis().is_ok());
+        config.genesis().unwrap().unwrap();
     }
 
     #[test]
@@ -183,7 +183,7 @@ mod config_tests {
             genesis_path: None,
             ..Default::default()
         };
-        assert!(config.genesis().is_ok());
+        assert!(config.genesis().unwrap().is_none());
     }
 
     #[test]
