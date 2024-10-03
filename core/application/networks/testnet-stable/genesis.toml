@@ -19,8 +19,9 @@ min_num_measurements = 4
 protocol_fund_address = "0x2a8cf657769c264b0c7f88e3a716afdeaec1c318"
 governance_address = "0x2a8cf657769c264b0c7f88e3a716afdeaec1c318"
 reputation_ping_timeout = "15s"
-committee_selection_beacon_commit_phase_duration = 10
-committee_selection_beacon_reveal_phase_duration = 10
+# TODO(snormore): Figure out what this should be for production.
+committee_selection_beacon_commit_phase_duration = 60
+committee_selection_beacon_reveal_phase_duration = 60
 
 
 [[node_info]]
