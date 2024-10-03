@@ -9,16 +9,29 @@ use lightning_interfaces::types::{
     UpdateMethod,
 };
 use tokio::sync::oneshot;
+use types::ExecutionError;
 
 use super::listener::TransactionReceiptListener;
 use super::{TransactionBuilder, TransactionClientError, TransactionSigner};
 use crate::application::QueryRunnerExt;
 
+#[derive(Debug, Clone)]
 pub struct ExecuteTransactionOptions {
     pub wait_for_receipt_timeout: Duration,
     pub retry_on_revert: HashSet<TransactionResponse>,
     pub retry_on_revert_delay: Duration,
     pub execution_timeout: Duration,
+}
+
+impl Default for ExecuteTransactionOptions {
+    fn default() -> Self {
+        Self {
+            wait_for_receipt_timeout: Duration::from_secs(30),
+            retry_on_revert: HashSet::new(),
+            retry_on_revert_delay: Duration::from_millis(100),
+            execution_timeout: Duration::from_secs(30),
+        }
+    }
 }
 
 /// A client for submitting and executing transactions, and waiting for their receipts.
@@ -58,20 +71,30 @@ impl<C: NodeComponents> TransactionClient<C> {
         method: UpdateMethod,
     ) -> Result<(TransactionRequest, TransactionReceipt), TransactionClientError> {
         let (tx, receipt) = self
-            .execute_transaction_with_options(
-                method,
-                ExecuteTransactionOptions {
-                    wait_for_receipt_timeout: Duration::from_secs(30),
-                    retry_on_revert: HashSet::new(),
-                    retry_on_revert_delay: Duration::from_millis(100),
-                    execution_timeout: Duration::from_secs(30),
-                },
-            )
+            .execute_transaction_with_options(method, Default::default())
             .await?;
         match receipt.response {
             TransactionResponse::Success(_) => Ok((tx, receipt)),
             TransactionResponse::Revert(_) => Err(TransactionClientError::Reverted((tx, receipt))),
         }
+    }
+
+    /// Submit an update request to the application executor and wait for it to be executed. Returns
+    /// the transaction request and its receipt.
+    pub async fn execute_transaction_with_retry_on_invalid_nonce(
+        &self,
+        method: UpdateMethod,
+    ) -> Result<(TransactionRequest, TransactionReceipt), TransactionClientError> {
+        self.execute_transaction_with_options(
+            method,
+            ExecuteTransactionOptions {
+                retry_on_revert: HashSet::from_iter(vec![TransactionResponse::Revert(
+                    ExecutionError::InvalidNonce,
+                )]),
+                ..Default::default()
+            },
+        )
+        .await
     }
 
     /// Submit an update request to the application executor and wait for it to be executed. Returns
