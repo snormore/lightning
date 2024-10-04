@@ -17,7 +17,7 @@ tokio.workspace = true
 tracing.workspace = true
 bincode.workspace = true
 ethers.workspace = true
-rocksdb = "0.21"
+rocksdb = "0.21.0"
 atomo-rocks.workspace = true
 atomo.workspace = true
 lightning-workspace-hack.workspace = true
@@ -26,6 +26,7 @@ lightning-workspace-hack.workspace = true
 [dev-dependencies]
 lightning-blockstore = { path = "../blockstore" }
 lightning-application = { path = "../application", features = ["test"] }
+lightning-node.workspace = true
 lightning-notifier = { path = "../notifier" }
 lightning-test-utils = { path = "../test-utils" }
 tempfile.workspace = true

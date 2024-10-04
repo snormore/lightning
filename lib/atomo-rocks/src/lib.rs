@@ -207,6 +207,13 @@ impl RocksBackend {
 }
 
 impl StorageBackend for RocksBackend {
+    fn shutdown(self) {
+        tracing::debug!("shutting down rocksdb backend");
+        DB::cancel_all_background_work(&self.db, true);
+        drop(self.db);
+        tracing::debug!("rocksdb shutdown completed");
+    }
+
     fn commit(&self, batch: atomo::batch::VerticalBatch) {
         let mut inner_batch = WriteBatch::default();
         for (table, batch) in self.columns.iter().zip(batch.into_raw().into_iter()) {

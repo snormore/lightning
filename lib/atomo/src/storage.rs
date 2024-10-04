@@ -23,6 +23,9 @@ pub trait StorageBackendConstructor {
 /// The persistence backend in Atomo provides the binding layer with any persistence layer
 /// of you choice and allows custom implementations of the underlying data storage.
 pub trait StorageBackend {
+    /// Shutdown the storage backend.
+    fn shutdown(self);
+
     /// Write the changes to the disk.
     fn commit(&self, batch: VerticalBatch);
 
@@ -70,6 +73,10 @@ impl StorageBackendConstructor for InMemoryStorage {
 }
 
 impl StorageBackend for InMemoryStorage {
+    fn shutdown(self) {
+        // No-op
+    }
+
     #[inline]
     fn commit(&self, batch: VerticalBatch) {
         for (table, batch) in self

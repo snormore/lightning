@@ -49,6 +49,7 @@ lightning-test-utils = { path = "../test-utils" }
 lightning-blockstore = { path = "../blockstore" }
 lightning-signer = { path = "../signer" }
 lightning-application = { path = "../application", features = ["test"] }
+lightning-node.workspace = true
 lightning-notifier = { path = "../notifier" }
 serial_test = "3.0"
 tempfile.workspace = true

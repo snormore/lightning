@@ -161,6 +161,9 @@ impl ApplicationEnv {
                 )
             );
 
+            // let (checkpoint_hash, checkpoint) = self.build_checkpoint().unwrap();
+            // TODO(snormore): Use build_checkpoint here.
+
             let storage = self.inner.get_storage_backend_unsafe();
             // This will return `None` only if the InMemory backend is used.
             let exclude_tables = ApplicationStateTree::state_tree_tables();
@@ -429,6 +432,23 @@ impl ApplicationEnv {
                 app.set_last_epoch_hash(state_hash);
             })
             .context("Failed to update last epoch hash")
+    }
+
+    /// Build and return a new checkpoint of the application state.
+    ///
+    /// This method requires a mutable reference to the application state, since it
+    /// serializes the state using the mutable storage backend.
+    pub fn build_checkpoint(&mut self) -> Result<([u8; 32], Vec<u8>)> {
+        // TODO(snormore): Make CheckpointHash type, and use BoxedVec for checkpoint all the way
+        // down.
+        let storage = self.inner.get_storage_backend_unsafe();
+        let exclude_tables = ApplicationStateTree::state_tree_tables();
+        let checkpoint = storage
+            .serialize(&exclude_tables)
+            .context("failed to serialize application state")?;
+        let checkpoint_hash = fleek_blake3::hash(&checkpoint);
+
+        Ok((checkpoint_hash.into(), checkpoint))
     }
 }
 

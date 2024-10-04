@@ -54,6 +54,7 @@ lightning-keystore = { path = "../keystore" }
 lightning-signer = { path = "../signer" }
 lightning-blockstore = { path = "../blockstore" }
 lightning-blockstore-server = { path = "../blockstore-server" }
+lightning-node.workspace = true
 lightning-resolver = { path = "../resolver" }
 lightning-archive = { path = "../archive" }
 lightning-pinger = { path = "../pinger" }

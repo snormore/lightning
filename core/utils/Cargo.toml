@@ -16,6 +16,7 @@ serde.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true
 resolved-pathbuf.workspace = true
+thiserror.workspace = true
 toml = "0.7"
 lightning-workspace-hack.workspace = true
 lazy_static.workspace = true

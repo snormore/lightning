@@ -199,6 +199,10 @@ impl Provider {
         let mut store = self.get_mut::<Eventstore>();
         store.trigger(event, self)
     }
+
+    pub fn close(&self) {
+        self.values.write().clear();
+    }
 }
 
 impl MultiThreadedProvider {

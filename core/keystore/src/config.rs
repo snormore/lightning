@@ -3,7 +3,7 @@ use lightning_utils::config::LIGHTNING_HOME_DIR;
 use resolved_pathbuf::ResolvedPathBuf;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeystoreConfig {
     pub node_key_path: ResolvedPathBuf,

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::network::Network;
 use crate::storage::AtomoStorageBuilder;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApplicationConfig {
     pub network: Option<Network>,
     pub genesis_path: Option<ResolvedPathBuf>,
@@ -25,7 +25,7 @@ pub struct ApplicationConfig {
     pub dev: Option<DevConfig>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DevConfig {
     // Whether to update the genesis epoch start to the current time when starting the node.
     pub update_epoch_start_to_now: bool,
@@ -140,7 +140,7 @@ impl Default for ApplicationConfig {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StorageConfig {
     InMemory,
     RocksDb,

@@ -18,6 +18,7 @@ fleek-crypto.workspace = true
 lightning-application = { path = "../application", features = ["test"] }
 lightning-blockstore = { path = "../blockstore" }
 lightning-indexer = { path = "../indexer" }
+lightning-node.workspace = true
 lightning-signer = { path = "../signer" }
 lightning-test-utils = { path = "../test-utils" }
 tempfile.workspace = true

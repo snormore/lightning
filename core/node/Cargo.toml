@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+lightning-application.workspace = true
 lightning-interfaces = { path = "../interfaces" }
+lightning-pool.workspace = true
+lightning-rpc.workspace = true
+lightning-utils.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 anyhow.workspace = true

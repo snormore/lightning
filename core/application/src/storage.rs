@@ -115,6 +115,13 @@ impl From<RocksBackend> for AtomoStorage {
 }
 
 impl StorageBackend for AtomoStorage {
+    fn shutdown(self) {
+        match self {
+            AtomoStorage::InMemory(storage) => storage.shutdown(),
+            AtomoStorage::RocksDb(storage) => storage.shutdown(),
+        }
+    }
+
     fn commit(&self, batch: atomo::batch::VerticalBatch) {
         match &self {
             AtomoStorage::InMemory(storage) => storage.commit(batch),

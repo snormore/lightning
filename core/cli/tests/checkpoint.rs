@@ -2,12 +2,10 @@ use std::fs::read_to_string;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use atomo::storage::StorageBackend;
-use fleek_blake3 as blake3;
 use fleek_crypto::{AccountOwnerSecretKey, ConsensusSecretKey, NodeSecretKey, SecretKey};
 use lightning_application::app::Application;
 use lightning_application::config::{ApplicationConfig, StorageConfig};
-use lightning_application::env::{ApplicationStateTree, Env};
+use lightning_application::env::Env;
 use lightning_archive::archive::Archive;
 use lightning_archive::config::Config as ArchiveConfig;
 use lightning_blockstore::blockstore::Blockstore;
@@ -26,6 +24,7 @@ use lightning_handshake::transports::webrtc::WebRtcConfig;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{Genesis, GenesisNode, HandshakePorts, NodePorts};
 use lightning_keystore::{Keystore, KeystoreConfig};
+use lightning_node::Node;
 use lightning_node_bindings::FullNodeComponents;
 use lightning_pinger::{Config as PingerConfig, Pinger};
 use lightning_pool::{Config as PoolConfig, PoolProvider};
@@ -38,14 +37,157 @@ use lightning_service_executor::shim::{ServiceExecutor, ServiceExecutorConfig};
 use lightning_syncronizer::config::Config as SyncronizerConfig;
 use lightning_syncronizer::syncronizer::Syncronizer;
 use lightning_utils::config::TomlConfigProvider;
-use lightning_utils::shutdown::ShutdownController;
-use merklize::StateTree;
+use merklize::StateRootHash;
 use resolved_pathbuf::ResolvedPathBuf;
-use serial_test::serial;
 use tempfile::{tempdir, TempDir};
-use tokio::pin;
+use types::{Metadata, Value};
 
-const NUM_RESTARTS: u16 = 3;
+#[tokio::test(flavor = "multi_thread")]
+async fn node_checkpointing() {
+    // TODO(snormore): Remove this when finished debugging.
+    lightning_test_utils::e2e::init_tracing();
+
+    let temp_dir = tempdir().unwrap();
+
+    // Build the keystore config.
+    let keystore_config = KeystoreConfig::test();
+
+    // Build the genesis.
+    let genesis = build_genesis(&keystore_config).unwrap();
+    let genesis_path = genesis
+        .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
+        .unwrap();
+
+    // Build a checkpoint.
+    let (checkpoint_hash, _checkpoint_state_root, checkpoint) =
+        build_checkpoint(&genesis, &genesis_path).unwrap();
+
+    // Build the node config.
+    let config = build_config(
+        &temp_dir,
+        genesis_path,
+        keystore_config,
+        genesis.node_info[0].ports.clone(),
+    );
+    let app_config = config.get::<<FullNodeComponents as NodeComponents>::ApplicationInterface>();
+
+    for _ in 0..10 {
+        // Load the checkpoint into the application state database.
+        println!("Loading checkpoint");
+        <FullNodeComponents as NodeComponents>::ApplicationInterface::load_from_checkpoint(
+            &app_config,
+            checkpoint.clone(),
+            checkpoint_hash,
+        )
+        .await
+        .unwrap();
+
+        // Initialize the node with the same config.
+        let mut node = Node::<FullNodeComponents>::init(config.clone()).unwrap();
+
+        // Start the node and wait for it to be ready.
+        node.start().await;
+        node.wait_for_ready().await;
+
+        // TODO(snormore): Check that application state is consistent with the checkpoint.
+        let app = node.provider.get::<Application<FullNodeComponents>>();
+        let app_query = app.sync_query();
+
+        // Check the last epoch hash. It should be the checkpoint hash.
+        let last_epoch_hash = match app_query.get_metadata(&Metadata::LastEpochHash).unwrap() {
+            Value::Hash(hash) => hash,
+            _ => unreachable!("invalid last epoch hash in metadata"),
+        };
+        assert_eq!(last_epoch_hash, checkpoint_hash);
+
+        // Check that the state root is correct.
+        // let state_root = app_query.get_state_root().unwrap();
+        // NOTE: We can't check equality here because the `Metadata::LastEpochHash` is not set in
+        // the checkpoint but is in the live application state after loading from the checkpoint, so
+        // the state roots are different.
+        // assert_eq!(state_root, checkpoint_state_root);
+
+        // Shutdown the node.
+        node.shutdown().await;
+    }
+}
+
+fn build_genesis(keystore_config: &KeystoreConfig) -> Result<Genesis> {
+    let node_secret_key =
+        NodeSecretKey::decode_pem(&read_to_string(&keystore_config.node_key_path)?)
+            .context("failed to decode node secret key")?;
+    let node_public_key = node_secret_key.to_pk();
+
+    let consensus_secret_key =
+        ConsensusSecretKey::decode_pem(&read_to_string(&keystore_config.consensus_key_path)?)
+            .context("failed to decode consensus secret key")?;
+    let consensus_public_key = consensus_secret_key.to_pk();
+
+    Ok(Genesis {
+        committee_size: 10,
+        node_count: 100,
+        min_stake: 1000,
+
+        node_info: vec![GenesisNode {
+            owner: AccountOwnerSecretKey::generate().to_pk().into(),
+            primary_public_key: node_public_key,
+            primary_domain: "127.0.0.1".parse().unwrap(),
+            consensus_public_key,
+            worker_domain: "127.0.0.1".parse().unwrap(),
+            worker_public_key: node_public_key,
+            ports: NodePorts {
+                primary: 0,
+                worker: 0,
+                mempool: 0,
+                rpc: 0,
+                pool: 0,
+                pinger: 0,
+                handshake: HandshakePorts {
+                    http: 0,
+                    webrtc: 0,
+                    webtransport: 0,
+                },
+            },
+            stake: Default::default(),
+            reputation: None,
+            current_epoch_served: None,
+            genesis_committee: true,
+        }],
+
+        ..Genesis::default()
+    })
+}
+
+fn build_checkpoint(
+    genesis: &Genesis,
+    genesis_path: &ResolvedPathBuf,
+) -> Result<([u8; 32], StateRootHash, Vec<u8>)> {
+    let temp_dir = tempdir().unwrap();
+
+    let mut env = Env::new(
+        &ApplicationConfig {
+            network: None,
+            genesis_path: Some(genesis_path.clone()),
+            storage: StorageConfig::RocksDb,
+            db_path: Some(temp_dir.path().join("app").try_into().unwrap()),
+            db_options: None,
+            dev: None,
+        },
+        None,
+    )
+    .unwrap();
+
+    // Apply genesis.
+    env.apply_genesis_block(genesis.clone()).unwrap();
+
+    // Get the state root.
+    let state_root = env.query_runner().get_state_root().unwrap();
+
+    // Build the checkpoint hash and checkpoint bytes.
+    let (checkpoint_hash, checkpoint) = env.build_checkpoint().unwrap();
+
+    Ok((checkpoint_hash, state_root, checkpoint))
+}
 
 fn build_config(
     temp_dir: &TempDir,
@@ -83,17 +225,6 @@ fn build_config(
             .try_into()
             .expect("Failed to resolve path"),
     });
-
-    //config.inject::<Signer<FullNodeComponents>>(SignerConfig {
-    //    node_key_path: path
-    //        .join("keys/node.pem")
-    //        .try_into()
-    //        .expect("Failed to resolve path"),
-    //    consensus_key_path: path
-    //        .join("keys/consensus.pem")
-    //        .try_into()
-    //        .expect("Failed to resolve path"),
-    //});
 
     config.inject::<Keystore<FullNodeComponents>>(keystore_config);
 
@@ -166,136 +297,4 @@ fn build_config(
     });
 
     config
-}
-
-#[tokio::test]
-#[serial]
-async fn node_checkpointing() -> Result<()> {
-    let temp_dir = tempdir()?;
-
-    let shutdown_controller = ShutdownController::default();
-    shutdown_controller.install_handlers();
-
-    let signer_config = KeystoreConfig::test();
-    let node_secret_key =
-        read_to_string(&signer_config.node_key_path).context("Failed to read node pem file")?;
-    let node_secret_key =
-        NodeSecretKey::decode_pem(&node_secret_key).context("Failed to decode node pem file")?;
-    let consensus_secret_key = read_to_string(&signer_config.consensus_key_path)
-        .context("Failed to read consensus pem file")?;
-    let consensus_secret_key = ConsensusSecretKey::decode_pem(&consensus_secret_key)
-        .context("Failed to decode consensus pem file")?;
-
-    let node_public_key = node_secret_key.to_pk();
-    let consensus_public_key = consensus_secret_key.to_pk();
-    let owner_public_key = AccountOwnerSecretKey::generate().to_pk();
-
-    let mut genesis = Genesis {
-        committee_size: 10,
-        node_count: 100,
-        min_stake: 1000,
-
-        ..Genesis::default()
-    };
-
-    let node_ports = NodePorts {
-        primary: 30100,
-        worker: 30101,
-        mempool: 30102,
-        rpc: 30103,
-        pool: 30104,
-        pinger: 30105,
-        handshake: HandshakePorts {
-            http: 30106,
-            webrtc: 30107,
-            webtransport: 30108,
-        },
-    };
-
-    let genesis_node = GenesisNode::new(
-        owner_public_key.into(),
-        node_public_key,
-        "127.0.0.1".parse().unwrap(),
-        consensus_public_key,
-        "127.0.0.1".parse().unwrap(),
-        node_public_key,
-        node_ports.clone(),
-        None,
-        true,
-    );
-
-    genesis.node_info.push(genesis_node);
-
-    let genesis_path = genesis
-        .write_to_dir(temp_dir.path().to_path_buf().try_into().unwrap())
-        .unwrap();
-
-    // We first have to build the app db in order to obtain a valid checkpoint.
-    let app_config_temp = ApplicationConfig {
-        network: None,
-        genesis_path: Some(genesis_path.clone()),
-        storage: StorageConfig::RocksDb,
-        db_path: Some(temp_dir.path().join("data/app_db_temp").try_into().unwrap()),
-        db_options: None,
-        dev: None,
-    };
-    let mut env = Env::new(&app_config_temp, None)?;
-    env.apply_genesis_block(genesis)?;
-
-    let storage = env.inner.get_storage_backend_unsafe();
-    let exclude_tables = ApplicationStateTree::state_tree_tables();
-    let checkpoint = storage.serialize(&exclude_tables).unwrap();
-    let checkpoint_hash = blake3::hash(&checkpoint);
-    std::mem::drop(env);
-
-    // Now that we have a checkpoint, we initialize the node.
-    let config = build_config(&temp_dir, genesis_path, signer_config, node_ports);
-    let app_config = config.get::<<FullNodeComponents as NodeComponents>::ApplicationInterface>();
-
-    let mut node = Node::<FullNodeComponents>::init(config.clone())
-        .map_err(|e| anyhow::anyhow!("Node Initialization failed: {e:?}"))
-        .context("Could not start the node.")?;
-
-    node.start().await;
-
-    let shutdown_future = shutdown_controller.wait_for_shutdown();
-    pin!(shutdown_future);
-
-    let mut interval = tokio::time::interval(Duration::from_secs(30));
-
-    let mut count = 0;
-    loop {
-        tokio::select! {
-            _ = &mut shutdown_future => break,
-            _ = interval.tick() => {
-
-                // wait for node to start
-                tokio::time::sleep(Duration::from_secs(30)).await;
-
-                // shutdown the node
-                node.shutdown().await;
-
-                std::mem::drop(node);
-
-                // start local env in checkpoint mode to seed database with the new checkpoint
-                <FullNodeComponents as NodeComponents>::ApplicationInterface::load_from_checkpoint(
-                    &app_config, checkpoint.clone(), *checkpoint_hash.as_bytes()).await?;
-
-                node = Node::<FullNodeComponents>::init(config.clone())
-                    .map_err(|e| anyhow::anyhow!("Could not start the node: {e:?}"))?;
-
-                node.start().await;
-
-                count += 1;
-                if count > NUM_RESTARTS {
-                    break;
-                }
-            }
-        }
-    }
-
-    tokio::time::sleep(Duration::from_secs(30)).await;
-    node.shutdown().await;
-
-    Ok(())
 }

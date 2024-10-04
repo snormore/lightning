@@ -55,6 +55,7 @@ lightning-signer = { path = "../signer" }
 lightning-rpc = { path = "../rpc" }
 lightning-service-executor = { path = "../service-executor" }
 lightning-blockstore = { path = "../blockstore/" }
+lightning-node.workspace = true
 lightning-test-utils = { path = "../test-utils" }
 clap = { version = "4.4.6", features = ["derive"] }
 bincode = "1.3"

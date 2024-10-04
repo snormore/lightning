@@ -117,6 +117,7 @@ impl<C: NodeComponents> ApplicationInterface<C> for Application<C> {
                     return Ok(());
                 },
                 Err(e) => {
+                    tracing::warn!("retrying after failed to build app db from checkpoint: {e:?}");
                     if counter > 10 {
                         error!("Failed to build app db from checkpoint: {e:?}");
                         return Err(anyhow!("Failed to build app db from checkpoint: {}", e));
