@@ -89,27 +89,30 @@ impl ExecutionWorker {
         reconfigure_notify: Arc<Notify>,
         notifier: NE,
         event_tx_rx: oneshot::Receiver<Events>,
+        shutdown: ShutdownWaiter,
     ) -> Self {
         let shutdown_notify = Arc::new(Notify::new());
+        let tx_shutdown = shutdown_notify.clone();
 
         let handle = spawn!(
             spawn_worker::<P, Q, NE>(
                 executor,
                 consensus_output_rx,
                 pub_sub,
-                shutdown_notify.clone(),
+                shutdown_notify,
                 query_runner,
                 node_public_key,
                 reconfigure_notify,
                 notifier,
                 event_tx_rx,
             ),
-            "CONSENSUS: message receiver worker"
+            "CONSENSUS: message receiver worker",
+            crucial(shutdown)
         );
 
         Self {
             handle,
-            tx_shutdown: shutdown_notify,
+            tx_shutdown,
         }
     }
 

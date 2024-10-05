@@ -135,7 +135,11 @@ impl<Q: SyncQueryRunnerInterface, P: PubSub<PubSubMsg> + 'static, NE: Emitter>
         }
     }
 
-    fn spawn_execution_worker(&mut self, reconfigure_notify: Arc<Notify>) -> ExecutionWorker {
+    fn spawn_execution_worker(
+        &mut self,
+        reconfigure_notify: Arc<Notify>,
+        shutdown: ShutdownWaiter,
+    ) -> ExecutionWorker {
         ExecutionWorker::spawn::<P, Q, NE>(
             self.executor.clone(),
             self.consensus_output_rx
@@ -151,6 +155,7 @@ impl<Q: SyncQueryRunnerInterface, P: PubSub<PubSubMsg> + 'static, NE: Emitter>
             reconfigure_notify,
             self.notifier.clone(),
             self.event_tx_rx.take().expect("event_tx_rx is missing"),
+            shutdown,
         )
     }
 
@@ -363,7 +368,7 @@ impl<C: NodeComponents> Consensus<C> {
                 app_query.wait_for_genesis().await;
 
                 let execution_worker =
-                    epoch_state.spawn_execution_worker(reconfigure_notify.clone());
+                    epoch_state.spawn_execution_worker(reconfigure_notify.clone(), waiter.clone());
                 epoch_state.start_current_epoch().await;
 
                 let shutdown_future = waiter.wait_for_shutdown();
