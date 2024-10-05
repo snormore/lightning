@@ -94,20 +94,27 @@ impl ExecutionWorker {
         let shutdown_notify = Arc::new(Notify::new());
         let tx_shutdown = shutdown_notify.clone();
 
+        let panic_waiter = shutdown.clone();
         let handle = spawn!(
-            spawn_worker::<P, Q, NE>(
-                executor,
-                consensus_output_rx,
-                pub_sub,
-                shutdown_notify,
-                query_runner,
-                node_public_key,
-                reconfigure_notify,
-                notifier,
-                event_tx_rx,
-            ),
+            async move {
+                // The `run_until_shutdown` method will return None if the shutdown waiter was the
+                // cause of the worker shutting down, so we can ignore that here.
+                let _ = shutdown
+                    .run_until_shutdown(spawn_worker::<P, Q, NE>(
+                        executor,
+                        consensus_output_rx,
+                        pub_sub,
+                        shutdown_notify,
+                        query_runner,
+                        node_public_key,
+                        reconfigure_notify,
+                        notifier,
+                        event_tx_rx,
+                    ))
+                    .await;
+            },
             "CONSENSUS: message receiver worker",
-            crucial(shutdown)
+            crucial(panic_waiter)
         );
 
         Self {
