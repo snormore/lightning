@@ -205,6 +205,7 @@ impl Swarm {
         .collect::<Result<HashMap<_, _>, _>>()
     }
 
+    // TODO(snormore): Can we remove this?
     fn cleanup(&mut self) {
         if self.directory.exists() {
             fs::remove_dir_all(&self.directory).expect("Failed to clean up swarm directory.");

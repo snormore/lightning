@@ -142,9 +142,10 @@ impl<C: NodeComponents> TransactionClient<C> {
             // for a short period and retry the transaction.
             if options.retry_on_revert.contains(&receipt.response) {
                 tracing::info!(
-                    "retrying reverted transaction (hash: {:?}): {:?}",
+                    "retrying reverted transaction (hash: {:?}, response: {:?}): {:?}",
                     tx.hash(),
-                    receipt.response
+                    receipt.response,
+                    tx
                 );
                 tokio::time::sleep(options.retry_on_revert_delay).await;
                 continue;

@@ -873,6 +873,7 @@ impl<B: Backend> StateExecutor<B> {
             if let Some(uptime) = uptime {
                 self.uptime.set(node, uptime);
                 if uptime < MINIMUM_UPTIME {
+                    tracing::debug!("node {:?} has uptime lower than minimum uptime", node);
                     if let Some(mut node_info) = self.node_info.get(&node) {
                         node_info.participation = Participation::False;
                         self.node_info.set(node, node_info);
