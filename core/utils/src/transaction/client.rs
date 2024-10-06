@@ -131,7 +131,7 @@ impl<C: NodeComponents> TransactionClient<C> {
             self.mempool
                 .enqueue(tx.clone())
                 .await
-                .map_err(TransactionClientError::MempoolSendFailed)?;
+                .map_err(|e| TransactionClientError::MempoolSendFailed((tx.clone(), e)))?;
 
             // Wait for the transaction to be executed, and return the receipt.
             let receipt = self
@@ -168,7 +168,8 @@ impl<C: NodeComponents> TransactionClient<C> {
         tokio::pin!(timeout_fut);
         tokio::select! {
             result = receipt_rx => {
-                let receipt = result.map_err(|e| TransactionClientError::Internal(e.to_string()))?;
+                let receipt = result.map_err(|e|
+                    TransactionClientError::Internal((tx, e.to_string())))?;
                 match receipt.response {
                     TransactionResponse::Success(_) => {
                         tracing::debug!("transaction executed: {:?}", receipt);
@@ -181,7 +182,7 @@ impl<C: NodeComponents> TransactionClient<C> {
             },
             _ = &mut timeout_fut => {
                 tracing::debug!("timeout while waiting for transaction receipt: {:?}", tx.hash());
-                Err(TransactionClientError::TimeoutWaitingForReceipt(tx))
+                Err(TransactionClientError::Timeout(tx))
             },
         }
     }
