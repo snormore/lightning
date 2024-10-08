@@ -1,4 +1,6 @@
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use lightning_interfaces::prelude::*;
@@ -43,6 +45,7 @@ pub struct TransactionClient<C: NodeComponents> {
     mempool: MempoolSocket,
     signer: TransactionSigner,
     listener: TransactionReceiptListener<C>,
+    next_nonce: Arc<AtomicU64>,
 }
 
 impl<C: NodeComponents> TransactionClient<C> {
@@ -52,13 +55,21 @@ impl<C: NodeComponents> TransactionClient<C> {
         mempool: MempoolSocket,
         signer: TransactionSigner,
     ) -> Self {
-        let listener = TransactionReceiptListener::spawn(notifier).await;
+        let next_nonce = Arc::new(AtomicU64::new(signer.get_nonce(&app_query) + 1));
+        let listener = TransactionReceiptListener::spawn(
+            app_query.clone(),
+            notifier.clone(),
+            signer.clone(),
+            next_nonce.clone(),
+        )
+        .await;
 
         Self {
             app_query,
             mempool,
             signer,
             listener,
+            next_nonce,
         }
     }
 
@@ -114,9 +125,9 @@ impl<C: NodeComponents> TransactionClient<C> {
         let start = tokio::time::Instant::now();
         loop {
             // Build and sign the transaction.
-            let nonce = self.signer.get_nonce(&self.app_query);
+            let next_nonce = self.next_nonce.fetch_add(1, Ordering::SeqCst);
             let tx: TransactionRequest =
-                TransactionBuilder::from_update(method.clone(), chain_id, nonce + 1, &self.signer)
+                TransactionBuilder::from_update(method.clone(), chain_id, next_nonce, &self.signer)
                     .into();
 
             // If we've timed out, return an error.
