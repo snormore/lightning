@@ -1,12 +1,13 @@
 use ethers::types::BlockNumber;
 use fdi::BuildGraph;
 
-use crate::components::NodeComponents;
 use crate::types::{BlockReceipt, TransactionReceipt, TransactionRequest};
-use crate::{c, ApplicationInterface};
+use crate::SyncQueryRunnerInterface;
 
 #[interfaces_proc::blank]
-pub trait ArchiveInterface<C: NodeComponents>: BuildGraph + Clone + Send + Sync {
+pub trait ArchiveInterface: BuildGraph + Clone + Send + Sync {
+    type ApplicationQuery: SyncQueryRunnerInterface;
+
     /// Returns true if the current node is being run as an archive node.
     fn is_active(&self) -> bool;
 
@@ -18,8 +19,5 @@ pub trait ArchiveInterface<C: NodeComponents>: BuildGraph + Clone + Send + Sync 
 
     async fn get_transaction(&self, hash: [u8; 32]) -> Option<TransactionRequest>;
 
-    async fn get_historical_epoch_state(
-        &self,
-        epoch: u64,
-    ) -> Option<c![C::ApplicationInterface::SyncExecutor]>;
+    async fn get_historical_epoch_state(&self, epoch: u64) -> Option<Self::ApplicationQuery>;
 }

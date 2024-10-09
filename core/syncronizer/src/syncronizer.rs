@@ -153,7 +153,7 @@ impl<C: NodeComponents> fdi::BuildGraph for Syncronizer<C> {
     }
 }
 
-impl<C: NodeComponents> SyncronizerInterface<C> for Syncronizer<C> {
+impl<C: NodeComponents> SyncronizerInterface for Syncronizer<C> {
     /// Returns a socket that will send accross the blake3hash of the checkpoint
     /// Will send it after it has already downloaded from the blockstore server
     async fn next_checkpoint_hash(&self) -> Option<Blake3Hash> {

@@ -218,7 +218,7 @@ mod config_tests {
         // Attempt to get the config.
         // This should panic because of the invalid enum variant.
         let result = panic::catch_unwind(|| {
-            <JsonConfigProvider as ConfigProviderInterface<JsonConfigTestNodeComponents>>::get::<
+            <JsonConfigProvider as ConfigProviderInterface>::get::<
                 Application<JsonConfigTestNodeComponents>,
             >(&provider)
         });

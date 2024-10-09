@@ -67,7 +67,7 @@ impl<C: NodeComponents> fdi::BuildGraph for Application<C> {
     }
 }
 
-impl<C: NodeComponents> ApplicationInterface<C> for Application<C> {
+impl<C: NodeComponents> ApplicationInterface for Application<C> {
     /// The type for the sync query executor.
     type SyncExecutor = QueryRunner;
 

@@ -37,15 +37,15 @@ impl<T> Default for AsValue<T> {
 
 pub trait ConfigConsumerProxy {
     /// Request the config of Self if Self: ConfigConsumer.
-    fn request_config<C: NodeComponents>(&self, provider: &impl ConfigProviderInterface<C>);
+    fn request_config<C: NodeComponents>(&self, provider: &impl ConfigProviderInterface);
 }
 
 impl<T> ConfigConsumerProxy for &AsValue<T> {
-    fn request_config<C: NodeComponents>(&self, _: &impl ConfigProviderInterface<C>) {}
+    fn request_config<C: NodeComponents>(&self, _: &impl ConfigProviderInterface) {}
 }
 
 impl<T: ConfigConsumer> ConfigConsumerProxy for AsValue<T> {
-    fn request_config<C: NodeComponents>(&self, provider: &impl ConfigProviderInterface<C>) {
+    fn request_config<C: NodeComponents>(&self, provider: &impl ConfigProviderInterface) {
         provider.get::<T>();
     }
 }

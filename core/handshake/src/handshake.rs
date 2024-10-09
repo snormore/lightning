@@ -38,7 +38,7 @@ struct Run<C: NodeComponents> {
     handle: Handle,
 }
 
-impl<C: NodeComponents> HandshakeInterface<C> for Handshake<C> {}
+impl<C: NodeComponents> HandshakeInterface for Handshake<C> {}
 
 impl<C: NodeComponents> Handshake<C> {
     pub fn new(

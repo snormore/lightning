@@ -89,7 +89,7 @@ impl<C: NodeComponents> TopologyInner<C> {
     }
 }
 
-impl<C: NodeComponents> TopologyInterface<C> for Topology<C> {
+impl<C: NodeComponents> TopologyInterface for Topology<C> {
     fn get_receiver(&self) -> watch::Receiver<Arc<Vec<Vec<NodePublicKey>>>> {
         self.inner.topology_rx.clone()
     }

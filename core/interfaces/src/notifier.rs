@@ -4,8 +4,6 @@ use fdi::BuildGraph;
 use lightning_types::{Block, BlockExecutionResponse};
 use merklize::StateRootHash;
 
-use crate::components::NodeComponents;
-
 #[derive(Clone, Debug)]
 pub struct BlockExecutedNotification {
     pub block: Block,
@@ -22,7 +20,7 @@ pub struct EpochChangedNotification {
 
 /// # Notifier
 #[interfaces_proc::blank]
-pub trait NotifierInterface<C: NodeComponents>: BuildGraph + Sync + Send + Clone {
+pub trait NotifierInterface: BuildGraph + Sync + Send + Clone {
     type Emitter: Emitter;
 
     /// Returns a reference to the emitter end of this notifier. Should only be used if we are

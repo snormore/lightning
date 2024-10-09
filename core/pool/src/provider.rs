@@ -168,7 +168,7 @@ impl<C: NodeComponents> BuildGraph for PoolProvider<C, QuinnMuxer> {
 
 // Todo: An improvement would be to pass a `Muxer` in `init`.
 // See comments in `MuxerInterface`.
-impl<C: NodeComponents> PoolInterface<C> for PoolProvider<C, QuinnMuxer> {
+impl<C: NodeComponents> PoolInterface for PoolProvider<C, QuinnMuxer> {
     type EventHandler = EventHandler;
     type Requester = Requester;
     type Responder = Responder;

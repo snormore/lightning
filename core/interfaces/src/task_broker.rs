@@ -2,7 +2,6 @@ use fdi::BuildGraph;
 use futures::Future;
 
 use crate::schema::task_broker::{TaskRequest, TaskResponse, TaskScope};
-use crate::NodeComponents;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum TaskError {
@@ -25,9 +24,7 @@ pub enum TaskError {
 /// Includes an internal service client allowing dispatching requests to
 /// various scopes of tasks.
 #[interfaces_proc::blank]
-pub trait TaskBrokerInterface<C: NodeComponents>:
-    BuildGraph + Clone + Send + Sync + 'static
-{
+pub trait TaskBrokerInterface: BuildGraph + Clone + Send + Sync + 'static {
     /// Run a task in a given scope, returning the (collection of) responses for the task.
     ///
     /// For services and use cases that allow recursion (ie, runtimes that expose running

@@ -27,7 +27,7 @@ use crate::CheckpointerQuery;
 pub struct Checkpointer<C: NodeComponents> {
     db: RocksCheckpointerDatabase,
     keystore: C::KeystoreInterface,
-    pubsub: <C::BroadcastInterface as BroadcastInterface<C>>::PubSub<CheckpointBroadcastMessage>,
+    pubsub: <C::BroadcastInterface as BroadcastInterface>::PubSub<CheckpointBroadcastMessage>,
     notifier: C::NotifierInterface,
     app_query: c!(C::ApplicationInterface::SyncExecutor),
     ready: TokioReadyWaiter<()>,
@@ -168,7 +168,7 @@ impl<C: NodeComponents> fdi::BuildGraph for Checkpointer<C> {
     }
 }
 
-impl<C: NodeComponents> CheckpointerInterface<C> for Checkpointer<C> {
+impl<C: NodeComponents> CheckpointerInterface for Checkpointer<C> {
     type ReadyState = ();
     type Query = CheckpointerQuery;
 

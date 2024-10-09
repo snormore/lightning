@@ -49,7 +49,7 @@ impl<C: NodeComponents> BuildGraph for Broadcast<C> {
     }
 }
 
-impl<C: NodeComponents> BroadcastInterface<C> for Broadcast<C> {
+impl<C: NodeComponents> BroadcastInterface for Broadcast<C> {
     type Message = Frame;
     type PubSub<T: LightningMessage + Clone> = PubSubI<T>;
 

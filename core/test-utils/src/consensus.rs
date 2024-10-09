@@ -120,7 +120,7 @@ impl<C: NodeComponents> BuildGraph for MockForwarder<C> {
     }
 }
 
-impl<C: NodeComponents> ForwarderInterface<C> for MockForwarder<C> {
+impl<C: NodeComponents> ForwarderInterface for MockForwarder<C> {
     fn mempool_socket(&self) -> MempoolSocket {
         self.socket.clone()
     }
@@ -171,7 +171,7 @@ impl<C: NodeComponents> MockConsensus<C> {
     }
 }
 
-impl<C: NodeComponents> ConsensusInterface<C> for MockConsensus<C> {
+impl<C: NodeComponents> ConsensusInterface for MockConsensus<C> {
     type Certificate = ();
     type ReadyState = ();
 

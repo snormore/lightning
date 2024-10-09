@@ -91,7 +91,7 @@ impl<C: NodeComponents> Blockstore<C> {
     }
 }
 
-impl<C: NodeComponents> BlockstoreInterface<C> for Blockstore<C> {
+impl<C: NodeComponents> BlockstoreInterface for Blockstore<C> {
     type SharedPointer<T: ?Sized + Send + Sync> = Arc<T>;
     type Put = Putter<Self, C>;
     type DirPut = lightning_interfaces::_hacks::Blanket;

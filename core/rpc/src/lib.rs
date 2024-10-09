@@ -10,6 +10,7 @@ use jsonrpsee::{Methods, RpcModule};
 use lightning_firewall::Firewall;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::{Events, FetcherSocket, MempoolSocket};
+use lightning_types::Epoch;
 use lightning_utils::config::LIGHTNING_HOME_DIR;
 use once_cell::sync::Lazy;
 use rand::{RngCore, SeedableRng};
@@ -117,18 +118,18 @@ pub(crate) struct Data<C: NodeComponents> {
 }
 
 impl<C: NodeComponents> Data<C> {
-    pub(crate) async fn query_runner(
+    pub(crate) fn query_runner(&self) -> c!(C::ApplicationInterface::SyncExecutor) {
+        self.query_runner.clone()
+    }
+
+    pub(crate) async fn archive_query_runner(
         &self,
-        epoch: Option<u64>,
-    ) -> Result<c!(C::ApplicationInterface::SyncExecutor), RPCError> {
-        if let Some(epoch) = epoch {
-            if let Some(query_runner) = self.archive.get_historical_epoch_state(epoch).await {
-                Ok(query_runner)
-            } else {
-                Err(RPCError::BadEpoch)
-            }
+        epoch: Epoch,
+    ) -> Result<c!(C::ArchiveInterface::ApplicationQuery), RPCError> {
+        if let Some(query_runner) = self.archive.get_historical_epoch_state(epoch).await {
+            Ok(query_runner)
         } else {
-            Ok(self.query_runner.clone())
+            Err(RPCError::BadEpoch)
         }
     }
 }
@@ -289,7 +290,7 @@ impl<C: NodeComponents> Rpc<C> {
     }
 }
 
-impl<C: NodeComponents> RpcInterface<C> for Rpc<C> {
+impl<C: NodeComponents> RpcInterface for Rpc<C> {
     type ReadyState = RpcReadyState;
 
     fn event_tx(&self) -> Events {

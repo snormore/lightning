@@ -117,7 +117,7 @@ impl<C: NodeComponents> BuildGraph for ServiceExecutor<C> {
     }
 }
 
-impl<C: NodeComponents> ServiceExecutorInterface<C> for ServiceExecutor<C> {
+impl<C: NodeComponents> ServiceExecutorInterface for ServiceExecutor<C> {
     type Provider = Provider;
 
     fn get_provider(&self) -> Self::Provider {

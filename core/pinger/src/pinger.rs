@@ -57,7 +57,7 @@ impl<C: NodeComponents> Pinger<C> {
     }
 }
 
-impl<C: NodeComponents> PingerInterface<C> for Pinger<C> {}
+impl<C: NodeComponents> PingerInterface for Pinger<C> {}
 
 impl<C: NodeComponents> BuildGraph for Pinger<C> {
     fn build_graph() -> fdi::DependencyGraph {

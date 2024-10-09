@@ -56,49 +56,67 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
     }
 
     async fn get_flk_balance(&self, pk: EthAddress, epoch: Option<u64>) -> RpcResult<HpUfixed<18>> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_account_info::<HpUfixed<18>>(&pk, |a| a.flk_balance)
-            .unwrap_or(HpUfixed::zero()))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_account_info::<HpUfixed<18>>(&pk, |a| a.flk_balance),
+            None => self
+                .data
+                .query_runner()
+                .get_account_info::<HpUfixed<18>>(&pk, |a| a.flk_balance),
+        }
+        .unwrap_or(HpUfixed::<18>::zero()))
     }
 
     async fn get_bandwidth_balance(&self, pk: EthAddress, epoch: Option<u64>) -> RpcResult<u128> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_account_info::<u128>(&pk, |a| a.bandwidth_balance)
-            .unwrap_or(0))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_account_info::<u128>(&pk, |a| a.bandwidth_balance),
+            None => self
+                .data
+                .query_runner()
+                .get_account_info::<u128>(&pk, |a| a.bandwidth_balance),
+        }
+        .unwrap_or(0))
     }
 
     async fn get_locked(&self, pk: NodePublicKey, epoch: Option<u64>) -> RpcResult<HpUfixed<18>> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .pubkey_to_index(&pk)
-            .and_then(|node_idx| {
-                self.data
-                    .query_runner
-                    .get_node_info::<HpUfixed<18>>(&node_idx, |n| n.stake.locked)
-            })
-            .unwrap_or(HpUfixed::<18>::zero()))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .pubkey_to_index(&pk),
+            None => self.data.query_runner().pubkey_to_index(&pk),
+        }
+        .and_then(|node_idx| {
+            self.data
+                .query_runner
+                .get_node_info::<HpUfixed<18>>(&node_idx, |n| n.stake.locked)
+        })
+        .unwrap_or(HpUfixed::<18>::zero()))
     }
 
     async fn get_staked(&self, pk: NodePublicKey, epoch: Option<u64>) -> RpcResult<HpUfixed<18>> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .pubkey_to_index(&pk)
-            .and_then(|node_idx| {
-                self.data
-                    .query_runner
-                    .get_node_info::<HpUfixed<18>>(&node_idx, |n| n.stake.staked)
-            })
-            .unwrap_or(HpUfixed::<18>::zero()))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .pubkey_to_index(&pk),
+            None => self.data.query_runner().pubkey_to_index(&pk),
+        }
+        .and_then(|node_idx| {
+            self.data
+                .query_runner
+                .get_node_info::<HpUfixed<18>>(&node_idx, |n| n.stake.staked)
+        })
+        .unwrap_or(HpUfixed::<18>::zero()))
     }
 
     async fn get_stables_balance(
@@ -106,12 +124,18 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
         pk: EthAddress,
         epoch: Option<u64>,
     ) -> RpcResult<HpUfixed<6>> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_account_info::<HpUfixed<6>>(&pk, |a| a.stables_balance)
-            .unwrap_or(HpUfixed::<6>::zero()))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_account_info::<HpUfixed<6>>(&pk, |a| a.stables_balance),
+            None => self
+                .data
+                .query_runner()
+                .get_account_info::<HpUfixed<6>>(&pk, |a| a.stables_balance),
+        }
+        .unwrap_or(HpUfixed::<6>::zero()))
     }
 
     async fn get_stake_locked_until(
@@ -119,31 +143,37 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
         pk: NodePublicKey,
         epoch: Option<u64>,
     ) -> RpcResult<u64> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .pubkey_to_index(&pk)
-            .and_then(|node_idx| {
-                self.data
-                    .query_runner
-                    .get_node_info::<Epoch>(&node_idx, |n| n.stake.stake_locked_until)
-            })
-            .unwrap_or(0))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .pubkey_to_index(&pk),
+            None => self.data.query_runner().pubkey_to_index(&pk),
+        }
+        .and_then(|node_idx| {
+            self.data
+                .query_runner
+                .get_node_info::<Epoch>(&node_idx, |n| n.stake.stake_locked_until)
+        })
+        .unwrap_or(0))
     }
 
     async fn get_locked_time(&self, pk: NodePublicKey, epoch: Option<u64>) -> RpcResult<u64> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .pubkey_to_index(&pk)
-            .and_then(|node_idx| {
-                self.data
-                    .query_runner
-                    .get_node_info::<Epoch>(&node_idx, |n| n.stake.locked_until)
-            })
-            .unwrap_or(0))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .pubkey_to_index(&pk),
+            None => self.data.query_runner().pubkey_to_index(&pk),
+        }
+        .and_then(|node_idx| {
+            self.data
+                .query_runner
+                .get_node_info::<Epoch>(&node_idx, |n| n.stake.locked_until)
+        })
+        .unwrap_or(0))
     }
 
     async fn get_node_info(
@@ -151,16 +181,19 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
         pk: NodePublicKey,
         epoch: Option<u64>,
     ) -> RpcResult<Option<NodeInfo>> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .pubkey_to_index(&pk)
-            .and_then(|node_idx| {
-                self.data
-                    .query_runner
-                    .get_node_info::<NodeInfo>(&node_idx, |n| n)
-            }))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .pubkey_to_index(&pk),
+            None => self.data.query_runner().pubkey_to_index(&pk),
+        }
+        .and_then(|node_idx| {
+            self.data
+                .query_runner
+                .get_node_info::<NodeInfo>(&node_idx, |n| n)
+        }))
     }
 
     async fn get_node_info_epoch(&self, pk: NodePublicKey) -> RpcResult<(Option<NodeInfo>, Epoch)> {
@@ -198,11 +231,17 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
         pk: EthAddress,
         epoch: Option<u64>,
     ) -> RpcResult<Option<AccountInfo>> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_account_info::<AccountInfo>(&pk, |a| a))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_account_info::<AccountInfo>(&pk, |a| a),
+            None => self
+                .data
+                .query_runner()
+                .get_account_info::<AccountInfo>(&pk, |a| a),
+        })
     }
 
     async fn get_staking_amount(&self) -> RpcResult<u64> {
@@ -210,7 +249,14 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
     }
 
     async fn get_committee_members(&self, epoch: Option<u64>) -> RpcResult<Vec<NodePublicKey>> {
-        Ok(self.data.query_runner(epoch).await?.get_committee_members())
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_committee_members(),
+            None => self.data.query_runner().get_committee_members(),
+        })
     }
 
     async fn get_genesis_committee(&self) -> RpcResult<Vec<(NodeIndex, NodeInfo)>> {
@@ -230,12 +276,19 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
     }
 
     async fn get_total_supply(&self, epoch: Option<u64>) -> RpcResult<HpUfixed<18>> {
-        let total_supply = match self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_metadata(&Metadata::TotalSupply)
-        {
+        let total_supply = match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_metadata(&Metadata::TotalSupply),
+            None => self
+                .data
+                .query_runner()
+                .get_metadata(&Metadata::TotalSupply),
+        };
+
+        let total_supply = match total_supply {
             Some(Value::HpUfixed(supply)) => supply,
             _ => panic!("TotalSupply is set genesis and should never be empty"),
         };
@@ -244,15 +297,23 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
     }
 
     async fn get_year_start_supply(&self, epoch: Option<u64>) -> RpcResult<HpUfixed<18>> {
-        let year_start_supply = match self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_metadata(&Metadata::SupplyYearStart)
-        {
+        let year_start_supply = match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_metadata(&Metadata::SupplyYearStart),
+            None => self
+                .data
+                .query_runner()
+                .get_metadata(&Metadata::SupplyYearStart),
+        };
+
+        let year_start_supply = match year_start_supply {
             Some(Value::HpUfixed(supply)) => supply,
             _ => panic!("SupplyYearStart is set genesis and should never be empty"),
         };
+
         Ok(year_start_supply)
     }
 
@@ -289,13 +350,16 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
         pk: NodePublicKey,
         epoch: Option<u64>,
     ) -> RpcResult<NodeServed> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .pubkey_to_index(&pk)
-            .and_then(|node_idx| self.data.query_runner.get_current_epoch_served(&node_idx))
-            .unwrap_or_default())
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .pubkey_to_index(&pk),
+            None => self.data.query_runner().pubkey_to_index(&pk),
+        }
+        .and_then(|node_idx| self.data.query_runner.get_current_epoch_served(&node_idx))
+        .unwrap_or_default())
     }
 
     async fn is_valid_node(&self, pk: NodePublicKey) -> RpcResult<bool> {
@@ -327,12 +391,15 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
     }
 
     async fn get_reputation(&self, pk: NodePublicKey, epoch: Option<u64>) -> RpcResult<Option<u8>> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .pubkey_to_index(&pk)
-            .and_then(|node_idx| self.data.query_runner.get_reputation_score(&node_idx)))
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .pubkey_to_index(&pk),
+            None => self.data.query_runner().pubkey_to_index(&pk),
+        }
+        .and_then(|node_idx| self.data.query_runner.get_reputation_score(&node_idx)))
     }
 
     async fn get_reputation_measurements(
@@ -340,17 +407,20 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
         pk: NodePublicKey,
         epoch: Option<u64>,
     ) -> RpcResult<Vec<ReportedReputationMeasurements>> {
-        let rep_measurements = self
-            .data
-            .query_runner(epoch)
-            .await?
-            .pubkey_to_index(&pk)
-            .and_then(|node_idx| {
-                self.data
-                    .query_runner
-                    .get_reputation_measurements(&node_idx)
-            })
-            .unwrap_or_default();
+        let rep_measurements = match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .pubkey_to_index(&pk),
+            None => self.data.query_runner().pubkey_to_index(&pk),
+        }
+        .and_then(|node_idx| {
+            self.data
+                .query_runner
+                .get_reputation_measurements(&node_idx)
+        })
+        .unwrap_or_default();
         Ok(rep_measurements)
     }
 
@@ -358,13 +428,16 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
         &self,
         epoch: Option<u64>,
     ) -> RpcResult<Vec<((NodePublicKey, NodePublicKey), Duration)>> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_current_latencies()
-            .into_iter()
-            .collect())
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_current_latencies(),
+            None => self.data.query_runner().get_current_latencies(),
+        }
+        .into_iter()
+        .collect())
     }
 
     async fn get_last_epoch_hash(&self) -> RpcResult<([u8; 32], Epoch)> {
@@ -392,12 +465,15 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
 
     /// Returns the state root for the given epoch.
     async fn get_state_root(&self, epoch: Option<u64>) -> RpcResult<StateRootHash> {
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_state_root()
-            .map_err(|e| RPCError::custom(e.to_string()))?)
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_state_root(),
+            None => self.data.query_runner().get_state_root(),
+        }
+        .map_err(|e| RPCError::custom(e.to_string()))?)
     }
 
     /// Returns the state proof for a given key and epoch.
@@ -409,12 +485,15 @@ impl<C: NodeComponents> FleekApiServer for FleekApi<C> {
         Option<StateProofValue>,
         <ApplicationStateTree as StateTree>::Proof,
     )> {
-        let (value, proof) = self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_state_proof(key)
-            .map_err(|e| RPCError::custom(e.to_string()))?;
+        let (value, proof) = match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_state_proof(key),
+            None => self.data.query_runner().get_state_proof(key),
+        }
+        .map_err(|e| RPCError::custom(e.to_string()))?;
         Ok((value, proof))
     }
 

@@ -38,7 +38,7 @@ impl<C: NodeComponents> OriginDemuxer<C> {
     }
 }
 
-impl<C: NodeComponents> OriginProviderInterface<C> for OriginDemuxer<C> {
+impl<C: NodeComponents> OriginProviderInterface for OriginDemuxer<C> {
     fn get_socket(&self) -> OriginProviderSocket {
         self.socket.clone()
     }

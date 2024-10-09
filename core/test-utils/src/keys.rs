@@ -41,7 +41,7 @@ impl<C: NodeComponents> BuildGraph for EphemeralKeystore<C> {
     }
 }
 
-impl<C: NodeComponents> KeystoreInterface<C> for EphemeralKeystore<C> {
+impl<C: NodeComponents> KeystoreInterface for EphemeralKeystore<C> {
     fn get_ed25519_pk(&self) -> NodePublicKey {
         self.node_sk.to_pk()
     }

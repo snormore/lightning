@@ -78,7 +78,7 @@ impl<C: NodeComponents> BuildGraph for Resolver<C> {
     }
 }
 
-impl<C: NodeComponents> ResolverInterface<C> for Resolver<C> {
+impl<C: NodeComponents> ResolverInterface for Resolver<C> {
     type OriginFinder = OriginFinder;
 
     /// Publish new records into the resolver global hash table about us witnessing

@@ -43,7 +43,7 @@ pub struct BlockstoreServer<C: NodeComponents> {
     socket: BlockstoreServerSocket,
 }
 
-impl<C: NodeComponents> BlockstoreServerInterface<C> for BlockstoreServer<C> {
+impl<C: NodeComponents> BlockstoreServerInterface for BlockstoreServer<C> {
     fn get_socket(&self) -> BlockstoreServerSocket {
         self.socket.clone()
     }

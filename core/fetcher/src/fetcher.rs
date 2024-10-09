@@ -76,7 +76,7 @@ impl<C: NodeComponents> Fetcher<C> {
     }
 }
 
-impl<C: NodeComponents> FetcherInterface<C> for Fetcher<C> {
+impl<C: NodeComponents> FetcherInterface for Fetcher<C> {
     fn get_socket(&self) -> FetcherSocket {
         self.socket.clone()
     }

@@ -109,7 +109,7 @@ impl<C: NodeComponents> Signer<C> {
     }
 }
 
-impl<C: NodeComponents> SignerInterface<C> for Signer<C> {
+impl<C: NodeComponents> SignerInterface for Signer<C> {
     /// Returns a socket that can be used to submit transactions to the mempool, these
     /// transactions are signed by the node and a proper nonce is assigned by the
     /// implementation.

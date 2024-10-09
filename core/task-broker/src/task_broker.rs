@@ -24,7 +24,7 @@ use crate::local::{LocalTaskSocket, LocalTaskWorker};
 
 pub struct TaskBroker<C: NodeComponents> {
     socket: Arc<RwLock<Option<LocalTaskSocket>>>,
-    requester: Arc<<C::PoolInterface as PoolInterface<C>>::Requester>,
+    requester: Arc<<C::PoolInterface as PoolInterface>::Requester>,
     topology: tokio::sync::watch::Receiver<Arc<Vec<Vec<NodePublicKey>>>>,
     query_runner: c!(C::ApplicationInterface::SyncExecutor),
     rep_reporter: c!(C::ReputationAggregatorInterface::ReputationReporter),
@@ -300,7 +300,7 @@ impl<C: NodeComponents> ConfigConsumer for TaskBroker<C> {
     type Config = TaskBrokerConfig;
 }
 
-impl<C: NodeComponents> TaskBrokerInterface<C> for TaskBroker<C> {
+impl<C: NodeComponents> TaskBrokerInterface for TaskBroker<C> {
     async fn run(
         &self,
         depth: u8,

@@ -84,7 +84,9 @@ impl<C: NodeComponents> Archive<C> {
     }
 }
 
-impl<C: NodeComponents> ArchiveInterface<C> for Archive<C> {
+impl<C: NodeComponents> ArchiveInterface for Archive<C> {
+    type ApplicationQuery = c!(C::ApplicationInterface::SyncExecutor);
+
     fn is_active(&self) -> bool {
         self.inner.is_some()
     }
@@ -136,10 +138,7 @@ impl<C: NodeComponents> ArchiveInterface<C> for Archive<C> {
         })
     }
 
-    async fn get_historical_epoch_state(
-        &self,
-        epoch: u64,
-    ) -> Option<c![C::ApplicationInterface::SyncExecutor]> {
+    async fn get_historical_epoch_state(&self, epoch: u64) -> Option<Self::ApplicationQuery> {
         self.inner
             .as_ref()
             .and_then(|inner| inner.get_historical_query_runner(epoch).ok())

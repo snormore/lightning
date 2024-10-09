@@ -1,7 +1,6 @@
 use affair::Socket;
 use fdi::BuildGraph;
 
-use crate::components::NodeComponents;
 use crate::types::DeliveryAcknowledgment;
 
 /// The socket which upon receiving a delivery acknowledgment can add it to the aggregator
@@ -9,9 +8,7 @@ use crate::types::DeliveryAcknowledgment;
 pub type DeliveryAcknowledgmentSocket = Socket<DeliveryAcknowledgment, ()>;
 
 #[interfaces_proc::blank]
-pub trait DeliveryAcknowledgmentAggregatorInterface<C: NodeComponents>:
-    BuildGraph + Sized + Send + Sync
-{
+pub trait DeliveryAcknowledgmentAggregatorInterface: BuildGraph + Sized + Send + Sync {
     /// Returns the socket that can be used to submit delivery acknowledgments to be aggregated.
     #[socket]
     fn socket(&self) -> DeliveryAcknowledgmentSocket;

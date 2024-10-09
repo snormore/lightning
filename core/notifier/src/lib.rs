@@ -52,7 +52,7 @@ impl<C: NodeComponents> BuildGraph for Notifier<C> {
     }
 }
 
-impl<C: NodeComponents> NotifierInterface<C> for Notifier<C> {
+impl<C: NodeComponents> NotifierInterface for Notifier<C> {
     type Emitter = NotificationsEmitter;
 
     fn get_emitter(&self) -> Self::Emitter {

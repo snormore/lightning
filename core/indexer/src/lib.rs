@@ -70,7 +70,7 @@ impl<C: NodeComponents> BuildGraph for Indexer<C> {
     }
 }
 
-impl<C: NodeComponents> IndexerInterface<C> for Indexer<C> {
+impl<C: NodeComponents> IndexerInterface for Indexer<C> {
     async fn register(&self, uri: Blake3Hash) {
         if let Some(index) = self.get_index() {
             if self

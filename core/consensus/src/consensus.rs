@@ -413,7 +413,7 @@ impl<C: NodeComponents> BuildGraph for Consensus<C> {
     }
 }
 
-impl<C: NodeComponents> ConsensusInterface<C> for Consensus<C> {
+impl<C: NodeComponents> ConsensusInterface for Consensus<C> {
     type Certificate = PubSubMsg;
 
     type ReadyState = ();

@@ -10,8 +10,6 @@ use ready::empty::EmptyReadyState;
 use ready::ReadyWaiterState;
 use tokio_stream::Stream;
 
-use crate::components::NodeComponents;
-
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[repr(u8)]
 pub enum ServiceScope {
@@ -41,7 +39,7 @@ pub struct RequestHeader {
 
 /// Defines the connection pool.
 #[interfaces_proc::blank]
-pub trait PoolInterface<C: NodeComponents>: BuildGraph + Send + Sync + Sized + 'static {
+pub trait PoolInterface: BuildGraph + Send + Sync + Sized + 'static {
     type EventHandler: EventHandlerInterface;
     type Requester: RequesterInterface;
     type Responder: ResponderInterface;

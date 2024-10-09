@@ -71,7 +71,7 @@ impl<C: NodeComponents> BuildGraph for Keystore<C> {
     }
 }
 
-impl<C: NodeComponents> KeystoreInterface<C> for Keystore<C> {
+impl<C: NodeComponents> KeystoreInterface for Keystore<C> {
     fn get_ed25519_pk(&self) -> NodePublicKey {
         self.node.0
     }

@@ -12,7 +12,7 @@ pub struct Forwarder<C> {
     _p: PhantomData<C>,
 }
 
-impl<C: NodeComponents> ForwarderInterface<C> for Forwarder<C> {
+impl<C: NodeComponents> ForwarderInterface for Forwarder<C> {
     fn mempool_socket(&self) -> MempoolSocket {
         self.socket.clone()
     }

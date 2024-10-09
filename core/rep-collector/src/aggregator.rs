@@ -234,7 +234,7 @@ impl<C: NodeComponents> BuildGraph for ReputationAggregator<C> {
     }
 }
 
-impl<C: NodeComponents> ReputationAggregatorInterface<C> for ReputationAggregator<C> {
+impl<C: NodeComponents> ReputationAggregatorInterface for ReputationAggregator<C> {
     /// The reputation reporter can be used by our system to report the reputation of other
     type ReputationReporter = MyReputationReporter;
 

@@ -5,7 +5,6 @@ use lightning_types::{AggregateCheckpoint, CheckpointAttestation, Epoch, NodeInd
 use ready::empty::EmptyReadyState;
 use ready::ReadyWaiterState;
 
-use crate::components::NodeComponents;
 use crate::ConfigConsumer;
 
 /// The checkpointer is a component that produces checkpoint attestations and aggregates them when a
@@ -18,9 +17,7 @@ use crate::ConfigConsumer;
 /// epoch. The aggregate checkpoint contains a state root that can be used by clients to verify the
 /// blockchain state using merkle proofs.
 #[interfaces_proc::blank]
-pub trait CheckpointerInterface<C: NodeComponents>:
-    BuildGraph + ConfigConsumer + Send + Sync
-{
+pub trait CheckpointerInterface: BuildGraph + ConfigConsumer + Send + Sync {
     /// The ready state of the checkpointer.
     #[blank(EmptyReadyState)]
     type ReadyState: ReadyWaiterState;

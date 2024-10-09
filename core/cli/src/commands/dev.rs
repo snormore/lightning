@@ -44,8 +44,8 @@ where
 {
     let provider = TomlConfigProvider::<C>::load(config_path)?;
     let config = provider.get::<C::RpcInterface>();
-    let port = <C::RpcInterface as RpcInterface<C>>::port(&config);
-    let hmac_secret_path = <C::RpcInterface as RpcInterface<C>>::hmac_secret_dir(&config);
+    let port = <C::RpcInterface as RpcInterface>::port(&config);
+    let hmac_secret_path = <C::RpcInterface as RpcInterface>::hmac_secret_dir(&config);
 
     // by default loads or creates if hmac_secret_path.is_none() the secret from ~/.lightning
     let url = format!("http://127.0.0.1:{}/admin", port);

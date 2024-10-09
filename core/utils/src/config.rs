@@ -103,7 +103,7 @@ impl<C: NodeComponents> TomlConfigProvider<C> {
     }
 }
 
-impl<C: NodeComponents> ConfigProviderInterface<C> for TomlConfigProvider<C> {
+impl<C: NodeComponents> ConfigProviderInterface for TomlConfigProvider<C> {
     fn get<S: ConfigConsumer>(&self) -> S::Config {
         debug!("Getting the config for {}", std::any::type_name::<S>());
 

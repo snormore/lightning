@@ -60,7 +60,7 @@ impl<C: NodeComponents> BuildGraph for DeliveryAcknowledgmentAggregator<C> {
     }
 }
 
-impl<C: NodeComponents> DeliveryAcknowledgmentAggregatorInterface<C>
+impl<C: NodeComponents> DeliveryAcknowledgmentAggregatorInterface
     for DeliveryAcknowledgmentAggregator<C>
 {
     fn socket(&self) -> DeliveryAcknowledgmentSocket {

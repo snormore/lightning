@@ -32,7 +32,7 @@ partial_node_components!(TestBinding {
 });
 
 pub struct EchoServiceExecutor {}
-impl<C: NodeComponents> ServiceExecutorInterface<C> for EchoServiceExecutor {
+impl ServiceExecutorInterface for EchoServiceExecutor {
     type Provider = EchoProvider;
     fn get_provider(&self) -> Self::Provider {
         EchoProvider {}

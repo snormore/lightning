@@ -26,7 +26,6 @@ use merklize::trees::mpt::MptStateProof;
 use merklize::StateRootHash;
 use serde::{Deserialize, Serialize};
 
-use crate::components::NodeComponents;
 use crate::types::{
     Block,
     BlockExecutionResponse,
@@ -53,9 +52,7 @@ use crate::ConfigConsumer;
 pub type ExecutionEngineSocket = Socket<Block, BlockExecutionResponse>;
 
 #[interfaces_proc::blank]
-pub trait ApplicationInterface<C: NodeComponents>:
-    BuildGraph + ConfigConsumer + Sized + Send + Sync
-{
+pub trait ApplicationInterface: BuildGraph + ConfigConsumer + Sized + Send + Sync {
     /// The type for the sync query executor.
     type SyncExecutor: SyncQueryRunnerInterface;
 

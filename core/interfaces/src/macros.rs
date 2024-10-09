@@ -6,7 +6,7 @@ macro_rules! define_node_components {
     ([$($component:tt),* $(,)?]) => {
         pub trait NodeComponents: Clone + Send + Sync + Sized + 'static {
         $(
-            type $component: $component<Self> + 'static;
+            type $component: $component + 'static;
          )*
 
             /// Build the `fdi` dependency graph of this node component.
@@ -44,7 +44,7 @@ macro_rules! define_node_components {
             /// implements ConfigConsumer.
             ///
             /// An implementation is provided when using the partial_node_components macro.
-            fn capture_configs(provider: &impl $crate::ConfigProviderInterface<Self>);
+            fn capture_configs(provider: &impl $crate::ConfigProviderInterface);
         }
     }
 }
@@ -57,11 +57,11 @@ macro_rules! c {
     };
 
     [$collection:tt :: $name:tt :: $sub:ident] => {
-        <<$collection as $crate::NodeComponents>::$name as $name<$collection>>::$sub
+        <<$collection as $crate::NodeComponents>::$name as $name>::$sub
     };
 
     [$collection:tt :: $name:tt :: $sub:ident < $($g:ty),* >] => {
-        <<$collection as $crate::NodeComponents>::$name as $name<$collection>>::$sub<$($g),*>
+        <<$collection as $crate::NodeComponents>::$name as $name>::$sub<$($g),*>
     };
 }
 
@@ -109,7 +109,7 @@ macro_rules! partial_node_components {
         // https://github.com/dtolnay/case-studies/blob/master/autoref-specialization/README.md
         // perm-commit-hash: b2c0e963b7c250587c1bdf80e7e7039b7c99d4c4
         #[allow(unused)]
-        fn capture_configs(provider: &impl $crate::ConfigProviderInterface<Self>) {
+        fn capture_configs(provider: &impl $crate::ConfigProviderInterface) {
             use $crate::_hacks::ConfigConsumerProxy;
 
             $(

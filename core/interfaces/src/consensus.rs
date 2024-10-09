@@ -3,10 +3,8 @@ use lightning_schema::LightningMessage;
 use ready::empty::EmptyReadyState;
 use ready::ReadyWaiterState;
 
-use crate::components::NodeComponents;
-
 #[interfaces_proc::blank]
-pub trait ConsensusInterface<C: NodeComponents>: BuildGraph + Sized + Send + Sync {
+pub trait ConsensusInterface: BuildGraph + Sized + Send + Sync {
     #[blank(())]
     type Certificate: LightningMessage + Clone;
 

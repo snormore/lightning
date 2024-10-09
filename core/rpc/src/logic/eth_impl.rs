@@ -64,11 +64,18 @@ impl<C: NodeComponents> EthApiServer for EthApi<C> {
         trace!(target: "rpc::eth", ?address, "Serving eth_getTransactionCount");
 
         Ok(U256::from(
-            self.data
-                .query_runner(epoch)
-                .await?
-                .get_account_info::<u64>(&address, |a| a.nonce)
-                .unwrap_or(0)
+            match epoch {
+                Some(epoch) => self
+                    .data
+                    .archive_query_runner(epoch)
+                    .await?
+                    .get_account_info::<u64>(&address, |a| a.nonce),
+                None => self
+                    .data
+                    .query_runner()
+                    .get_account_info::<u64>(&address, |a| a.nonce),
+            }
+            .unwrap_or(0)
                 + 1,
         ))
     }
@@ -81,13 +88,19 @@ impl<C: NodeComponents> EthApiServer for EthApi<C> {
     ) -> RpcResult<U256> {
         trace!(target: "rpc::eth", ?address, ?block_number, "Serving eth_getBalance");
         // Todo(dalton) direct safe conversion from hpfixed => u128
-        Ok(self
-            .data
-            .query_runner(epoch)
-            .await?
-            .get_account_info::<HpUfixed<18>>(&address, |a| a.flk_balance)
-            .unwrap_or(HpUfixed::<18>::zero())
-            .into())
+        Ok(match epoch {
+            Some(epoch) => self
+                .data
+                .archive_query_runner(epoch)
+                .await?
+                .get_account_info::<HpUfixed<18>>(&address, |a| a.flk_balance),
+            None => self
+                .data
+                .query_runner()
+                .get_account_info::<HpUfixed<18>>(&address, |a| a.flk_balance),
+        }
+        .unwrap_or(HpUfixed::<18>::zero())
+        .into())
     }
 
     async fn protocol_version(&self) -> RpcResult<U64> {
