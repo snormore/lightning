@@ -11,7 +11,7 @@ use crate::types::Topic;
 /// The gossip system in Fleek Network implements the functionality of broadcasting
 /// messages to the rest of the nodes in the network.
 #[interfaces_proc::blank]
-pub trait BroadcastInterface<C: NodeComponents>: BuildGraph + Sized + Send {
+pub trait BroadcastInterface<C: NodeComponents>: BuildGraph + Sized + Send + Sync {
     /// The message type to be encoded/decoded for networking.
     #[blank(())]
     type Message: LightningMessage;

@@ -6,8 +6,8 @@
 //! implementation complexity or performance drops due to use of locks by just handling
 //! the entire thing in a central event loop.
 
-use std::cell::OnceCell;
 use std::collections::{HashSet, VecDeque};
+use std::sync::OnceLock;
 
 use bytes::Bytes;
 use fleek_crypto::NodeSignature;
@@ -58,7 +58,7 @@ pub struct Context<B: BroadcastBackend> {
     pending_store: PendingStore<B>,
     /// Incoming messages with the same digest
     processing: im::HashMap<Digest, VecDeque<MessageWithSender>>,
-    current_node_index: OnceCell<NodeIndex>,
+    current_node_index: OnceLock<NodeIndex>,
     backend: B,
 }
 
@@ -97,7 +97,7 @@ impl<B: BroadcastBackend> Context<B> {
             command_rx,
             pending_store: PendingStore::new(),
             processing: im::HashMap::new(),
-            current_node_index: OnceCell::new(), // will be set upon spawn.
+            current_node_index: OnceLock::new(), // will be set upon spawn.
             backend,
         }
     }

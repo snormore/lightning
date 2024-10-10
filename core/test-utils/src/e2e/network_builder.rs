@@ -5,12 +5,10 @@ use std::time::Duration;
 use anyhow::Result;
 use futures::future::join_all;
 use lightning_interfaces::types::Genesis;
-use lightning_interfaces::{ApplicationInterface, PoolInterface};
 use lightning_utils::poll::{poll_until, PollUntilError};
-use ready::ReadyWaiter;
 use tempfile::tempdir;
 
-use super::{TestGenesisBuilder, TestNetwork, TestNode, TestNodeBuilder, TestNodeComponents};
+use super::{BoxedNode, TestGenesisBuilder, TestNetwork, TestNodeBuilder, TestNodeComponents};
 use crate::consensus::{Config as MockConsensusConfig, MockConsensusGroup};
 
 pub type GenesisMutator = Arc<dyn Fn(&mut Genesis)>;
@@ -101,8 +99,8 @@ impl TestNetworkBuilder {
         // Wait for ready before building genesis.
         join_all(
             nodes
-                .iter_mut()
-                .map(|node| node.before_genesis_ready.wait()),
+                .iter()
+                .map(|node| node.wait_for_before_genesis_ready()),
         )
         .await;
 
@@ -119,7 +117,7 @@ impl TestNetworkBuilder {
             if let Some(mutator) = self.genesis_mutator.clone() {
                 builder = builder.with_mutator(mutator);
             }
-            for (node_index, node) in node_by_index.iter() {
+            for (node_index, node) in &node_by_index {
                 builder = builder.with_node(node, committee_nodes.contains_key(&node_index));
             }
             builder.build()
@@ -129,7 +127,7 @@ impl TestNetworkBuilder {
         join_all(
             nodes
                 .iter_mut()
-                .map(|node| node.app.apply_genesis(genesis.clone())),
+                .map(|node| node.apply_genesis(genesis.clone())),
         )
         .await;
 
@@ -137,7 +135,12 @@ impl TestNetworkBuilder {
         self.wait_for_connected_peers(&nodes).await?;
 
         // Wait for ready after genesis.
-        join_all(nodes.iter_mut().map(|node| node.after_genesis_ready.wait())).await;
+        join_all(
+            nodes
+                .iter_mut()
+                .map(|node| node.wait_for_after_genesis_ready()),
+        )
+        .await;
 
         // Notify the shared mock consensus group that it can start.
         if let Some(consensus_group_start) = &consensus_group_start {
@@ -148,14 +151,18 @@ impl TestNetworkBuilder {
         Ok(network)
     }
 
-    pub async fn wait_for_connected_peers(&self, nodes: &[TestNode]) -> Result<(), PollUntilError> {
+    pub async fn wait_for_connected_peers(
+        &self,
+        nodes: &[BoxedNode],
+    ) -> Result<(), PollUntilError> {
         poll_until(
             || async {
-                let peers_by_node = join_all(nodes.iter().map(|node| node.pool.connected_peers()))
-                    .await
-                    .into_iter()
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| PollUntilError::ConditionError(e.to_string()))?;
+                let peers_by_node =
+                    join_all(nodes.iter().map(|node| node.get_pool_connected_peers()))
+                        .await
+                        .into_iter()
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|e| PollUntilError::ConditionError(e.to_string()))?;
 
                 peers_by_node
                     .iter()

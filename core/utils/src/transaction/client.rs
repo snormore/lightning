@@ -202,27 +202,58 @@ impl<C: NodeComponents> TransactionClient<C> {
 
 #[cfg(test)]
 mod tests {
+    use fleek_crypto::{AccountOwnerSecretKey, NodeSecretKey, SecretKey};
+    use lightning_application::config::StorageConfig;
+    use lightning_application::{Application, ApplicationConfig};
+    use lightning_forwarder::Forwarder;
     use lightning_interfaces::prelude::*;
-    use lightning_test_utils::e2e::{TestNetwork, TestNodeComponents};
+    use lightning_keystore::Keystore;
+    use lightning_node::Node;
+    use lightning_notifier::Notifier;
+    use lightning_test_utils::json_config::JsonConfigProvider;
+    use lightning_test_utils::keys::EphemeralKeystore;
     use types::ExecutionData;
 
     use super::*;
 
+    partial_node_components!(TestNodeComponents {
+        ConfigProviderInterface = JsonConfigProvider;
+        ApplicationInterface = Application<Self>;
+        NotifierInterface = Notifier<Self>;
+        ForwarderInterface = Forwarder<Self>;
+        KeystoreInterface = Keystore<Self>;
+    });
+
     #[tokio::test]
     async fn test_execute_transaction_with_account_signer() {
-        let mut network = TestNetwork::builder()
-            .with_num_nodes(1)
-            .build()
-            .await
-            .unwrap();
-        let node = network.node(0);
+        let account_secret_key = AccountOwnerSecretKey::generate();
+        let mut node = Node::<TestNodeComponents>::init_with_provider(
+            fdi::Provider::default()
+                .with(EphemeralKeystore::<TestNodeComponents>::default())
+                .with(
+                    JsonConfigProvider::default().with::<Application<TestNodeComponents>>(
+                        ApplicationConfig {
+                            storage: StorageConfig::InMemory,
+                            network: None,
+                            genesis_path: None,
+                            db_path: None,
+                            db_options: None,
+                            dev: None,
+                        },
+                    ),
+                ),
+        )
+        .unwrap();
+        let app = node.provider.get::<Application<TestNodeComponents>>();
+        let notifier = node.provider.get::<Notifier<TestNodeComponents>>();
+        let forwarder = node.provider.get::<Forwarder<TestNodeComponents>>();
 
         // Build a transaction client.
         let client = TransactionClient::<TestNodeComponents>::new(
-            node.app_query.clone(),
-            node.notifier.clone(),
-            node.forwarder.mempool_socket(),
-            TransactionSigner::AccountOwner(node.owner_secret_key.clone()),
+            app.sync_query(),
+            notifier.clone(),
+            forwarder.mempool_socket(),
+            TransactionSigner::AccountOwner(account_secret_key),
         )
         .await;
 
@@ -238,25 +269,40 @@ mod tests {
         assert!(!tx.hash().is_empty());
         assert_eq!(receipt.transaction_hash, tx.hash());
 
-        // Shutdown the network.
-        network.shutdown().await;
+        // Shutdown the node.
+        node.shutdown().await;
     }
 
     #[tokio::test]
     async fn test_execute_transaction_with_node_signer() {
-        let mut network = TestNetwork::builder()
-            .with_num_nodes(1)
-            .build()
-            .await
-            .unwrap();
-        let node = network.node(0);
+        let node_secret_key = NodeSecretKey::generate();
+        let mut node = Node::<TestNodeComponents>::init_with_provider(
+            fdi::Provider::default()
+                .with(EphemeralKeystore::<TestNodeComponents>::default())
+                .with(
+                    JsonConfigProvider::default().with::<Application<TestNodeComponents>>(
+                        ApplicationConfig {
+                            storage: StorageConfig::InMemory,
+                            network: None,
+                            genesis_path: None,
+                            db_path: None,
+                            db_options: None,
+                            dev: None,
+                        },
+                    ),
+                ),
+        )
+        .unwrap();
+        let app = node.provider.get::<Application<TestNodeComponents>>();
+        let notifier = node.provider.get::<Notifier<TestNodeComponents>>();
+        let forwarder = node.provider.get::<Forwarder<TestNodeComponents>>();
 
         // Build a transaction client.
         let client = TransactionClient::<TestNodeComponents>::new(
-            node.app_query.clone(),
-            node.notifier.clone(),
-            node.forwarder.mempool_socket(),
-            TransactionSigner::NodeMain(node.keystore.get_ed25519_sk()),
+            app.sync_query(),
+            notifier.clone(),
+            forwarder.mempool_socket(),
+            TransactionSigner::NodeMain(node_secret_key),
         )
         .await;
 
@@ -272,7 +318,7 @@ mod tests {
         assert!(!tx.hash().is_empty());
         assert_eq!(receipt.transaction_hash, tx.hash());
 
-        // Shutdown the network.
-        network.shutdown().await;
+        // Shutdown the node.
+        node.shutdown().await;
     }
 }

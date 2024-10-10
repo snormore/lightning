@@ -1,12 +1,11 @@
 use std::time::Duration;
 
-use anyhow::Result;
 use futures::future::join_all;
-use lightning_interfaces::prelude::*;
+use lightning_interfaces::types::{Epoch, UpdateMethod};
 use lightning_utils::poll::{poll_until, PollUntilError};
-use types::{Epoch, Metadata, UpdateMethod};
+use lightning_utils::transaction::TransactionSigner;
 
-use super::{TestNetwork, TestNode};
+use super::{BoxedNode, TestNetwork};
 
 impl TestNetwork {
     /// Execute epoch change transaction from all nodes and wait for epoch to be incremented.
@@ -22,12 +21,13 @@ impl TestNetwork {
     }
 
     pub async fn change_epoch(&self) -> Epoch {
-        let epoch = self.node(0).get_epoch();
-        join_all(
-            self.nodes().map(|node| {
-                node.execute_transaction_from_node(UpdateMethod::ChangeEpoch { epoch })
-            }),
-        )
+        let epoch = self.node(0).application_query().get_epoch();
+        join_all(self.nodes().map(|node| async {
+            node.transaction_client(TransactionSigner::NodeMain(node.get_node_secret_key()))
+                .await
+                .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+                .await
+        }))
         .await;
         epoch + 1
     }
@@ -36,7 +36,7 @@ impl TestNetwork {
         poll_until(
             || async {
                 self.nodes()
-                    .all(|node| node.get_epoch() == new_epoch)
+                    .all(|node| node.application_query().get_epoch() == new_epoch)
                     .then_some(())
                     .ok_or(PollUntilError::ConditionNotSatisfied)
             },
@@ -46,50 +46,23 @@ impl TestNetwork {
         .await
     }
 
-    pub fn committee_nodes(&self) -> Vec<&TestNode> {
-        let node = self.node(0);
-        let epoch = node.get_epoch();
-        node.app_query
-            .get_committee_info(&epoch, |committee| committee.members)
+    pub fn committee_nodes(&self) -> Vec<&BoxedNode> {
+        let query = self.node(0).application_query();
+        let epoch = query.get_epoch();
+        query
+            .get_committee_members(epoch)
             .unwrap_or_default()
             .into_iter()
             .map(|index| self.node(index))
             .collect()
     }
 
-    pub fn non_committee_nodes(&self) -> Vec<&TestNode> {
-        let node = self.node(0);
-        let epoch = node.get_epoch();
-        let committee_nodes = node
-            .app_query
-            .get_committee_info(&epoch, |committee| committee.members)
-            .unwrap_or_default();
+    pub fn non_committee_nodes(&self) -> Vec<&BoxedNode> {
+        let query = self.node(0).application_query();
+        let epoch = query.get_epoch();
+        let committee_nodes = query.get_committee_members(epoch).unwrap_or_default();
         self.nodes()
             .filter(|node| !committee_nodes.contains(&node.index()))
             .collect()
-    }
-
-    pub fn get_epoch(&self) -> Epoch {
-        self.node(0).get_epoch()
-    }
-
-    /// Wait for committee selection beacon phase to be unset.
-    pub async fn wait_for_committee_selection_beacon_phase_unset(
-        &self,
-    ) -> Result<(), PollUntilError> {
-        poll_until(
-            || async {
-                self.node(0)
-                    .app
-                    .sync_query()
-                    .get_metadata(&Metadata::CommitteeSelectionBeaconPhase)
-                    .is_none()
-                    .then_some(())
-                    .ok_or(PollUntilError::ConditionNotSatisfied)
-            },
-            Duration::from_secs(30),
-            Duration::from_millis(100),
-        )
-        .await
     }
 }

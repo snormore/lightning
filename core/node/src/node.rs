@@ -24,6 +24,7 @@ impl<C: NodeComponents> Node<C> {
     pub fn init(config: C::ConfigProviderInterface) -> Result<Self> {
         let provider = Provider::default();
         provider.insert(config);
+
         Self::init_with_provider(provider)
     }
 

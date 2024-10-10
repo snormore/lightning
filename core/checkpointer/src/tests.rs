@@ -23,7 +23,7 @@ async fn test_start_shutdown() {
 
 #[tokio::test]
 async fn test_supermajority_over_epoch_changes() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(3)
         .build()
         .await
@@ -31,9 +31,9 @@ async fn test_supermajority_over_epoch_changes() {
 
     for epoch in 0..10 {
         // Emit epoch changed notification to all nodes.
-        network
-            .notify_epoch_changed(epoch, [2; 32].into(), [3; 32].into(), [1; 32])
-            .await;
+        for node in network.nodes() {
+            node.emit_epoch_changed_notification(epoch, [2; 32].into(), [3; 32].into(), [1; 32]);
+        }
 
         // Check that the nodes have received and stored the checkpoint attestations.
         let headers_by_node = network
@@ -51,7 +51,7 @@ async fn test_supermajority_over_epoch_changes() {
             for header in headers.values() {
                 assert!(
                     network
-                        .verify_checkpointer_header_signature(header.clone())
+                        .verify_checkpointer_attestation_signature(header.clone())
                         .unwrap()
                 );
                 assert_eq!(
@@ -108,7 +108,7 @@ async fn test_supermajority_over_epoch_changes() {
 
 #[tokio::test]
 async fn test_no_supermajority_of_attestations() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(3)
         .build()
         .await
@@ -119,15 +119,24 @@ async fn test_no_supermajority_of_attestations() {
     // supermajority.
     // Here we have 2 nodes with the same next state root, and 1 node with a different next state
     // root. They all have the same epochs, serialized state digests, and previous state roots.
-    network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32].into(), [11; 32].into())
-        .await;
+    network.node(0).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
+    network.node(1).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
+    network.node(2).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [11; 32].into(),
+        [1; 32],
+    );
 
     // Check that the nodes have received and stored the checkpoint attestations.
     let headers_by_node = network
@@ -145,7 +154,7 @@ async fn test_no_supermajority_of_attestations() {
         for header in headers.values() {
             assert!(
                 network
-                    .verify_checkpointer_header_signature(header.clone())
+                    .verify_checkpointer_attestation_signature(header.clone())
                     .unwrap()
             );
         }
@@ -169,7 +178,7 @@ async fn test_no_supermajority_of_attestations() {
 
 #[tokio::test]
 async fn test_missing_epoch_change_notification_no_supermajority() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(3)
         .build()
         .await
@@ -179,12 +188,18 @@ async fn test_missing_epoch_change_notification_no_supermajority() {
     // Emit epoch changed notification to all nodes, with different state roots so that there is no
     // supermajority.
     // Here we emit epoch changed notifications to two of the nodes, and not the third.
-    network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
+    network.node(0).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
+    network.node(1).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
 
     // Check that the nodes have received and stored the checkpoint attestations.
     // Note that we only get 2 attestations per node, because one of the nodes did not receive an
@@ -204,7 +219,7 @@ async fn test_missing_epoch_change_notification_no_supermajority() {
         for header in headers.values() {
             assert!(
                 network
-                    .verify_checkpointer_header_signature(header.clone())
+                    .verify_checkpointer_attestation_signature(header.clone())
                     .unwrap()
             );
         }
@@ -228,7 +243,7 @@ async fn test_missing_epoch_change_notification_no_supermajority() {
 
 #[tokio::test]
 async fn test_missing_epoch_change_notification_still_supermajority() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(4)
         .build()
         .await
@@ -239,15 +254,24 @@ async fn test_missing_epoch_change_notification_still_supermajority() {
     // supermajority.
     // Here we emit epoch changed notifications to three of the nodes, and not the fourth, so that
     // there is still a supermajority.
-    network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
+    network.node(0).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
+    network.node(1).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
+    network.node(2).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
 
     // Check that the nodes have received and stored the checkpoint attestations.
     // Note that we only get 2 attestations per node, because one of the nodes did not receive an
@@ -267,7 +291,7 @@ async fn test_missing_epoch_change_notification_still_supermajority() {
         for header in headers.values() {
             assert!(
                 network
-                    .verify_checkpointer_header_signature(header.clone())
+                    .verify_checkpointer_attestation_signature(header.clone())
                     .unwrap()
             );
         }
@@ -311,7 +335,7 @@ async fn test_missing_epoch_change_notification_still_supermajority() {
 
 #[tokio::test]
 async fn test_aggregate_checkpoint_already_exists() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(1)
         .build()
         .await
@@ -319,9 +343,12 @@ async fn test_aggregate_checkpoint_already_exists() {
     let epoch = 1001;
 
     // Emit epoch changed notifications.
-    network
-        .notify_epoch_changed(epoch, [3; 32].into(), [10; 32].into(), [1; 32])
-        .await;
+    network.node(0).emit_epoch_changed_notification(
+        epoch,
+        [3; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
 
     // Get the stored checkpoint attestations.
     let _headers_by_node = network
@@ -347,9 +374,12 @@ async fn test_aggregate_checkpoint_already_exists() {
 
     // Emit the same epoch changed notification again, with a different state root so that
     // the resulting aggregate checkpoint is different.
-    network
-        .notify_epoch_changed(epoch, [4; 32].into(), [11; 32].into(), [2; 32])
-        .await;
+    network.node(0).emit_epoch_changed_notification(
+        epoch,
+        [4; 32].into(),
+        [11; 32].into(),
+        [2; 32],
+    );
 
     // Check that the node has not stored a new aggregate checkpoint.
     let agg_header_by_node = network
@@ -367,7 +397,7 @@ async fn test_aggregate_checkpoint_already_exists() {
 
 #[tokio::test]
 async fn test_delayed_epoch_change_notification() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(3)
         .build()
         .await
@@ -375,12 +405,18 @@ async fn test_delayed_epoch_change_notification() {
     let epoch = 1001;
 
     // Emit epoch changed notification to 2 of 3 nodes.
-    network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(1, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
+    network.node(0).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
+    network.node(1).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
 
     // Wait for 2 checkpoint attestations to be stored in all 3 nodes.
     let _headers_by_node = network
@@ -391,9 +427,12 @@ async fn test_delayed_epoch_change_notification() {
         .unwrap();
 
     // Emit epoch changed notification to the third node.
-    network
-        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32].into(), [10; 32].into())
-        .await;
+    network.node(2).emit_epoch_changed_notification(
+        epoch,
+        [2; 32].into(),
+        [10; 32].into(),
+        [1; 32],
+    );
 
     // Wait for the third node to receive the epoch changed notification, broadcast it's checkpoint
     // header, and for it to be stored in all the nodes.
@@ -442,7 +481,7 @@ async fn test_delayed_epoch_change_notification() {
 
 #[tokio::test]
 async fn test_multiple_different_epoch_change_notifications_simultaneously() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(3)
         .build()
         .await
@@ -451,24 +490,42 @@ async fn test_multiple_different_epoch_change_notifications_simultaneously() {
     let epoch2 = 1002;
 
     // Emit epoch changed notifications to all nodes for both epochs, interleaved for each node.
-    network
-        .notify_node_epoch_changed(0, epoch1, [11; 32], [12; 32].into(), [110; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(0, epoch2, [21; 32], [22; 32].into(), [210; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(1, epoch1, [11; 32], [12; 32].into(), [110; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(1, epoch2, [21; 32], [22; 32].into(), [210; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(2, epoch1, [11; 32], [12; 32].into(), [110; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(2, epoch2, [21; 32], [22; 32].into(), [210; 32].into())
-        .await;
+    network.node(0).emit_epoch_changed_notification(
+        epoch1,
+        [12; 32].into(),
+        [110; 32].into(),
+        [11; 32],
+    );
+    network.node(0).emit_epoch_changed_notification(
+        epoch2,
+        [22; 32].into(),
+        [210; 32].into(),
+        [21; 32],
+    );
+    network.node(1).emit_epoch_changed_notification(
+        epoch1,
+        [12; 32].into(),
+        [110; 32].into(),
+        [11; 32],
+    );
+    network.node(1).emit_epoch_changed_notification(
+        epoch2,
+        [22; 32].into(),
+        [210; 32].into(),
+        [21; 32],
+    );
+    network.node(2).emit_epoch_changed_notification(
+        epoch1,
+        [12; 32].into(),
+        [110; 32].into(),
+        [11; 32],
+    );
+    network.node(2).emit_epoch_changed_notification(
+        epoch2,
+        [22; 32].into(),
+        [210; 32].into(),
+        [21; 32],
+    );
 
     // Check that the nodes have received and stored the checkpoint attestations for both epochs.
     let epoch1_headers_by_node = network
@@ -482,7 +539,7 @@ async fn test_multiple_different_epoch_change_notifications_simultaneously() {
         for header in headers.values() {
             assert!(
                 network
-                    .verify_checkpointer_header_signature(header.clone())
+                    .verify_checkpointer_attestation_signature(header.clone())
                     .unwrap()
             );
             assert_eq!(
@@ -510,7 +567,7 @@ async fn test_multiple_different_epoch_change_notifications_simultaneously() {
         for header in headers.values() {
             assert!(
                 network
-                    .verify_checkpointer_header_signature(header.clone())
+                    .verify_checkpointer_attestation_signature(header.clone())
                     .unwrap()
             );
             assert_eq!(
@@ -597,7 +654,7 @@ async fn test_multiple_different_epoch_change_notifications_simultaneously() {
 
 #[tokio::test]
 async fn test_attestation_from_ineligible_node() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(2)
         .build()
         .await
@@ -619,7 +676,8 @@ async fn test_attestation_from_ineligible_node() {
     header.signature =
         other_node_consensus_sk.sign(DefaultSerdeBackend::serialize(&header).as_slice());
     network
-        .broadcast_checkpoint_attestation_via_node(0, header)
+        .node(0)
+        .broadcast_checkpoint_attestation(header)
         .await
         .unwrap();
 
@@ -646,7 +704,7 @@ async fn test_attestation_from_ineligible_node() {
 
 #[tokio::test]
 async fn test_attestation_with_invalid_signature() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(2)
         .build()
         .await
@@ -663,7 +721,8 @@ async fn test_attestation_with_invalid_signature() {
         signature: ConsensusSignature::default(),
     };
     network
-        .broadcast_checkpoint_attestation_via_node(0, header)
+        .node(0)
+        .broadcast_checkpoint_attestation(header)
         .await
         .unwrap();
 
@@ -690,7 +749,7 @@ async fn test_attestation_with_invalid_signature() {
 
 #[tokio::test]
 async fn test_attestations_with_inconsistent_state_roots_no_supermajority() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(3)
         .build()
         .await
@@ -699,14 +758,14 @@ async fn test_attestations_with_inconsistent_state_roots_no_supermajority() {
 
     // Send epoch change notifications to each node with different state roots.
     network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [3; 32].into())
-        .await;
+        .node(0)
+        .emit_epoch_changed_notification(epoch, [2; 32].into(), [3; 32].into(), [1; 32]);
     network
-        .notify_node_epoch_changed(1, epoch, [4; 32], [5; 32].into(), [6; 32].into())
-        .await;
+        .node(1)
+        .emit_epoch_changed_notification(epoch, [5; 32].into(), [6; 32].into(), [4; 32]);
     network
-        .notify_node_epoch_changed(2, epoch, [7; 32], [8; 32].into(), [9; 32].into())
-        .await;
+        .node(2)
+        .emit_epoch_changed_notification(epoch, [8; 32].into(), [9; 32].into(), [7; 32]);
 
     // Check that the nodes have stored any checkpoint attestations.
     let _headers_by_node = network
@@ -738,7 +797,7 @@ async fn test_attestations_with_inconsistent_state_roots_no_supermajority() {
 
 #[tokio::test]
 async fn test_attestations_with_inconsistent_state_roots_still_supermajority() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(4)
         .build()
         .await
@@ -748,17 +807,20 @@ async fn test_attestations_with_inconsistent_state_roots_still_supermajority() {
     // Send epoch change notifications to each node, with a different state root to just one, so
     // that we still have a supermajority.
     network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [3; 32].into())
-        .await;
+        .node(0)
+        .emit_epoch_changed_notification(epoch, [2; 32].into(), [3; 32].into(), [1; 32]);
+    network.node(1).emit_epoch_changed_notification(
+        epoch,
+        [11; 32].into(),
+        [12; 32].into(),
+        [10; 32],
+    );
     network
-        .notify_node_epoch_changed(1, epoch, [10; 32], [11; 32].into(), [12; 32].into())
-        .await;
+        .node(2)
+        .emit_epoch_changed_notification(epoch, [2; 32].into(), [3; 32].into(), [1; 32]);
     network
-        .notify_node_epoch_changed(2, epoch, [1; 32], [2; 32].into(), [3; 32].into())
-        .await;
-    network
-        .notify_node_epoch_changed(3, epoch, [1; 32], [2; 32].into(), [3; 32].into())
-        .await;
+        .node(3)
+        .emit_epoch_changed_notification(epoch, [2; 32].into(), [3; 32].into(), [1; 32]);
 
     // Check that the nodes have stored any checkpoint attestations.
     let headers_by_node = network
@@ -813,7 +875,7 @@ async fn test_attestations_with_inconsistent_state_roots_still_supermajority() {
 
 #[tokio::test]
 async fn test_multiple_different_epoch_change_notifications_for_same_epoch() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(2)
         .build()
         .await
@@ -822,15 +884,15 @@ async fn test_multiple_different_epoch_change_notifications_for_same_epoch() {
 
     // Send epoch change notifications to each node with different state roots.
     network
-        .notify_node_epoch_changed(0, epoch, [1; 32], [2; 32].into(), [3; 32].into())
-        .await;
+        .node(0)
+        .emit_epoch_changed_notification(epoch, [2; 32].into(), [3; 32].into(), [1; 32]);
     network
-        .notify_node_epoch_changed(1, epoch, [4; 32], [5; 32].into(), [6; 32].into())
-        .await;
+        .node(1)
+        .emit_epoch_changed_notification(epoch, [5; 32].into(), [6; 32].into(), [4; 32]);
     // Send another epoch change notification to the same node.
     network
-        .notify_node_epoch_changed(1, epoch, [7; 32], [8; 32].into(), [9; 32].into())
-        .await;
+        .node(1)
+        .emit_epoch_changed_notification(epoch, [8; 32].into(), [9; 32].into(), [7; 32]);
 
     // Check that the nodes have stored any checkpoint attestations.
     let headers_by_node = network
@@ -896,7 +958,7 @@ async fn test_multiple_different_epoch_change_notifications_for_same_epoch() {
 
 #[tokio::test]
 async fn test_multiple_different_attestations_from_same_node() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(2)
         .build()
         .await
@@ -917,7 +979,8 @@ async fn test_multiple_different_attestations_from_same_node() {
         .get_consensus_secret_key()
         .sign(DefaultSerdeBackend::serialize(&header).as_slice());
     network
-        .broadcast_checkpoint_attestation_via_node(0, header)
+        .node(0)
+        .broadcast_checkpoint_attestation(header)
         .await
         .unwrap();
 
@@ -948,7 +1011,8 @@ async fn test_multiple_different_attestations_from_same_node() {
         .get_consensus_secret_key()
         .sign(DefaultSerdeBackend::serialize(&header).as_slice());
     network
-        .broadcast_checkpoint_attestation_via_node(0, header)
+        .node(0)
+        .broadcast_checkpoint_attestation(header)
         .await
         .unwrap();
 

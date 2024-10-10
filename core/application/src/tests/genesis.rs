@@ -37,12 +37,10 @@ async fn test_node_startup_without_genesis() {
         db_options: None,
         dev: None,
     };
-    let node = Node::<TestBinding>::init_with_provider(
-        fdi::Provider::default()
-            .with(JsonConfigProvider::default().with::<Application<TestBinding>>(config)),
-    )
-    .expect("failed to initialize node");
-
+    let provider = fdi::Provider::default();
+    provider.insert(JsonConfigProvider::default().with::<Application<TestBinding>>(config));
+    let node =
+        Node::<TestBinding>::init_with_provider(provider).expect("failed to initialize node");
     let app = node.provider.get::<Application<TestBinding>>();
     let query = app.sync_query();
 

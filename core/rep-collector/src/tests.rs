@@ -271,7 +271,7 @@ async fn test_submit_measurements() {
 
 #[tokio::test]
 async fn test_reputation_calculation_and_query() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(4)
         .with_genesis_mutator(|genesis| {
             genesis.epoch_start = SystemTime::now()
@@ -283,10 +283,10 @@ async fn test_reputation_calculation_and_query() {
         .build()
         .await
         .unwrap();
-    let app_query = network.node(0).app_query.clone();
+    let app_query = network.node(0).application_query();
 
-    let reporter1 = network.node(0).reputation_reporter.clone();
-    let reporter2 = network.node(1).reputation_reporter.clone();
+    let reporter1 = network.node(0).reputation_reporter();
+    let reporter2 = network.node(1).reputation_reporter();
 
     let alice = network.node(2).index();
     let bob = network.node(3).index();

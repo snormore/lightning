@@ -13,8 +13,7 @@ use lightning_committee_beacon::{
     CommitteeBeaconDatabaseConfig,
 };
 use lightning_interfaces::prelude::*;
-use lightning_node::Node;
-use lightning_notifier::Notifier;
+use lightning_node::ContainedNode;
 use lightning_pool::{Config as PoolConfig, PoolProvider};
 use lightning_rep_collector::MyReputationReporter;
 use lightning_rpc::config::Config as RpcConfig;
@@ -23,7 +22,7 @@ use lightning_utils::config::TomlConfigProvider;
 use ready::tokio::TokioReadyWaiter;
 use ready::ReadyWaiter;
 
-use super::{TestNode, TestNodeBeforeGenesisReadyState, TestNodeComponents};
+use super::{BoxedNode, TestNode, TestNodeBeforeGenesisReadyState, TestNodeComponents};
 use crate::consensus::{MockConsensus, MockConsensusGroup, MockForwarder};
 use crate::keys::EphemeralKeystore;
 
@@ -54,7 +53,7 @@ impl TestNodeBuilder {
         self
     }
 
-    pub async fn build(self) -> Result<TestNode> {
+    pub async fn build(self) -> Result<BoxedNode> {
         let config = TomlConfigProvider::<TestNodeComponents>::new();
 
         // Configure application component.
@@ -112,25 +111,24 @@ impl TestNodeBuilder {
         config.inject::<EphemeralKeystore<TestNodeComponents>>(Default::default());
 
         // Initialize the node.
-        let mut provider = fdi::Provider::default().with(config);
+        let provider = fdi::MultiThreadedProvider::default();
+        provider.insert(config);
         if let Some(mock_consensus_group) = self.mock_consensus_group {
-            provider = provider.with(mock_consensus_group);
+            provider.insert(mock_consensus_group);
         }
-        let node = Node::<TestNodeComponents>::init_with_provider(provider)?;
+        let node = ContainedNode::<TestNodeComponents>::new(provider, None);
 
         // Start the node.
-        node.start().await;
+        node.spawn().await??;
 
         // Wait for the node to be ready.
-        let shutdown = node
-            .shutdown_waiter()
-            .expect("node missing shutdown waiter");
+        let shutdown = node.shutdown_waiter();
 
         // Wait for components to be ready before building genesis.
         let before_genesis_ready = TokioReadyWaiter::new();
         {
-            let pool = node.provider.get::<PoolProvider<TestNodeComponents>>();
-            let rpc = node.provider.get::<Rpc<TestNodeComponents>>();
+            let pool = node.provider().get::<PoolProvider<TestNodeComponents>>();
+            let rpc = node.provider().get::<Rpc<TestNodeComponents>>();
             let before_genesis_ready = before_genesis_ready.clone();
             let shutdown = shutdown.clone();
             spawn!(
@@ -157,10 +155,10 @@ impl TestNodeBuilder {
         let after_genesis_ready = TokioReadyWaiter::new();
         {
             let app_query = node
-                .provider
+                .provider()
                 .get::<Application<TestNodeComponents>>()
                 .sync_query();
-            let checkpointer = node.provider.get::<Checkpointer<TestNodeComponents>>();
+            let checkpointer = node.provider().get::<Checkpointer<TestNodeComponents>>();
             let after_genesis_ready = after_genesis_ready.clone();
             let shutdown = shutdown.clone();
             spawn!(
@@ -179,27 +177,31 @@ impl TestNodeBuilder {
             );
         }
 
-        let app = node.provider.get::<Application<TestNodeComponents>>();
-        Ok(TestNode {
+        let app = node.provider().get::<Application<TestNodeComponents>>();
+        Ok(Box::new(TestNode {
             app_query: app.sync_query(),
             app,
-            broadcast: node.provider.get::<Broadcast<TestNodeComponents>>(),
-            checkpointer: node.provider.get::<Checkpointer<TestNodeComponents>>(),
+            broadcast: node.provider().get::<Broadcast<TestNodeComponents>>(),
+            checkpointer: node.provider().get::<Checkpointer<TestNodeComponents>>(),
             committee_beacon: node
-                .provider
+                .provider()
                 .get::<CommitteeBeaconComponent<TestNodeComponents>>(),
-            forwarder: node.provider.get::<MockForwarder<TestNodeComponents>>(),
-            keystore: node.provider.get::<EphemeralKeystore<TestNodeComponents>>(),
-            notifier: node.provider.get::<Notifier<TestNodeComponents>>(),
-            pool: node.provider.get::<PoolProvider<TestNodeComponents>>(),
-            rpc: node.provider.get::<Rpc<TestNodeComponents>>(),
-            reputation_reporter: node.provider.get::<MyReputationReporter>(),
+            notifier: node
+                .provider()
+                .get::<<TestNodeComponents as NodeComponents>::NotifierInterface>(),
+            forwarder: node.provider().get::<MockForwarder<TestNodeComponents>>(),
+            keystore: node
+                .provider()
+                .get::<EphemeralKeystore<TestNodeComponents>>(),
+            pool: node.provider().get::<PoolProvider<TestNodeComponents>>(),
+            rpc: node.provider().get::<Rpc<TestNodeComponents>>(),
+            reputation_reporter: node.provider().get::<MyReputationReporter>(),
 
             inner: node,
             before_genesis_ready,
             after_genesis_ready,
             home_dir: self.home_dir.clone(),
             owner_secret_key: AccountOwnerSecretKey::generate(),
-        })
+        }))
     }
 }

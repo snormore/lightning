@@ -4,39 +4,13 @@ use std::time::Duration;
 use anyhow::Result;
 use atomo::{DefaultSerdeBackend, SerdeBackend};
 use fleek_crypto::{ConsensusSignature, PublicKey};
-use lightning_checkpointer::CheckpointBroadcastMessage;
 use lightning_interfaces::prelude::*;
-use lightning_interfaces::types::{
-    AggregateCheckpoint,
-    CheckpointAttestation,
-    Epoch,
-    NodeIndex,
-    Topic,
-};
+use lightning_interfaces::types::{AggregateCheckpoint, CheckpointAttestation, Epoch, NodeIndex};
 use lightning_utils::poll::{poll_until, PollUntilError};
 
 use super::TestNetwork;
 
 impl TestNetwork {
-    /// Send a checkpoint attestation to a specific node via their broadcaster pubsub.
-    pub async fn broadcast_checkpoint_attestation_via_node(
-        &self,
-        node_id: NodeIndex,
-        header: CheckpointAttestation,
-    ) -> Result<()> {
-        self.node(node_id)
-            .broadcast
-            .get_pubsub::<CheckpointBroadcastMessage>(Topic::Checkpoint)
-            .send(
-                &CheckpointBroadcastMessage::CheckpointAttestation(header),
-                None,
-            )
-            .await
-            .map_err(|e| anyhow::anyhow!(e))?;
-
-        Ok(())
-    }
-
     /// Wait for the checkpoint attestations to be received and stored by the checkpointer, and
     /// matching the given condition function.
     pub async fn wait_for_checkpoint_attestations<F>(
@@ -67,13 +41,12 @@ impl TestNetwork {
         poll_until(
             || async {
                 let headers_by_node = self
-                    .node_by_id
-                    .iter()
-                    .map(|(node_id, node)| {
-                        let query = node.checkpointer.query();
-                        let headers = query.get_checkpoint_attestations(epoch);
+                    .nodes()
+                    .map(|node| {
+                        let query = node.checkpointer_query();
+                        let attestations = query.get_checkpoint_attestations(epoch);
 
-                        (*node_id, headers)
+                        (node.index(), attestations)
                     })
                     .collect::<HashMap<_, _>>();
 
@@ -87,17 +60,17 @@ impl TestNetwork {
         .await
     }
 
-    /// Verify the signature of a checkpoint header.
-    pub fn verify_checkpointer_header_signature(
+    /// Verify the signature of a checkpoint attestation.
+    pub fn verify_checkpointer_attestation_signature(
         &self,
-        header: CheckpointAttestation,
+        attestation: CheckpointAttestation,
     ) -> Result<bool> {
-        let header_node = self.node(header.node_id);
-        Ok(header_node.keystore.get_bls_pk().verify(
-            &header.signature,
+        let attestation_node = self.node(attestation.node_id);
+        Ok(attestation_node.get_consensus_public_key().verify(
+            &attestation.signature,
             DefaultSerdeBackend::serialize(&CheckpointAttestation {
                 signature: ConsensusSignature::default(),
-                ..header.clone()
+                ..attestation.clone()
             })
             .as_slice(),
         )?)
@@ -133,13 +106,12 @@ impl TestNetwork {
         poll_until(
             || async {
                 let header_by_node = self
-                    .node_by_id
-                    .iter()
-                    .map(|(node_id, node)| {
-                        let query = node.checkpointer.query();
+                    .nodes()
+                    .map(|node| {
+                        let query = node.checkpointer_query();
                         let header = query.get_aggregate_checkpoint(epoch);
 
-                        (*node_id, header)
+                        (node.index(), header)
                     })
                     .collect::<HashMap<_, _>>();
 
@@ -169,7 +141,12 @@ impl TestNetwork {
         let mut pks = agg_header
             .nodes
             .iter()
-            .map(|node_id| (node_id, self.node(node_id as u32).keystore.get_bls_pk()))
+            .map(|node_id| {
+                (
+                    node_id,
+                    self.node(node_id as u32).get_consensus_public_key(),
+                )
+            })
             .collect::<Vec<_>>();
         pks.sort_by_key(|(node_id, _)| *node_id);
         let pks = pks.into_iter().map(|(_, pk)| pk).collect::<Vec<_>>();

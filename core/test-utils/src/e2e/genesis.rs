@@ -15,10 +15,8 @@ use lightning_interfaces::types::{
     NodePorts,
     Staking,
 };
-use lightning_interfaces::KeystoreInterface;
-use ready::ReadyWaiter;
 
-use super::{GenesisMutator, TestNode};
+use super::{BoxedNode, GenesisMutator};
 
 #[derive(Clone)]
 pub struct TestGenesisBuilder {
@@ -68,14 +66,16 @@ impl TestGenesisBuilder {
         }
     }
 
-    pub fn with_node(mut self, node: &TestNode, is_committee: bool) -> Self {
-        let node_secret_key = node.keystore.get_ed25519_sk();
+    pub fn with_node(mut self, node: &BoxedNode, is_committee: bool) -> Self {
+        let node_secret_key = node.get_node_secret_key();
         let node_public_key = node_secret_key.to_pk();
-        let node_owner_address = node.owner_secret_key.to_pk().into();
-        let consensus_secret_key = node.keystore.get_bls_sk();
+        let node_owner_address = node.get_owner_public_key().into();
+        let consensus_secret_key = node.get_consensus_secret_key();
         let consensus_public_key = consensus_secret_key.to_pk();
         let node_domain = "127.0.0.1".parse().unwrap();
-        let ready = node.before_genesis_ready.state().expect("node not ready");
+        let ready = node
+            .get_before_genesis_ready_state()
+            .expect("node not ready");
         let ports = NodePorts {
             pool: ready.pool_listen_address.port(),
             ..Default::default()
@@ -95,7 +95,7 @@ impl TestGenesisBuilder {
         }
 
         self.nodes.push(GenesisNode::new(
-            node.owner_secret_key.to_pk().into(),
+            node_owner_address,
             node_public_key,
             node_domain,
             consensus_public_key,

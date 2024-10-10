@@ -14,6 +14,7 @@ use lightning_test_utils::e2e::TestNetwork;
 use lightning_test_utils::random;
 use lightning_test_utils::reputation::generate_reputation_measurements;
 use lightning_utils::application::QueryRunnerExt;
+use lightning_utils::transaction::TransactionSigner;
 use tempfile::tempdir;
 
 use super::utils::*;
@@ -96,7 +97,7 @@ async fn test_submit_rep_measurements_too_many_times() {
 
 #[tokio::test]
 async fn test_rep_scores() {
-    let mut network = TestNetwork::builder()
+    let network = TestNetwork::builder()
         .with_num_nodes(4)
         .with_genesis_mutator(|genesis| {
             genesis.node_info[0].reputation = Some(40);
@@ -106,6 +107,10 @@ async fn test_rep_scores() {
         .await
         .unwrap();
     let node = network.node(0);
+    let query = node.application_query();
+    let node_client = node
+        .transaction_client(TransactionSigner::NodeMain(node.get_node_secret_key()))
+        .await;
     let peer1 = network.node(2);
     let peer2 = network.node(3);
 
@@ -122,7 +127,8 @@ async fn test_rep_scores() {
             generate_reputation_measurements(&mut rng, 0.1),
         ),
     ]);
-    node.execute_transaction_from_node(UpdateMethod::SubmitReputationMeasurements { measurements })
+    node_client
+        .execute_transaction(UpdateMethod::SubmitReputationMeasurements { measurements })
         .await
         .unwrap();
 
@@ -137,7 +143,8 @@ async fn test_rep_scores() {
             generate_reputation_measurements(&mut rng, 0.1),
         ),
     ]);
-    node.execute_transaction_from_node(UpdateMethod::SubmitReputationMeasurements { measurements })
+    node_client
+        .execute_transaction(UpdateMethod::SubmitReputationMeasurements { measurements })
         .await
         .unwrap();
 
@@ -145,16 +152,8 @@ async fn test_rep_scores() {
     network.change_epoch_and_wait_for_complete().await.unwrap();
 
     // Check the reputation scores.
-    assert!(
-        node.app_query
-            .get_reputation_score(&peer1.index())
-            .is_some()
-    );
-    assert!(
-        node.app_query
-            .get_reputation_score(&peer2.index())
-            .is_some()
-    );
+    assert!(query.get_reputation_score(&peer1.index()).is_some());
+    assert!(query.get_reputation_score(&peer2.index()).is_some());
 
     // Shutdown the network.
     network.shutdown().await;

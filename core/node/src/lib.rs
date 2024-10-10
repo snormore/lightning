@@ -112,6 +112,10 @@ impl<C: NodeComponents> ContainedNode<C> {
         })
     }
 
+    pub fn shutdown_waiter(&self) -> ShutdownWaiter {
+        self.shutdown.waiter()
+    }
+
     /// Shut down the node and return a future that will be resolved when the node is fully down.
     ///
     /// Unlike other async method this function can trigger the shutdown without it being polled.
