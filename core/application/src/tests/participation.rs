@@ -5,7 +5,6 @@ use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{ExecutionData, ExecutionError, Participation, UpdateMethod};
 use lightning_test_utils::e2e::TestNetwork;
 use lightning_utils::application::QueryRunnerExt;
-use lightning_utils::transaction::TransactionSigner;
 use tempfile::tempdir;
 
 use super::utils::*;
@@ -23,33 +22,31 @@ async fn test_uptime_participation() {
         .unwrap();
     let node1 = network.node(0);
     let query = node1.application_query();
-    let node1_client = node1
-        .transaction_client(TransactionSigner::NodeMain(node1.get_node_secret_key()))
-        .await;
+    let node1_client = node1.node_transaction_client().await;
     let node2 = network.node(1);
-    let node2_client = node2
-        .transaction_client(TransactionSigner::NodeMain(node2.get_node_secret_key()))
-        .await;
+    let node2_client = node2.node_transaction_client().await;
     let peer1 = network.node(2);
-    let peer1_client = peer1
-        .transaction_client(TransactionSigner::NodeMain(peer1.get_node_secret_key()))
-        .await;
+    let peer1_client = peer1.node_transaction_client().await;
     let peer2 = network.node(3);
-    let peer2_client = peer2
-        .transaction_client(TransactionSigner::NodeMain(peer2.get_node_secret_key()))
-        .await;
+    let peer2_client = peer2.node_transaction_client().await;
 
     // Add records in the content registry for the peers.
     peer1_client
-        .execute_transaction(UpdateMethod::UpdateContentRegistry {
-            updates: vec![Default::default()],
-        })
+        .execute_transaction(
+            UpdateMethod::UpdateContentRegistry {
+                updates: vec![Default::default()],
+            },
+            None,
+        )
         .await
         .unwrap();
     peer2_client
-        .execute_transaction(UpdateMethod::UpdateContentRegistry {
-            updates: vec![Default::default()],
-        })
+        .execute_transaction(
+            UpdateMethod::UpdateContentRegistry {
+                updates: vec![Default::default()],
+            },
+            None,
+        )
         .await
         .unwrap();
 
@@ -74,7 +71,10 @@ async fn test_uptime_participation() {
             (peer2.index(), test_reputation_measurements(40)),
         ]);
     node1_client
-        .execute_transaction(UpdateMethod::SubmitReputationMeasurements { measurements })
+        .execute_transaction(
+            UpdateMethod::SubmitReputationMeasurements { measurements },
+            None,
+        )
         .await
         .unwrap();
 
@@ -84,7 +84,10 @@ async fn test_uptime_participation() {
         (peer2.index(), test_reputation_measurements(45)),
     ]);
     node2_client
-        .execute_transaction(UpdateMethod::SubmitReputationMeasurements { measurements })
+        .execute_transaction(
+            UpdateMethod::SubmitReputationMeasurements { measurements },
+            None,
+        )
         .await
         .unwrap();
 

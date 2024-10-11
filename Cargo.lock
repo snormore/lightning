@@ -7847,7 +7847,6 @@ version = "0.0.0"
 dependencies = [
  "affair",
  "anyhow",
- "fleek-crypto",
  "futures",
  "hp-fixed",
  "lightning-application",
@@ -7857,9 +7856,9 @@ dependencies = [
  "lightning-test-utils",
  "lightning-utils",
  "lightning-workspace-hack",
- "resolved-pathbuf",
  "serde",
  "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -8047,6 +8046,7 @@ dependencies = [
 name = "lightning-types"
 version = "0.1.0"
 dependencies = [
+ "affair",
  "anyhow",
  "atomo",
  "bincode",
@@ -8080,6 +8080,7 @@ dependencies = [
 name = "lightning-utils"
 version = "0.0.0"
 dependencies = [
+ "affair",
  "anyhow",
  "ethers",
  "fleek-crypto",

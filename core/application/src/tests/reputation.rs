@@ -14,7 +14,6 @@ use lightning_test_utils::e2e::TestNetwork;
 use lightning_test_utils::random;
 use lightning_test_utils::reputation::generate_reputation_measurements;
 use lightning_utils::application::QueryRunnerExt;
-use lightning_utils::transaction::TransactionSigner;
 use tempfile::tempdir;
 
 use super::utils::*;
@@ -108,9 +107,7 @@ async fn test_rep_scores() {
         .unwrap();
     let node = network.node(0);
     let query = node.application_query();
-    let node_client = node
-        .transaction_client(TransactionSigner::NodeMain(node.get_node_secret_key()))
-        .await;
+    let node_client = node.node_transaction_client().await;
     let peer1 = network.node(2);
     let peer2 = network.node(3);
 
@@ -128,7 +125,10 @@ async fn test_rep_scores() {
         ),
     ]);
     node_client
-        .execute_transaction(UpdateMethod::SubmitReputationMeasurements { measurements })
+        .execute_transaction(
+            UpdateMethod::SubmitReputationMeasurements { measurements },
+            None,
+        )
         .await
         .unwrap();
 
@@ -144,7 +144,10 @@ async fn test_rep_scores() {
         ),
     ]);
     node_client
-        .execute_transaction(UpdateMethod::SubmitReputationMeasurements { measurements })
+        .execute_transaction(
+            UpdateMethod::SubmitReputationMeasurements { measurements },
+            None,
+        )
         .await
         .unwrap();
 

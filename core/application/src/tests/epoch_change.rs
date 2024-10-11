@@ -5,6 +5,7 @@ use fleek_crypto::{AccountOwnerSecretKey, NodeSecretKey, SecretKey};
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
     DeliveryAcknowledgmentProof,
+    ExecuteTransactionError,
     ExecutionData,
     ExecutionError,
     TransactionReceipt,
@@ -14,13 +15,16 @@ use lightning_interfaces::types::{
 use lightning_test_utils::e2e::TestNetwork;
 use lightning_utils::application::QueryRunnerExt;
 use lightning_utils::poll::{poll_until, PollUntilError};
-use lightning_utils::transaction::{TransactionClientError, TransactionSigner};
+use lightning_utils::transaction::TransactionSigner;
 use tempfile::tempdir;
 
 use super::utils::*;
 
 #[tokio::test]
 async fn test_epoch_change_with_all_committee_nodes() {
+    // TODO(snormore): Remove when finished debugging.
+    lightning_test_utils::e2e::init_tracing();
+
     let network = TestNetwork::builder()
         .with_num_nodes(4)
         .build()
@@ -29,26 +33,20 @@ async fn test_epoch_change_with_all_committee_nodes() {
     let node1 = network.node(0);
     let node2 = network.node(1);
     let node3 = network.node(2);
-    let node1_client = node1
-        .transaction_client(TransactionSigner::NodeMain(node1.get_node_secret_key()))
-        .await;
-    let node2_client = node2
-        .transaction_client(TransactionSigner::NodeMain(node2.get_node_secret_key()))
-        .await;
-    let node3_client = node3
-        .transaction_client(TransactionSigner::NodeMain(node3.get_node_secret_key()))
-        .await;
+    let node1_client = node1.node_transaction_client().await;
+    let node2_client = node2.node_transaction_client().await;
+    let node3_client = node3.node_transaction_client().await;
 
     // Get the current epoch.
     let epoch = node1.application_query().get_epoch();
 
     // Execute an epoch change transaction from less than 2/3 of the nodes.
     node1_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
     node2_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
 
@@ -69,7 +67,7 @@ async fn test_epoch_change_with_all_committee_nodes() {
 
     // Execute an epoch change transaction from enough nodes to trigger an epoch change.
     node3_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
 
@@ -108,56 +106,36 @@ async fn test_epoch_change_with_some_non_committee_nodes() {
     let committee_node1 = committee_nodes[0];
     let committee_node2 = committee_nodes[1];
     let committee_node3 = committee_nodes[2];
-    let committee_node1_client = committee_node1
-        .transaction_client(TransactionSigner::NodeMain(
-            committee_node1.get_node_secret_key(),
-        ))
-        .await;
-    let committee_node2_client = committee_node2
-        .transaction_client(TransactionSigner::NodeMain(
-            committee_node2.get_node_secret_key(),
-        ))
-        .await;
-    let committee_node3_client = committee_node3
-        .transaction_client(TransactionSigner::NodeMain(
-            committee_node3.get_node_secret_key(),
-        ))
-        .await;
+    let committee_node1_client = committee_node1.node_transaction_client().await;
+    let committee_node2_client = committee_node2.node_transaction_client().await;
+    let committee_node3_client = committee_node3.node_transaction_client().await;
 
     // Get the current non-committee nodes.
     let non_committee_nodes = network.non_committee_nodes();
     let non_committee_node1 = non_committee_nodes[0];
     let non_committee_node2 = non_committee_nodes[1];
-    let non_committee_node1_client = non_committee_node1
-        .transaction_client(TransactionSigner::NodeMain(
-            non_committee_node1.get_node_secret_key(),
-        ))
-        .await;
-    let non_committee_node2_client = non_committee_node2
-        .transaction_client(TransactionSigner::NodeMain(
-            non_committee_node2.get_node_secret_key(),
-        ))
-        .await;
+    let non_committee_node1_client = non_committee_node1.node_transaction_client().await;
+    let non_committee_node2_client = non_committee_node2.node_transaction_client().await;
 
     // Get the current epoch.
     let epoch = committee_node1.application_query().get_epoch();
 
     // Execute an epoch change transaction from less than 2/3 of the committee nodes.
     committee_node1_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
     committee_node2_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
 
     // Send epoch change transactions from the non-committee nodes.
     let result = non_committee_node1_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await;
     match result.unwrap_err() {
-        TransactionClientError::Reverted((_, TransactionReceipt { response, .. })) => {
+        ExecuteTransactionError::Reverted((_, TransactionReceipt { response, .. })) => {
             assert_eq!(
                 response,
                 TransactionResponse::Revert(ExecutionError::NotCommitteeMember)
@@ -166,10 +144,10 @@ async fn test_epoch_change_with_some_non_committee_nodes() {
         _ => panic!("unexpected error type"),
     }
     let result = non_committee_node2_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await;
     match result.unwrap_err() {
-        TransactionClientError::Reverted((_, TransactionReceipt { response, .. })) => {
+        ExecuteTransactionError::Reverted((_, TransactionReceipt { response, .. })) => {
             assert_eq!(
                 response,
                 TransactionResponse::Revert(ExecutionError::NotCommitteeMember)
@@ -195,7 +173,7 @@ async fn test_epoch_change_with_some_non_committee_nodes() {
 
     // Execute an epoch change transaction from enough nodes to trigger an epoch change.
     committee_node3_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
 
@@ -288,15 +266,16 @@ async fn test_change_epoch_reverts_insufficient_stake() {
 
 #[tokio::test]
 async fn test_epoch_change_reverts_epoch_already_changed() {
+    // TODO(snormore): Remove when finished debugging.
+    lightning_test_utils::e2e::init_tracing();
+
     let network = TestNetwork::builder()
         .with_num_nodes(4)
         .build()
         .await
         .unwrap();
     let node = network.node(0);
-    let node_client = node
-        .transaction_client(TransactionSigner::NodeMain(node.get_node_secret_key()))
-        .await;
+    let node_client = node.node_transaction_client().await;
 
     // Get the current epoch.
     let epoch = node.application_query().get_epoch();
@@ -306,10 +285,10 @@ async fn test_epoch_change_reverts_epoch_already_changed() {
 
     // Send epoch change transaction from a node for same epoch, and expect it to be reverted.
     let result = node_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
         .await;
     match result.unwrap_err() {
-        TransactionClientError::Reverted((_, TransactionReceipt { response, .. })) => {
+        ExecuteTransactionError::Reverted((_, TransactionReceipt { response, .. })) => {
             assert_eq!(
                 response,
                 TransactionResponse::Revert(ExecutionError::EpochAlreadyChanged)
@@ -414,12 +393,8 @@ async fn test_distribute_rewards() {
             node2.get_owner_secret_key(),
         ))
         .await;
-    let node1_node_client = node1
-        .transaction_client(TransactionSigner::NodeMain(node1.get_node_secret_key()))
-        .await;
-    let node2_node_client = node2
-        .transaction_client(TransactionSigner::NodeMain(node2.get_node_secret_key()))
-        .await;
+    let node1_node_client = node1.node_transaction_client().await;
+    let node2_node_client = node2.node_transaction_client().await;
 
     // Initialize params for emission calculations.
     let percentage_divisor: HpUfixed<18> = 100_u16.into();
@@ -479,9 +454,18 @@ async fn test_distribute_rewards() {
     ];
 
     // Execute delivery acknowledgment transactions.
-    node1_node_client.execute_transaction(pod_10).await.unwrap();
-    node1_node_client.execute_transaction(pod_11).await.unwrap();
-    node2_node_client.execute_transaction(pod_21).await.unwrap();
+    node1_node_client
+        .execute_transaction(pod_10, None)
+        .await
+        .unwrap();
+    node1_node_client
+        .execute_transaction(pod_11, None)
+        .await
+        .unwrap();
+    node2_node_client
+        .execute_transaction(pod_21, None)
+        .await
+        .unwrap();
 
     // Trigger epoch change and distribute rewards.
     network.change_epoch_and_wait_for_complete().await.unwrap();
@@ -566,9 +550,7 @@ async fn test_supply_across_epoch() {
     let genesis = &network.genesis;
     let node = network.node(0);
     let query = node.application_query();
-    let node_client = node
-        .transaction_client(TransactionSigner::NodeMain(node.get_node_secret_key()))
-        .await;
+    let node_client = node.node_transaction_client().await;
     let owner_client = node
         .transaction_client(TransactionSigner::AccountOwner(node.get_owner_secret_key()))
         .await;
@@ -599,12 +581,15 @@ async fn test_supply_across_epoch() {
     for epoch in 0..genesis.epochs_per_year {
         // Add at least one transaction per epoch, so reward pool is not zero.
         node_client
-            .execute_transaction(UpdateMethod::SubmitDeliveryAcknowledgmentAggregation {
-                commodity: 10000,
-                service_id: 0,
-                proofs: vec![DeliveryAcknowledgmentProof],
-                metadata: None,
-            })
+            .execute_transaction(
+                UpdateMethod::SubmitDeliveryAcknowledgmentAggregation {
+                    commodity: 10000,
+                    service_id: 0,
+                    proofs: vec![DeliveryAcknowledgmentProof],
+                    metadata: None,
+                },
+                None,
+            )
             .await
             .unwrap();
 
@@ -622,13 +607,12 @@ async fn test_supply_across_epoch() {
                 map.insert(peer.index(), measurements.clone());
             }
 
-            let node_client = node
-                .transaction_client(TransactionSigner::NodeMain(node.get_node_secret_key()))
-                .await;
+            let node_client = node.node_transaction_client().await;
             node_client
-                .execute_transaction(UpdateMethod::SubmitReputationMeasurements {
-                    measurements: map,
-                })
+                .execute_transaction(
+                    UpdateMethod::SubmitReputationMeasurements { measurements: map },
+                    None,
+                )
                 .await
                 .unwrap();
         }

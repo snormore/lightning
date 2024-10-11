@@ -18,6 +18,7 @@ use lightning_pool::{Config as PoolConfig, PoolProvider};
 use lightning_rep_collector::MyReputationReporter;
 use lightning_rpc::config::Config as RpcConfig;
 use lightning_rpc::Rpc;
+use lightning_signer::Signer;
 use lightning_utils::config::TomlConfigProvider;
 use ready::tokio::TokioReadyWaiter;
 use ready::ReadyWaiter;
@@ -196,6 +197,7 @@ impl TestNodeBuilder {
             pool: node.provider().get::<PoolProvider<TestNodeComponents>>(),
             rpc: node.provider().get::<Rpc<TestNodeComponents>>(),
             reputation_reporter: node.provider().get::<MyReputationReporter>(),
+            signer: node.provider().get::<Signer<TestNodeComponents>>(),
 
             inner: node,
             before_genesis_ready,

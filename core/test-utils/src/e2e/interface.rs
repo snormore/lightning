@@ -23,6 +23,8 @@ use lightning_interfaces::types::{
     CommitteeSelectionBeaconReveal,
     Epoch,
     EpochInfo,
+    ExecuteTransactionError,
+    ExecuteTransactionOptions,
     Genesis,
     Metadata,
     NodeIndex,
@@ -40,7 +42,7 @@ use lightning_interfaces::types::{
 use lightning_interfaces::Events;
 use lightning_rep_collector::MyReputationReporter;
 use lightning_rpc::RpcClient;
-use lightning_utils::transaction::{TransactionClientError, TransactionSigner};
+use lightning_utils::transaction::TransactionSigner;
 use merklize::StateRootHash;
 
 use super::TestNodeBeforeGenesisReadyState;
@@ -58,6 +60,7 @@ pub trait NetworkNode: Any {
         &self,
         signer: TransactionSigner,
     ) -> Box<dyn NetworkTransactionClient>;
+    async fn node_transaction_client(&self) -> Box<dyn NetworkTransactionClient>;
 
     fn application_query(&self) -> Box<dyn NetworkQueryRunner>;
     fn checkpointer_query(&self) -> CheckpointerQuery;
@@ -118,23 +121,24 @@ pub trait NetworkTransactionClient {
     async fn execute_transaction(
         &self,
         method: UpdateMethod,
-    ) -> Result<(TransactionRequest, TransactionReceipt), TransactionClientError>;
+        options: Option<ExecuteTransactionOptions>,
+    ) -> Result<(TransactionRequest, TransactionReceipt), ExecuteTransactionError>;
 
     async fn deposit_and_stake(
         &self,
         amount: HpUfixed<18>,
         node: NodePublicKey,
-    ) -> Result<(), TransactionClientError>;
+    ) -> Result<(), ExecuteTransactionError>;
     async fn stake_lock(
         &self,
         locked_for: u64,
         node: NodePublicKey,
-    ) -> Result<(), TransactionClientError>;
+    ) -> Result<(), ExecuteTransactionError>;
     async fn unstake(
         &self,
         amount: HpUfixed<18>,
         node: NodePublicKey,
-    ) -> Result<(), TransactionClientError>;
+    ) -> Result<(), ExecuteTransactionError>;
 }
 
 // TODO(snormore): Can we remove the <C> param type from SyncQueryRunnerInterface and use that

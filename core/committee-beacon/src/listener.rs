@@ -1,8 +1,9 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result};
 use fleek_crypto::SecretKey;
 use lightning_interfaces::prelude::*;
 use lightning_utils::application::QueryRunnerExt;
-use lightning_utils::transaction::{TransactionClient, TransactionSigner};
 use rand::Rng;
 use sha3::{Digest, Sha3_256};
 use types::{
@@ -13,8 +14,15 @@ use types::{
     CommitteeSelectionBeaconReveal,
     CommitteeSelectionBeaconRound,
     Epoch,
+    ExecuteTransactionError,
+    ExecuteTransactionOptions,
+    ExecuteTransactionRequest,
+    ExecuteTransactionResponse,
+    ExecuteTransactionRetry,
+    ExecuteTransactionWait,
     Metadata,
     NodeIndex,
+    TransactionReceipt,
     UpdateMethod,
     Value,
 };
@@ -28,7 +36,7 @@ pub struct CommitteeBeaconListener<C: NodeComponents> {
     notifier: C::NotifierInterface,
     app_query: c!(C::ApplicationInterface::SyncExecutor),
     node_index: NodeIndex,
-    client: TransactionClient<C>,
+    signer: SignerSubmitTxSocket,
 }
 
 impl<C: NodeComponents> CommitteeBeaconListener<C> {
@@ -37,7 +45,7 @@ impl<C: NodeComponents> CommitteeBeaconListener<C> {
         keystore: C::KeystoreInterface,
         notifier: C::NotifierInterface,
         app_query: c!(C::ApplicationInterface::SyncExecutor),
-        mempool: MempoolSocket,
+        signer: SignerSubmitTxSocket,
     ) -> Result<Self> {
         let node_secret_key = keystore.get_ed25519_sk();
         let node_public_key = node_secret_key.to_pk();
@@ -45,21 +53,12 @@ impl<C: NodeComponents> CommitteeBeaconListener<C> {
             .pubkey_to_index(&node_public_key)
             .context("failed to get node index")?;
 
-        // Build a new transaction client for executing transactions signed by this node.
-        let client = TransactionClient::new(
-            app_query.clone(),
-            notifier.clone(),
-            mempool.clone(),
-            TransactionSigner::NodeMain(node_secret_key),
-        )
-        .await;
-
         Ok(Self {
             db,
             notifier,
             app_query,
             node_index,
-            client,
+            signer,
         })
     }
 
@@ -188,10 +187,7 @@ impl<C: NodeComponents> CommitteeBeaconListener<C> {
         // restart the commit phase, depending on participation.
         if response.block_number >= end_block {
             tracing::debug!("submitting commit phase timeout transaction");
-            self.client
-                .execute_transaction_with_retry_on_invalid_nonce(
-                    UpdateMethod::CommitteeSelectionBeaconCommitPhaseTimeout,
-                )
+            self.execute_transaction(UpdateMethod::CommitteeSelectionBeaconCommitPhaseTimeout)
                 .await?;
 
             // Return, we don't need to do anything else.
@@ -224,10 +220,7 @@ impl<C: NodeComponents> CommitteeBeaconListener<C> {
 
         // Build commit and submit it.
         tracing::debug!("submitting commit transaction: {:?}", commit);
-        self.client
-            .execute_transaction_with_retry_on_invalid_nonce(
-                UpdateMethod::CommitteeSelectionBeaconCommit { commit },
-            )
+        self.execute_transaction(UpdateMethod::CommitteeSelectionBeaconCommit { commit })
             .await?;
 
         Ok(())
@@ -264,10 +257,7 @@ impl<C: NodeComponents> CommitteeBeaconListener<C> {
         // phase.
         if response.block_number >= end_block {
             tracing::debug!("submitting reveal phase timeout transaction");
-            self.client
-                .execute_transaction_with_retry_on_invalid_nonce(
-                    UpdateMethod::CommitteeSelectionBeaconRevealPhaseTimeout,
-                )
+            self.execute_transaction(UpdateMethod::CommitteeSelectionBeaconRevealPhaseTimeout)
                 .await?;
 
             // Return, we don't need to do anything else.
@@ -300,13 +290,33 @@ impl<C: NodeComponents> CommitteeBeaconListener<C> {
 
         // Otherwise, send our reveal transaction.
         tracing::debug!("submitting reveal transaction: {:?}", reveal);
-        self.client
-            .execute_transaction_with_retry_on_invalid_nonce(
-                UpdateMethod::CommitteeSelectionBeaconReveal { reveal },
-            )
+        self.execute_transaction(UpdateMethod::CommitteeSelectionBeaconReveal { reveal })
             .await?;
 
         Ok(())
+    }
+
+    /// Execute transaction via the signer component.
+    async fn execute_transaction(
+        &self,
+        method: UpdateMethod,
+    ) -> Result<TransactionReceipt, ExecuteTransactionError> {
+        let resp = self
+            .signer
+            .run(ExecuteTransactionRequest {
+                method,
+                options: Some(ExecuteTransactionOptions {
+                    retry: ExecuteTransactionRetry::AnyError(Some(3)),
+                    wait: ExecuteTransactionWait::Receipt(Some(Duration::from_secs(10))),
+                    timeout: Some(Duration::from_secs(30)),
+                }),
+            })
+            .await??;
+
+        match resp {
+            ExecuteTransactionResponse::Receipt((_, receipt)) => Ok(receipt),
+            _ => unreachable!("invalid response from signer"),
+        }
     }
 
     /// Generate random reveal value.

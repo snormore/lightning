@@ -3,7 +3,6 @@ use std::time::Duration;
 use futures::future::join_all;
 use lightning_interfaces::types::{Epoch, UpdateMethod};
 use lightning_utils::poll::{poll_until, PollUntilError};
-use lightning_utils::transaction::TransactionSigner;
 
 use super::{BoxedNode, TestNetwork};
 
@@ -23,9 +22,9 @@ impl TestNetwork {
     pub async fn change_epoch(&self) -> Epoch {
         let epoch = self.node(0).application_query().get_epoch();
         join_all(self.nodes().map(|node| async {
-            node.transaction_client(TransactionSigner::NodeMain(node.get_node_secret_key()))
+            node.node_transaction_client()
                 .await
-                .execute_transaction(UpdateMethod::ChangeEpoch { epoch })
+                .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
                 .await
         }))
         .await;
@@ -40,7 +39,7 @@ impl TestNetwork {
                     .then_some(())
                     .ok_or(PollUntilError::ConditionNotSatisfied)
             },
-            Duration::from_secs(5),
+            Duration::from_secs(15),
             Duration::from_millis(100),
         )
         .await

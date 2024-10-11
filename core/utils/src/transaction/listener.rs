@@ -49,35 +49,39 @@ impl<C: NodeComponents> TransactionReceiptListener<C> {
         notifier: C::NotifierInterface,
         signer: TransactionSigner,
         next_nonce: Arc<AtomicU64>,
+        crucial: Option<ShutdownWaiter>,
     ) -> Self {
         let listener = Self::new();
         let pending = listener.pending.clone();
 
-        spawn!(
-            async move {
-                let mut block_sub = notifier.subscribe_block_executed();
-                loop {
-                    let Some(notification) = block_sub.recv().await else {
-                        tracing::debug!("block subscription stream ended");
-                        break;
-                    };
+        let fut = async move {
+            let mut block_sub = notifier.subscribe_block_executed();
+            loop {
+                let Some(notification) = block_sub.recv().await else {
+                    tracing::debug!("block subscription stream ended");
+                    break;
+                };
 
-                    // Update the next nonce counter from application state.
-                    next_nonce.store(signer.get_nonce(&app_query) + 1, Ordering::Relaxed);
+                // Update the next nonce counter from application state.
+                next_nonce.store(signer.get_nonce(&app_query) + 1, Ordering::Relaxed);
 
-                    // Send pending receipts back through the registered channel.
-                    for receipt in notification.response.txn_receipts {
-                        let mut pending = pending.lock().await;
-                        if pending.contains_key(&receipt.transaction_hash) {
-                            if let Some(sender) = pending.remove(&receipt.transaction_hash) {
-                                let _ = sender.send(receipt);
-                            }
+                // Send pending receipts back through the registered channel.
+                for receipt in notification.response.txn_receipts {
+                    let mut pending = pending.lock().await;
+                    if pending.contains_key(&receipt.transaction_hash) {
+                        if let Some(sender) = pending.remove(&receipt.transaction_hash) {
+                            let _ = sender.send(receipt);
                         }
                     }
                 }
-            },
-            "TRANSACTION-CLIENT: listener"
-        );
+            }
+        };
+
+        if let Some(shutdown) = crucial {
+            spawn!(fut, "TRANSACTION-CLIENT: listener", crucial(shutdown));
+        } else {
+            spawn!(fut, "TRANSACTION-CLIENT: listener");
+        }
 
         listener
     }

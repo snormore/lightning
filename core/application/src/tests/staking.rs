@@ -702,6 +702,9 @@ async fn test_withdraw_unstaked_reverts_no_locked_tokens() {
 
 #[tokio::test]
 async fn test_withdraw_unstaked_works_properly() {
+    // TODO(snormore): Remove this when finished debugging.
+    lightning_test_utils::e2e::init_tracing();
+
     let network = TestNetwork::builder()
         .with_num_nodes(4)
         .build()
@@ -745,10 +748,13 @@ async fn test_withdraw_unstaked_works_properly() {
 
     // Execute withdraw unstaked transaction.
     owner_client
-        .execute_transaction(UpdateMethod::WithdrawUnstaked {
-            node: node.get_node_public_key(),
-            recipient: Some(owner_address),
-        })
+        .execute_transaction(
+            UpdateMethod::WithdrawUnstaked {
+                node: node.get_node_public_key(),
+                recipient: Some(owner_address),
+            },
+            None,
+        )
         .await
         .unwrap();
 

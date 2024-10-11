@@ -22,6 +22,7 @@ use lightning_node::ContainedNode;
 use lightning_pool::PoolProvider;
 use lightning_rep_collector::MyReputationReporter;
 use lightning_rpc::{load_hmac_secret, Rpc, RpcClient};
+use lightning_signer::Signer;
 use lightning_utils::transaction::{TransactionClient, TransactionSigner};
 use merklize::StateRootHash;
 use ready::tokio::TokioReadyWaiter;
@@ -29,11 +30,12 @@ use ready::ReadyWaiter;
 use types::{CheckpointAttestation, Epoch, Genesis, NodeIndex, NodeInfo, Topic};
 
 use super::{
+    AccountTransactionClient,
     NetworkNode,
     NetworkQueryRunner,
     NetworkTransactionClient,
+    NodeTransactionClient,
     TestQueryRunner,
-    TestTransactionClient,
 };
 use crate::consensus::MockForwarder;
 use crate::keys::EphemeralKeystore;
@@ -55,6 +57,7 @@ pub struct TestNode<C: NodeComponents> {
     pub pool: fdi::Ref<PoolProvider<C>>,
     pub rpc: fdi::Ref<Rpc<C>>,
     pub reputation_reporter: fdi::Ref<MyReputationReporter>,
+    pub signer: fdi::Ref<Signer<C>>,
 }
 
 #[async_trait::async_trait]
@@ -145,16 +148,21 @@ impl<C: NodeComponents> NetworkNode for TestNode<C> {
         Ok(())
     }
 
+    async fn node_transaction_client(&self) -> Box<dyn NetworkTransactionClient> {
+        Box::new(NodeTransactionClient::new(self.signer.get_socket()))
+    }
+
     async fn transaction_client(
         &self,
         signer: TransactionSigner,
     ) -> Box<dyn NetworkTransactionClient> {
-        Box::new(TestTransactionClient::new(
+        Box::new(AccountTransactionClient::new(
             TransactionClient::<C>::new(
                 self.app_query.clone(),
                 self.notifier.clone(),
                 self.forwarder.mempool_socket(),
                 signer,
+                None,
             )
             .await,
         ))

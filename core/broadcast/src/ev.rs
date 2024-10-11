@@ -58,6 +58,7 @@ pub struct Context<B: BroadcastBackend> {
     pending_store: PendingStore<B>,
     /// Incoming messages with the same digest
     processing: im::HashMap<Digest, VecDeque<MessageWithSender>>,
+    // TODO(snormore): Revert this back to OnceCell and use a wrapper for the test utils.
     current_node_index: OnceLock<NodeIndex>,
     backend: B,
 }

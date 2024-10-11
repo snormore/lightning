@@ -4,11 +4,13 @@ use lightning_interfaces::types::{Metadata, UpdateMethod};
 use lightning_interfaces::CommitteeBeaconQueryInterface;
 use lightning_test_utils::e2e::{NetworkQueryRunner, TestNetworkBuilder, TestNodeBuilder};
 use lightning_utils::poll::{poll_until, PollUntilError};
-use lightning_utils::transaction::TransactionSigner;
 use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_start_shutdown() {
+    // TODO(snormore): Remove when finished debugging.
+    lightning_test_utils::e2e::init_tracing();
+
     let temp_dir = tempdir().unwrap();
     let _node = TestNodeBuilder::new(temp_dir.path().to_path_buf())
         .build()
@@ -143,9 +145,9 @@ async fn test_block_executed_in_waiting_phase_should_do_nothing() {
     assert!(phase.is_none());
 
     // Submit a transaction that does nothing except increment the node's nonce.
-    node.transaction_client(TransactionSigner::NodeMain(node.get_node_secret_key()))
+    node.node_transaction_client()
         .await
-        .execute_transaction(UpdateMethod::IncrementNonce {})
+        .execute_transaction(UpdateMethod::IncrementNonce {}, None)
         .await
         .unwrap();
 
