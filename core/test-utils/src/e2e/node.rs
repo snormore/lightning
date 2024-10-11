@@ -35,6 +35,7 @@ use super::{
     NetworkQueryRunner,
     NetworkTransactionClient,
     NodeTransactionClient,
+    SyncBroadcaster,
     TestQueryRunner,
 };
 use crate::consensus::MockForwarder;
@@ -48,7 +49,7 @@ pub struct TestNode<C: NodeComponents> {
     pub owner_secret_key: AccountOwnerSecretKey,
     pub app: fdi::Ref<Application<C>>,
     pub app_query: c!(C::ApplicationInterface::SyncExecutor),
-    pub broadcast: fdi::Ref<C::BroadcastInterface>,
+    pub broadcast: fdi::Ref<SyncBroadcaster<C>>,
     pub checkpointer: fdi::Ref<Checkpointer<C>>,
     pub committee_beacon: fdi::Ref<CommitteeBeaconComponent<C>>,
     pub notifier: fdi::Ref<C::NotifierInterface>,

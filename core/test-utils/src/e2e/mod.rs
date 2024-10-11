@@ -1,4 +1,5 @@
 mod bindings;
+mod broadcast;
 mod genesis;
 mod interface;
 mod network;
@@ -12,6 +13,7 @@ mod tracing;
 mod transaction;
 
 pub use bindings::*;
+pub use broadcast::*;
 pub use genesis::*;
 pub use interface::*;
 pub use network::*;

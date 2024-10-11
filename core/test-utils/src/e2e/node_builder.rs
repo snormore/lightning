@@ -5,7 +5,6 @@ use fleek_crypto::{AccountOwnerSecretKey, SecretKey};
 use lightning_application::{Application, ApplicationConfig};
 use lightning_blockstore::blockstore::Blockstore;
 use lightning_blockstore::config::Config as BlockstoreConfig;
-use lightning_broadcast::Broadcast;
 use lightning_checkpointer::{Checkpointer, CheckpointerConfig, CheckpointerDatabaseConfig};
 use lightning_committee_beacon::{
     CommitteeBeaconComponent,
@@ -23,7 +22,13 @@ use lightning_utils::config::TomlConfigProvider;
 use ready::tokio::TokioReadyWaiter;
 use ready::ReadyWaiter;
 
-use super::{BoxedNode, TestNode, TestNodeBeforeGenesisReadyState, TestNodeComponents};
+use super::{
+    BoxedNode,
+    SyncBroadcaster,
+    TestNode,
+    TestNodeBeforeGenesisReadyState,
+    TestNodeComponents,
+};
 use crate::consensus::{MockConsensus, MockConsensusGroup, MockForwarder};
 use crate::keys::EphemeralKeystore;
 
@@ -182,7 +187,7 @@ impl TestNodeBuilder {
         Ok(Box::new(TestNode {
             app_query: app.sync_query(),
             app,
-            broadcast: node.provider().get::<Broadcast<TestNodeComponents>>(),
+            broadcast: node.provider().get::<SyncBroadcaster<TestNodeComponents>>(),
             checkpointer: node.provider().get::<Checkpointer<TestNodeComponents>>(),
             committee_beacon: node
                 .provider()
