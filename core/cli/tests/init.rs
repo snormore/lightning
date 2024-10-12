@@ -15,7 +15,11 @@ mod init_tests {
         let output = cmd.output().unwrap();
 
         assert!(!output.status.success());
-        assert!(output.stdout.is_empty());
+        assert!(
+            output.stdout.is_empty(),
+            "{}",
+            String::from_utf8(output.stdout).unwrap()
+        );
         assert!(str::from_utf8(&output.stderr).unwrap().contains(
             "Error: Either --network or --dev must be provided. See --help for details."
         ));

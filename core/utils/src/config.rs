@@ -104,7 +104,7 @@ impl<C: NodeComponents> TomlConfigProvider<C> {
 
 impl<C: NodeComponents> ConfigProviderInterface<C> for TomlConfigProvider<C> {
     fn get<S: ConfigConsumer>(&self) -> S::Config {
-        tracing::debug!("Getting the config for {}", std::any::type_name::<S>());
+        tracing::trace!("Getting the config for {}", std::any::type_name::<S>());
 
         let mut table = self.table.lock().expect("failed to acquire lock");
 

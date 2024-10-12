@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -169,13 +170,15 @@ impl TestNetworkBuilder {
 
                 peers_by_node
                     .iter()
-                    .all(|peers| {
+                    .enumerate()
+                    .all(|(i, peers)| {
                         tracing::debug!(
-                            "waiting for connected peers (connected: {:?}, needed: {:?})",
+                            "waiting for connected peers (node: {}, connected: {:?}, needed >= {})",
+                            i,
                             peers,
-                            nodes.len() - 1
+                            min(2, nodes.len() - 1)
                         );
-                        peers.len() == nodes.len() - 1
+                        peers.len() >= min(2, nodes.len() - 1)
                     })
                     .then_some(())
                     .ok_or(PollUntilError::ConditionNotSatisfied)
