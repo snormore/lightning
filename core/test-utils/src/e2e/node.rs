@@ -163,7 +163,6 @@ impl<C: NodeComponents> NetworkNode for TestNode<C> {
                 self.notifier.clone(),
                 self.forwarder.mempool_socket(),
                 signer,
-                None,
             )
             .await,
         ))

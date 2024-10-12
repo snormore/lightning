@@ -125,7 +125,7 @@ async fn test_rep_scores() {
         ),
     ]);
     node_client
-        .execute_transaction(
+        .execute_transaction_and_wait_for_receipt(
             UpdateMethod::SubmitReputationMeasurements { measurements },
             None,
         )
@@ -144,7 +144,7 @@ async fn test_rep_scores() {
         ),
     ]);
     node_client
-        .execute_transaction(
+        .execute_transaction_and_wait_for_receipt(
             UpdateMethod::SubmitReputationMeasurements { measurements },
             None,
         )

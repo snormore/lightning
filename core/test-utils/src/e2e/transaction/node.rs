@@ -6,10 +6,9 @@ use lightning_interfaces::types::{
     ExecuteTransactionOptions,
     ExecuteTransactionRequest,
     ExecuteTransactionResponse,
+    ExecuteTransactionWait,
     ProofOfConsensus,
     Tokens,
-    TransactionReceipt,
-    TransactionRequest,
     UpdateMethod,
 };
 use lightning_interfaces::SignerSubmitTxSocket;
@@ -32,16 +31,27 @@ impl NetworkTransactionClient for NodeTransactionClient {
         &self,
         method: UpdateMethod,
         options: Option<ExecuteTransactionOptions>,
-    ) -> Result<(TransactionRequest, TransactionReceipt), ExecuteTransactionError> {
+    ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError> {
         let resp = self
             .signer
             .run(ExecuteTransactionRequest { method, options })
             .await??;
 
-        match resp {
-            ExecuteTransactionResponse::Receipt((request, receipt)) => Ok((request, receipt)),
-            _ => unreachable!("invalid response from signer"),
+        Ok(resp)
+    }
+
+    async fn execute_transaction_and_wait_for_receipt(
+        &self,
+        method: UpdateMethod,
+        options: Option<ExecuteTransactionOptions>,
+    ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError> {
+        let mut options = options.unwrap_or_default();
+
+        if let ExecuteTransactionWait::None = options.wait {
+            options.wait = ExecuteTransactionWait::Receipt(None);
         }
+
+        self.execute_transaction(method, Some(options)).await
     }
 
     // TODO(snormore): Does this really need to exist on the node tx client?
@@ -52,7 +62,7 @@ impl NetworkTransactionClient for NodeTransactionClient {
         node: NodePublicKey,
     ) -> Result<(), ExecuteTransactionError> {
         // Deposit FLK tokens.
-        self.execute_transaction(
+        self.execute_transaction_and_wait_for_receipt(
             UpdateMethod::Deposit {
                 proof: ProofOfConsensus {},
                 token: Tokens::FLK,
@@ -63,7 +73,7 @@ impl NetworkTransactionClient for NodeTransactionClient {
         .await?;
 
         // Stake FLK tokens.
-        self.execute_transaction(
+        self.execute_transaction_and_wait_for_receipt(
             UpdateMethod::Stake {
                 amount: amount.clone(),
                 node_public_key: node,
@@ -85,8 +95,11 @@ impl NetworkTransactionClient for NodeTransactionClient {
         locked_for: u64,
         node: NodePublicKey,
     ) -> Result<(), ExecuteTransactionError> {
-        self.execute_transaction(UpdateMethod::StakeLock { node, locked_for }, None)
-            .await?;
+        self.execute_transaction_and_wait_for_receipt(
+            UpdateMethod::StakeLock { node, locked_for },
+            None,
+        )
+        .await?;
 
         Ok(())
     }
@@ -96,7 +109,7 @@ impl NetworkTransactionClient for NodeTransactionClient {
         amount: HpUfixed<18>,
         node: NodePublicKey,
     ) -> Result<(), ExecuteTransactionError> {
-        self.execute_transaction(
+        self.execute_transaction_and_wait_for_receipt(
             UpdateMethod::Unstake {
                 amount: amount.clone(),
                 node,

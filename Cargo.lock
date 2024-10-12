@@ -8072,6 +8072,7 @@ dependencies = [
  "serde_with 3.9.0",
  "tempfile",
  "thiserror",
+ "tokio",
  "toml 0.7.8",
  "url",
 ]

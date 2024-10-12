@@ -1,11 +1,10 @@
-use std::collections::HashSet;
 use std::time::Duration;
 
 use thiserror::Error;
 
 use crate::{ExecutionError, TransactionReceipt, TransactionRequest, UpdateMethod};
 
-type MaxRetries = u32;
+type MaxRetries = u8;
 
 type Timeout = Duration;
 
@@ -23,27 +22,41 @@ pub struct ExecuteTransactionOptions {
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
-pub enum ExecuteTransactionWait {
-    #[default]
-    None,
-    Hash,
-    Receipt(Option<Timeout>),
-}
-
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub enum ExecuteTransactionResponse {
     #[default]
     None,
-    Hash(TransactionRequest),
     Receipt((TransactionRequest, TransactionReceipt)),
+}
+
+impl ExecuteTransactionResponse {
+    pub fn as_receipt(&self) -> (TransactionRequest, TransactionReceipt) {
+        match self {
+            Self::Receipt(v) => v.clone(),
+            _ => unreachable!("invalid receipt in response"),
+        }
+    }
+
+    pub fn as_none(&self) {
+        match self {
+            Self::None => (),
+            _ => unreachable!("invalid receipt in response"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub enum ExecuteTransactionWait {
+    #[default]
+    None,
+    Receipt(Option<Timeout>),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub enum ExecuteTransactionRetry {
     #[default]
     Never,
-    AnyError(Option<MaxRetries>),
-    Errors((HashSet<ExecutionError>, Option<MaxRetries>)),
+    AlwaysExcept((Option<MaxRetries>, Option<Vec<ExecutionError>>)),
+    OnlyWith((Option<MaxRetries>, Option<Vec<ExecutionError>>)),
 }
 
 #[derive(Debug, Error, Eq, PartialEq)]
@@ -53,8 +66,8 @@ pub enum ExecuteTransactionError {
     Reverted((TransactionRequest, TransactionReceipt)),
 
     /// The transaction execution timed out.
-    #[error("Transaction timeout: {:?}", .0.hash())]
-    Timeout(TransactionRequest),
+    #[error("Transaction timeout: {:?}", .0)]
+    Timeout(UpdateMethod),
 
     /// The transaction was not submitted to the signer.
     #[error("Failed to submit transaction to signer: {:?}", .0)]
@@ -87,6 +100,12 @@ impl From<affair::RunError<ExecuteTransactionRequest>> for ExecuteTransactionErr
                 ExecuteTransactionError::FailedToGetResponseFromSigner
             },
         }
+    }
+}
+
+impl From<tokio::task::JoinError> for ExecuteTransactionError {
+    fn from(error: tokio::task::JoinError) -> Self {
+        Self::Other(error.to_string())
     }
 }
 

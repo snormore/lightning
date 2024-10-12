@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::{Context, Result};
 use fleek_crypto::SecretKey;
 use lightning_interfaces::prelude::*;
@@ -18,7 +16,6 @@ use types::{
     ExecuteTransactionOptions,
     ExecuteTransactionRequest,
     ExecuteTransactionResponse,
-    ExecuteTransactionRetry,
     ExecuteTransactionWait,
     Metadata,
     NodeIndex,
@@ -306,9 +303,8 @@ impl<C: NodeComponents> CommitteeBeaconListener<C> {
             .run(ExecuteTransactionRequest {
                 method,
                 options: Some(ExecuteTransactionOptions {
-                    retry: ExecuteTransactionRetry::AnyError(Some(3)),
-                    wait: ExecuteTransactionWait::Receipt(Some(Duration::from_secs(10))),
-                    timeout: Some(Duration::from_secs(30)),
+                    wait: ExecuteTransactionWait::Receipt(None),
+                    ..Default::default()
                 }),
             })
             .await??;

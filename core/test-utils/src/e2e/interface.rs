@@ -25,6 +25,7 @@ use lightning_interfaces::types::{
     EpochInfo,
     ExecuteTransactionError,
     ExecuteTransactionOptions,
+    ExecuteTransactionResponse,
     Genesis,
     Metadata,
     NodeIndex,
@@ -34,8 +35,6 @@ use lightning_interfaces::types::{
     ReportedReputationMeasurements,
     Service,
     ServiceId,
-    TransactionReceipt,
-    TransactionRequest,
     UpdateMethod,
     Value,
 };
@@ -122,7 +121,13 @@ pub trait NetworkTransactionClient {
         &self,
         method: UpdateMethod,
         options: Option<ExecuteTransactionOptions>,
-    ) -> Result<(TransactionRequest, TransactionReceipt), ExecuteTransactionError>;
+    ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError>;
+
+    async fn execute_transaction_and_wait_for_receipt(
+        &self,
+        method: UpdateMethod,
+        options: Option<ExecuteTransactionOptions>,
+    ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError>;
 
     async fn deposit_and_stake(
         &self,

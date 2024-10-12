@@ -1,24 +1,22 @@
-use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::types::{
     ExecuteTransactionOptions,
     ExecuteTransactionRetry,
     ExecuteTransactionWait,
-    TransactionReceipt,
     TransactionRequest,
     TransactionResponse,
     UpdateMethod,
 };
-use tokio::sync::oneshot;
-use types::{ExecuteTransactionError, ExecutionError};
+use types::{ExecuteTransactionError, ExecuteTransactionResponse};
 
-use super::listener::TransactionReceiptListener;
 use super::{TransactionBuilder, TransactionSigner};
 use crate::application::QueryRunnerExt;
+
+// Maximum number of times we will resend a transaction.
+const MAX_RETRIES: u8 = 3;
 
 /// A client for submitting and executing transactions, and waiting for their receipts.
 ///
@@ -26,9 +24,9 @@ use crate::application::QueryRunnerExt;
 /// before submitting it.
 pub struct TransactionClient<C: NodeComponents> {
     app_query: c!(C::ApplicationInterface::SyncExecutor),
+    notifier: C::NotifierInterface,
     mempool: MempoolSocket,
     signer: TransactionSigner,
-    listener: TransactionReceiptListener<C>,
     next_nonce: Arc<AtomicU64>,
 }
 
@@ -38,44 +36,15 @@ impl<C: NodeComponents> TransactionClient<C> {
         notifier: C::NotifierInterface,
         mempool: MempoolSocket,
         signer: TransactionSigner,
-        crucial: Option<ShutdownWaiter>,
     ) -> Self {
         let next_nonce = Arc::new(AtomicU64::new(signer.get_nonce(&app_query) + 1));
-        let listener = TransactionReceiptListener::spawn(
-            app_query.clone(),
-            notifier.clone(),
-            signer.clone(),
-            next_nonce.clone(),
-            crucial,
-        )
-        .await;
-
         Self {
             app_query,
+            notifier,
             mempool,
             signer,
-            listener,
             next_nonce,
         }
-    }
-
-    /// Submit an update request to the application executor and wait for it to be executed. Returns
-    /// the transaction request and its receipt.
-    pub async fn execute_transaction_with_retry_on_invalid_nonce(
-        &self,
-        method: UpdateMethod,
-    ) -> Result<(TransactionRequest, TransactionReceipt), ExecuteTransactionError> {
-        self.execute_transaction(
-            method,
-            Some(ExecuteTransactionOptions {
-                retry: ExecuteTransactionRetry::Errors((
-                    HashSet::from_iter(vec![ExecutionError::InvalidNonce]),
-                    None,
-                )),
-                ..Default::default()
-            }),
-        )
-        .await
     }
 
     /// Submit an update request to the application executor and wait for it to be executed. Returns
@@ -90,126 +59,193 @@ impl<C: NodeComponents> TransactionClient<C> {
         &self,
         method: UpdateMethod,
         options: Option<ExecuteTransactionOptions>,
-    ) -> Result<(TransactionRequest, TransactionReceipt), ExecuteTransactionError> {
-        let options = options.unwrap_or_default();
+    ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError> {
+        let mut options = options.unwrap_or_default();
 
-        let chain_id = self.app_query.get_chain_id();
-        let start = tokio::time::Instant::now();
-        loop {
-            // Build and sign the transaction.
-            let next_nonce = self.next_nonce.fetch_add(1, Ordering::SeqCst);
-            let tx: TransactionRequest =
-                TransactionBuilder::from_update(method.clone(), chain_id, next_nonce, &self.signer)
+        // Default to retrying `MAX_RETRIES` times if not specified.
+        match &options.retry {
+            ExecuteTransactionRetry::Never => {},
+            ExecuteTransactionRetry::AlwaysExcept((max_retries, errors)) => {
+                if max_retries.is_none() {
+                    options.retry =
+                        ExecuteTransactionRetry::AlwaysExcept((Some(MAX_RETRIES), errors.clone()));
+                }
+            },
+            ExecuteTransactionRetry::OnlyWith((max_retries, ref errors)) => {
+                if max_retries.is_none() {
+                    options.retry =
+                        ExecuteTransactionRetry::OnlyWith((Some(MAX_RETRIES), errors.clone()));
+                }
+            },
+        }
+
+        // TODO(snormore): Should we default the wait timeout to something if it's not specified?
+
+        // Spawn a tokio task to wait for the transaction receipt, retry if reverted, and return the
+        // result containing the transaction request and receipt, or an error.
+        let app_query = self.app_query.clone();
+        let notifier = self.notifier.clone();
+        let next_nonce = self.next_nonce.clone();
+        let signer = self.signer.clone();
+        let mempool = self.mempool.clone();
+        let waiter_handle = spawn!(
+            async move {
+                let mut retry = 0;
+
+                loop {
+                    // Build and sign the transaction.
+                    let chain_id = app_query.get_chain_id();
+                    let next_nonce = next_nonce.fetch_add(1, Ordering::SeqCst);
+                    let tx: TransactionRequest = TransactionBuilder::from_update(
+                        method.clone(),
+                        chain_id,
+                        next_nonce,
+                        &signer,
+                    )
                     .into();
 
-            // If we've timed out, return an error.
-            if let Some(timeout) = options.timeout {
-                if start.elapsed() >= timeout {
-                    return Err(ExecuteTransactionError::Timeout(tx));
-                }
-            }
+                    // Subscribe to executed blocks notifications before we enqueue the transaction.
+                    let mut block_sub = notifier.subscribe_block_executed();
 
-            // Register transaction with pending transactions listener.
-            let receipt_rx = self.listener.register(tx.hash()).await;
-
-            // Send transaction to the mempool.
-            self.mempool.enqueue(tx.clone()).await.map_err(|e| {
-                ExecuteTransactionError::FailedToSubmitTransactionToMempool((
-                    tx.clone(),
-                    e.to_string(),
-                ))
-            })?;
-
-            // Wait for the transaction to be executed, and return the receipt.
-            // TODO(snormore): Support no timeout/wait here or before calling this?
-            let receipt = self
-                .wait_for_receipt(tx.clone(), receipt_rx, options.wait.clone())
-                .await?;
-
-            // If the transaction was reverted, and retry is enabled for this type of revert, sleep
-            // for a short period and retry the transaction.
-            if let TransactionResponse::Revert(error) = &receipt.response {
-                match &options.retry {
-                    ExecuteTransactionRetry::Errors((errors, _)) => {
-                        // TODO(snormore): Implement max retries.
-                        if errors.contains(error) {
-                            tracing::info!(
-                                "retrying reverted transaction (hash: {:?}, response: {:?}): {:?}",
-                                tx.hash(),
-                                receipt.response,
-                                tx
-                            );
-                            // TODO(snormore): Make this configurable.
-                            tokio::time::sleep(Duration::from_millis(100)).await;
-                            continue;
-                        }
-                    },
-                    ExecuteTransactionRetry::AnyError(_) => {
-                        // TODO(snormore): Implement max retries.
-                    },
-                    ExecuteTransactionRetry::Never => {},
-                }
-            }
-
-            // If the transaction was reverted, return a reverted error.
-            if let TransactionResponse::Revert(_) = receipt.response {
-                return Err(ExecuteTransactionError::Reverted((tx, receipt)));
-            }
-
-            // Otherwise, return success with the receipt.
-            return Ok((tx, receipt));
-        }
-    }
-
-    /// Wait for a transaction receipt for a given transaction.
-    ///
-    /// If the transaction is not executed within a timeout, an error is returned.
-    async fn wait_for_receipt(
-        &self,
-        tx: TransactionRequest,
-        receipt_rx: oneshot::Receiver<TransactionReceipt>,
-        options: ExecuteTransactionWait,
-    ) -> Result<TransactionReceipt, ExecuteTransactionError> {
-        // TODO(snormore): Support no timeout/wait here or before calling this?
-        let timeout = match options {
-            ExecuteTransactionWait::Receipt(timeout) => timeout,
-            _ => None,
-        }
-        .unwrap_or(Duration::from_secs(10));
-        let timeout_fut = tokio::time::sleep(timeout);
-        tokio::pin!(timeout_fut);
-        tokio::select! {
-            result = receipt_rx => {
-                match result {
-                    Ok(receipt) => {
-                        match receipt.response {
-                            TransactionResponse::Success(_) => {
-                                tracing::debug!("transaction executed: {:?}", receipt);
-                            },
-                            TransactionResponse::Revert(_) => {
-                                tracing::debug!("transaction reverted: {:?}", receipt);
-                            },
-                        }
-                        Ok(receipt)
-                    },
-                    Err(_) => {
-                        // Handle when the oneshot channel is closed (sender dropped).
-                        Err(ExecuteTransactionError::Other(
-                            "transaction receipt channel closed".to_string(),
+                    // Send transaction to the mempool.
+                    // TODO(snormore): Simulate before we enqueue the transaction, returning error
+                    // if it fails.
+                    mempool.enqueue(tx.clone()).await.map_err(|e| {
+                        ExecuteTransactionError::FailedToSubmitTransactionToMempool((
+                            tx.clone(),
+                            e.to_string(),
                         ))
+                    })?;
+
+                    // Wait for the transaction to be executed and get the receipt.
+                    let receipt = async {
+                        loop {
+                            let Some(notification) = block_sub.recv().await else {
+                                tracing::debug!("block subscription stream ended");
+                                // TODO(snormore): Handle this better.
+                                return Err(ExecuteTransactionError::Other(
+                                    "block subscription stream ended".to_string(),
+                                ));
+                            };
+
+                            for receipt in notification.response.txn_receipts {
+                                if receipt.transaction_hash == tx.hash() {
+                                    return Ok(receipt);
+                                }
+                            }
+                        }
+                    }
+                    .await?;
+
+                    match &receipt.response {
+                        // If the transaction was successful, return the receipt.
+                        TransactionResponse::Success(_) => {
+                            return Ok(ExecuteTransactionResponse::Receipt((tx, receipt)));
+                        },
+
+                        // If the transaction was reverted, and retry is enabled for this type of
+                        // revert, sleep for a short period and retry the transaction.
+                        TransactionResponse::Revert(error) => {
+                            match options.retry {
+                                ExecuteTransactionRetry::OnlyWith((max_retries, ref errors)) => {
+                                    if let Some(errors) = errors {
+                                        if errors.contains(error) {
+                                            retry += 1;
+
+                                            if let Some(max_retries) = max_retries {
+                                                if retry > max_retries {
+                                                    tracing::warn!(
+                                                        "transaction reverted and max retries reached (attempts: {}): {:?}",
+                                                        retry,
+                                                        receipt
+                                                    );
+                                                    return Err(ExecuteTransactionError::Reverted(
+                                                        (tx, receipt),
+                                                    ));
+                                                }
+                                            }
+
+                                            tracing::info!(
+                                                "retrying reverted transaction (hash: {:?}, response: {:?}, attempt: {}): {:?}",
+                                                tx.hash(),
+                                                receipt.response,
+                                                retry + 1,
+                                                tx
+                                            );
+                                            // TODO(snormore): Should we sleep/delay here for a bit?
+                                        }
+                                    }
+                                },
+                                ExecuteTransactionRetry::AlwaysExcept((
+                                    max_retries,
+                                    ref errors,
+                                )) => {
+                                    // If the error is in the exclude list, don't retry.
+                                    if let Some(errors) = errors {
+                                        if errors.contains(error) {
+                                            tracing::warn!("transaction reverted: {:?}", receipt);
+                                            return Err(ExecuteTransactionError::Reverted((
+                                                tx, receipt,
+                                            )));
+                                        }
+                                    }
+
+                                    // If we are within the retry limit, retry the transaction, or
+                                    // return reverted if we've hit the limit.
+                                    retry += 1;
+                                    if let Some(max_retries) = max_retries {
+                                        if retry > max_retries {
+                                            tracing::warn!(
+                                                "transaction reverted and max retries reached (attempts: {}): {:?}",
+                                                retry,
+                                                receipt
+                                            );
+                                            return Err(ExecuteTransactionError::Reverted((
+                                                tx, receipt,
+                                            )));
+                                        }
+                                    }
+
+                                    // Otherwise, continue retrying.
+                                    tracing::info!(
+                                        "retrying reverted transaction (hash: {:?}, response: {:?}, attempt: {}): {:?}",
+                                        tx.hash(),
+                                        receipt.response,
+                                        retry + 1,
+                                        tx
+                                    );
+                                    // TODO(snormore): Should we sleep/delay here for a bit?
+                                },
+                                ExecuteTransactionRetry::Never => {
+                                    tracing::warn!("transaction reverted: {:?}", receipt);
+                                    return Err(ExecuteTransactionError::Reverted((tx, receipt)));
+                                },
+                            }
+                        },
                     }
                 }
             },
-            _ = &mut timeout_fut => {
-                tracing::debug!("timeout while waiting for transaction receipt: {:?}", tx.hash());
-                Err(ExecuteTransactionError::Timeout(tx))
-            },
+            "TRANSACTION-CLIENT: waiter"
+        );
+
+        // If we're not waiting for a receipt, spawn a tokio task to wait for the receipt, retry
+        // if reverted and/or timeout if configured to do so, and then return success.
+        if let ExecuteTransactionWait::None = options.wait {
+            return Ok(ExecuteTransactionResponse::None);
         }
+
+        // Otherwise, wait for the tokio task to complete and return the result.
+        let resp = waiter_handle.await??;
+        tracing::debug!("transaction executed: {:?}", resp);
+        Ok(resp)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+    use std::time::Duration;
+
     use fleek_crypto::{AccountOwnerSecretKey, SecretKey};
     use lightning_application::{Application, ApplicationConfig};
     use lightning_interfaces::prelude::*;
@@ -237,7 +273,7 @@ mod tests {
     });
 
     #[tokio::test]
-    async fn test_execute_transaction_with_account_signer() {
+    async fn test_execute_transaction_with_account_signer_and_wait_for_receipt() {
         let temp_dir = tempdir().unwrap();
 
         let account_secret_key = AccountOwnerSecretKey::generate();
@@ -276,15 +312,21 @@ mod tests {
             notifier.clone(),
             forwarder.mempool_socket(),
             TransactionSigner::AccountOwner(account_secret_key),
-            None,
         )
         .await;
 
         // Execute a transaction and wait for it to complete.
         let (tx, receipt) = client
-            .execute_transaction(UpdateMethod::IncrementNonce {}, None)
+            .execute_transaction(
+                UpdateMethod::IncrementNonce {},
+                Some(ExecuteTransactionOptions {
+                    wait: ExecuteTransactionWait::Receipt(None),
+                    ..Default::default()
+                }),
+            )
             .await
-            .unwrap();
+            .unwrap()
+            .as_receipt();
         assert_eq!(
             receipt.response,
             TransactionResponse::Success(ExecutionData::None)
@@ -297,7 +339,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_execute_transaction_with_node_signer() {
+    async fn test_execute_transaction_with_node_signer_and_wait_for_receipt() {
         let temp_dir = tempdir().unwrap();
         let keystore = EphemeralKeystore::<TestNodeComponents>::default();
         let node_secret_key = keystore.get_ed25519_sk();
@@ -357,15 +399,21 @@ mod tests {
             notifier.clone(),
             forwarder.mempool_socket(),
             TransactionSigner::NodeMain(node_secret_key),
-            None,
         )
         .await;
 
         // Execute a transaction and wait for it to complete.
         let (tx, receipt) = client
-            .execute_transaction(UpdateMethod::IncrementNonce {}, None)
+            .execute_transaction(
+                UpdateMethod::IncrementNonce {},
+                Some(ExecuteTransactionOptions {
+                    wait: ExecuteTransactionWait::Receipt(None),
+                    ..Default::default()
+                }),
+            )
             .await
-            .unwrap();
+            .unwrap()
+            .as_receipt();
         assert_eq!(
             receipt.response,
             TransactionResponse::Success(ExecutionData::None)

@@ -7,9 +7,6 @@ use lightning_utils::transaction::TransactionClient;
 use tokio::sync::Mutex;
 use types::{ExecuteTransactionRequest, ExecuteTransactionResponse};
 
-// // Maximum number of times we will resend a transaction.
-// const MAX_RETRIES: u8 = 3;
-
 #[derive(Clone)]
 pub struct SignerWorker<C: NodeComponents> {
     client: Arc<Mutex<Option<TransactionClient<C>>>>,
@@ -38,19 +35,18 @@ impl<C: NodeComponents> AsyncWorker for SignerWorker<C> {
     async fn handle(&mut self, request: Self::Request) -> Self::Response {
         tracing::debug!("handling signer request: {:?}", request);
 
+        // Check that the client is ready, and return an error if not.
         let client = self.client.lock().await;
-
         let Some(client) = client.as_ref() else {
             tracing::warn!("signer not ready");
-            // TODO(snormore): Make a helper for callers to retry on NotReady error, or something
-            // like that.
             return Err(SignerError::NotReady);
         };
 
-        let (tx, receipt) = client
-            .execute_transaction(request.method, request.options.map(From::from))
+        // Execute the transaction via the client.
+        let resp = client
+            .execute_transaction(request.method, request.options)
             .await?;
 
-        Ok(ExecuteTransactionResponse::Receipt((tx, receipt)))
+        Ok(resp)
     }
 }

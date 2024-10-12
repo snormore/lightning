@@ -22,9 +22,6 @@ use super::utils::*;
 
 #[tokio::test]
 async fn test_epoch_change_with_all_committee_nodes() {
-    // TODO(snormore): Remove when finished debugging.
-    lightning_test_utils::e2e::init_tracing();
-
     let network = TestNetwork::builder()
         .with_num_nodes(4)
         .build()
@@ -42,11 +39,11 @@ async fn test_epoch_change_with_all_committee_nodes() {
 
     // Execute an epoch change transaction from less than 2/3 of the nodes.
     node1_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
     node2_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
 
@@ -67,7 +64,7 @@ async fn test_epoch_change_with_all_committee_nodes() {
 
     // Execute an epoch change transaction from enough nodes to trigger an epoch change.
     node3_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
 
@@ -122,17 +119,17 @@ async fn test_epoch_change_with_some_non_committee_nodes() {
 
     // Execute an epoch change transaction from less than 2/3 of the committee nodes.
     committee_node1_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
     committee_node2_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
 
     // Send epoch change transactions from the non-committee nodes.
     let result = non_committee_node1_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await;
     match result.unwrap_err() {
         ExecuteTransactionError::Reverted((_, TransactionReceipt { response, .. })) => {
@@ -144,7 +141,7 @@ async fn test_epoch_change_with_some_non_committee_nodes() {
         _ => panic!("unexpected error type"),
     }
     let result = non_committee_node2_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await;
     match result.unwrap_err() {
         ExecuteTransactionError::Reverted((_, TransactionReceipt { response, .. })) => {
@@ -173,7 +170,7 @@ async fn test_epoch_change_with_some_non_committee_nodes() {
 
     // Execute an epoch change transaction from enough nodes to trigger an epoch change.
     committee_node3_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await
         .unwrap();
 
@@ -266,9 +263,6 @@ async fn test_change_epoch_reverts_insufficient_stake() {
 
 #[tokio::test]
 async fn test_epoch_change_reverts_epoch_already_changed() {
-    // TODO(snormore): Remove when finished debugging.
-    lightning_test_utils::e2e::init_tracing();
-
     let network = TestNetwork::builder()
         .with_num_nodes(4)
         .build()
@@ -285,7 +279,7 @@ async fn test_epoch_change_reverts_epoch_already_changed() {
 
     // Send epoch change transaction from a node for same epoch, and expect it to be reverted.
     let result = node_client
-        .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
         .await;
     match result.unwrap_err() {
         ExecuteTransactionError::Reverted((_, TransactionReceipt { response, .. })) => {
@@ -455,15 +449,15 @@ async fn test_distribute_rewards() {
 
     // Execute delivery acknowledgment transactions.
     node1_node_client
-        .execute_transaction(pod_10, None)
+        .execute_transaction_and_wait_for_receipt(pod_10, None)
         .await
         .unwrap();
     node1_node_client
-        .execute_transaction(pod_11, None)
+        .execute_transaction_and_wait_for_receipt(pod_11, None)
         .await
         .unwrap();
     node2_node_client
-        .execute_transaction(pod_21, None)
+        .execute_transaction_and_wait_for_receipt(pod_21, None)
         .await
         .unwrap();
 
@@ -581,7 +575,7 @@ async fn test_supply_across_epoch() {
     for epoch in 0..genesis.epochs_per_year {
         // Add at least one transaction per epoch, so reward pool is not zero.
         node_client
-            .execute_transaction(
+            .execute_transaction_and_wait_for_receipt(
                 UpdateMethod::SubmitDeliveryAcknowledgmentAggregation {
                     commodity: 10000,
                     service_id: 0,
@@ -609,7 +603,7 @@ async fn test_supply_across_epoch() {
 
             let node_client = node.node_transaction_client().await;
             node_client
-                .execute_transaction(
+                .execute_transaction_and_wait_for_receipt(
                     UpdateMethod::SubmitReputationMeasurements { measurements: map },
                     None,
                 )

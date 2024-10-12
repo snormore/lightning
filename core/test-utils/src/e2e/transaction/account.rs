@@ -4,10 +4,10 @@ use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
     ExecuteTransactionError,
     ExecuteTransactionOptions,
+    ExecuteTransactionResponse,
+    ExecuteTransactionWait,
     ProofOfConsensus,
     Tokens,
-    TransactionReceipt,
-    TransactionRequest,
     UpdateMethod,
 };
 use lightning_interfaces::NodeComponents;
@@ -31,8 +31,22 @@ impl<C: NodeComponents> NetworkTransactionClient for AccountTransactionClient<C>
         &self,
         method: UpdateMethod,
         options: Option<ExecuteTransactionOptions>,
-    ) -> Result<(TransactionRequest, TransactionReceipt), ExecuteTransactionError> {
+    ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError> {
         self.inner.execute_transaction(method, options).await
+    }
+
+    async fn execute_transaction_and_wait_for_receipt(
+        &self,
+        method: UpdateMethod,
+        options: Option<ExecuteTransactionOptions>,
+    ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError> {
+        let mut options = options.unwrap_or_default();
+
+        if let ExecuteTransactionWait::None = options.wait {
+            options.wait = ExecuteTransactionWait::Receipt(None);
+        }
+
+        self.execute_transaction(method, Some(options)).await
     }
 
     async fn deposit_and_stake(
@@ -41,7 +55,7 @@ impl<C: NodeComponents> NetworkTransactionClient for AccountTransactionClient<C>
         node: NodePublicKey,
     ) -> Result<(), ExecuteTransactionError> {
         // Deposit FLK tokens.
-        self.execute_transaction(
+        self.execute_transaction_and_wait_for_receipt(
             UpdateMethod::Deposit {
                 proof: ProofOfConsensus {},
                 token: Tokens::FLK,
@@ -52,7 +66,7 @@ impl<C: NodeComponents> NetworkTransactionClient for AccountTransactionClient<C>
         .await?;
 
         // Stake FLK tokens.
-        self.execute_transaction(
+        self.execute_transaction_and_wait_for_receipt(
             UpdateMethod::Stake {
                 amount: amount.clone(),
                 node_public_key: node,
@@ -74,8 +88,11 @@ impl<C: NodeComponents> NetworkTransactionClient for AccountTransactionClient<C>
         locked_for: u64,
         node: NodePublicKey,
     ) -> Result<(), ExecuteTransactionError> {
-        self.execute_transaction(UpdateMethod::StakeLock { node, locked_for }, None)
-            .await?;
+        self.execute_transaction_and_wait_for_receipt(
+            UpdateMethod::StakeLock { node, locked_for },
+            None,
+        )
+        .await?;
 
         Ok(())
     }
@@ -85,7 +102,7 @@ impl<C: NodeComponents> NetworkTransactionClient for AccountTransactionClient<C>
         amount: HpUfixed<18>,
         node: NodePublicKey,
     ) -> Result<(), ExecuteTransactionError> {
-        self.execute_transaction(
+        self.execute_transaction_and_wait_for_receipt(
             UpdateMethod::Unstake {
                 amount: amount.clone(),
                 node,

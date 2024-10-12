@@ -24,7 +24,7 @@ impl TestNetwork {
         join_all(self.nodes().map(|node| async {
             node.node_transaction_client()
                 .await
-                .execute_transaction(UpdateMethod::ChangeEpoch { epoch }, None)
+                .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
                 .await
         }))
         .await;

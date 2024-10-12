@@ -8,9 +8,6 @@ use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_start_shutdown() {
-    // TODO(snormore): Remove when finished debugging.
-    lightning_test_utils::e2e::init_tracing();
-
     let temp_dir = tempdir().unwrap();
     let _node = TestNodeBuilder::new(temp_dir.path().to_path_buf())
         .build()
@@ -147,7 +144,7 @@ async fn test_block_executed_in_waiting_phase_should_do_nothing() {
     // Submit a transaction that does nothing except increment the node's nonce.
     node.node_transaction_client()
         .await
-        .execute_transaction(UpdateMethod::IncrementNonce {}, None)
+        .execute_transaction_and_wait_for_receipt(UpdateMethod::IncrementNonce {}, None)
         .await
         .unwrap();
 

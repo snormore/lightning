@@ -48,7 +48,6 @@ impl<C: NodeComponents> Signer<C> {
         fdi::Cloned(keystore): fdi::Cloned<C::KeystoreInterface>,
         fdi::Cloned(notifier): fdi::Cloned<C::NotifierInterface>,
         fdi::Cloned(app_query): fdi::Cloned<c!(C::ApplicationInterface::SyncExecutor)>,
-        fdi::Cloned(shutdown): fdi::Cloned<ShutdownWaiter>,
     ) {
         app_query.wait_for_genesis().await;
         tracing::debug!("starting signer");
@@ -58,7 +57,6 @@ impl<C: NodeComponents> Signer<C> {
             notifier,
             forwarder.mempool_socket(),
             TransactionSigner::NodeMain(keystore.get_ed25519_sk()),
-            Some(shutdown.clone()),
         )
         .await;
 
