@@ -55,6 +55,7 @@ pub enum ExecuteTransactionWait {
 pub enum ExecuteTransactionRetry {
     #[default]
     Never,
+    Always(Option<MaxRetries>),
     AlwaysExcept((Option<MaxRetries>, Option<Vec<ExecutionError>>)),
     OnlyWith((Option<MaxRetries>, Option<Vec<ExecutionError>>)),
 }
