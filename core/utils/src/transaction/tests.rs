@@ -124,7 +124,7 @@ async fn test_execute_transaction_with_node_signer_wait_for_receipt() {
 }
 
 #[tokio::test]
-async fn test_execute_transaction_with_account_signer_wait_for_receipt_default_no_retry() {
+async fn test_execute_transaction_with_account_signer_wait_for_receipt_no_retry() {
     // Build and start the node.
     let account_secret_key = AccountOwnerSecretKey::generate();
     let mut node = TestNode::<TestNodeComponents>::with_genesis_mutator(|genesis| {
@@ -148,6 +148,7 @@ async fn test_execute_transaction_with_account_signer_wait_for_receipt_default_n
             UpdateMethod::ChangeEpoch { epoch: 101 },
             Some(ExecuteTransactionOptions {
                 wait: ExecuteTransactionWait::Receipt(None),
+                retry: ExecuteTransactionRetry::Never,
                 ..Default::default()
             }),
         )
@@ -172,7 +173,7 @@ async fn test_execute_transaction_with_account_signer_wait_for_receipt_default_n
 }
 
 #[tokio::test]
-async fn test_execute_transaction_with_node_signer_wait_for_receipt_default_no_retry() {
+async fn test_execute_transaction_with_node_signer_wait_for_receipt_no_retry() {
     // Build and start the node.
     let mut node = TestNode::<TestNodeComponents>::new().await;
     node.start().await;
@@ -189,6 +190,7 @@ async fn test_execute_transaction_with_node_signer_wait_for_receipt_default_no_r
             UpdateMethod::ChangeEpoch { epoch: 101 },
             Some(ExecuteTransactionOptions {
                 wait: ExecuteTransactionWait::Receipt(None),
+                retry: ExecuteTransactionRetry::Never,
                 ..Default::default()
             }),
         )

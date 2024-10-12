@@ -11,6 +11,7 @@ use lightning_interfaces::types::{
 };
 use types::{ExecuteTransactionError, ExecuteTransactionResponse};
 
+use super::syncer::TransactionClientNonceSyncer;
 use super::TransactionSigner;
 use crate::transaction::runner::TransactionRunner;
 
@@ -44,6 +45,15 @@ impl<C: NodeComponents> TransactionClient<C> {
         signer: TransactionSigner,
     ) -> Self {
         let next_nonce = Arc::new(AtomicU64::new(signer.get_nonce(&app_query) + 1));
+
+        TransactionClientNonceSyncer::spawn::<C>(
+            app_query.clone(),
+            notifier.clone(),
+            signer.clone(),
+            next_nonce.clone(),
+        )
+        .await;
+
         Self {
             app_query,
             notifier,

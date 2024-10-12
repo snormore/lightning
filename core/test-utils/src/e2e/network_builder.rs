@@ -69,6 +69,9 @@ impl TestNetworkBuilder {
     pub async fn build(self) -> Result<TestNetwork> {
         let temp_dir = tempdir()?;
 
+        // TODO(snormore): Remove this when finished debugging.
+        let _ = crate::e2e::try_init_tracing();
+
         // Configure mock consensus if enabled.
         let (consensus_group, consensus_group_start) =
             if let Some(config) = &self.mock_consensus_config {
@@ -166,7 +169,14 @@ impl TestNetworkBuilder {
 
                 peers_by_node
                     .iter()
-                    .all(|peers| peers.len() == nodes.len() - 1)
+                    .all(|peers| {
+                        tracing::debug!(
+                            "waiting for connected peers (connected: {:?}, needed: {:?})",
+                            peers,
+                            nodes.len() - 1
+                        );
+                        peers.len() == nodes.len() - 1
+                    })
                     .then_some(())
                     .ok_or(PollUntilError::ConditionNotSatisfied)
             },
