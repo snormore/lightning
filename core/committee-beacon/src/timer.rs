@@ -8,7 +8,6 @@ use types::{
     ExecuteTransactionError,
     ExecuteTransactionOptions,
     ExecuteTransactionRequest,
-    ExecuteTransactionResponse,
     ExecuteTransactionRetry,
     ExecuteTransactionWait,
     Metadata,
@@ -142,7 +141,6 @@ impl<C: NodeComponents> CommitteeBeaconTimer<C> {
     }
 
     /// Execute transaction via the signer component.
-    // TODO(snormore): Consolidate with listener method.
     async fn execute_transaction(
         &self,
         method: UpdateMethod,
@@ -153,16 +151,14 @@ impl<C: NodeComponents> CommitteeBeaconTimer<C> {
                 method,
                 options: Some(ExecuteTransactionOptions {
                     retry: ExecuteTransactionRetry::Never,
-                    wait: ExecuteTransactionWait::Receipt(Some(Duration::from_secs(10))),
-                    timeout: Some(Duration::from_secs(30)),
+                    wait: ExecuteTransactionWait::Receipt(None),
+                    ..Default::default()
                 }),
             })
             .await??;
 
-        match resp {
-            ExecuteTransactionResponse::Receipt((_, receipt)) => Ok(receipt),
-            _ => unreachable!("invalid response from signer"),
-        }
+        let (_, receipt) = resp.as_receipt();
+        Ok(receipt)
     }
 
     fn in_commit_or_reveal_phase(&self) -> bool {

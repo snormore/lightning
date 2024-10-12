@@ -6,6 +6,8 @@ use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
     DeliveryAcknowledgmentProof,
     ExecuteTransactionError,
+    ExecuteTransactionOptions,
+    ExecuteTransactionRetry,
     ExecutionData,
     ExecutionError,
     TransactionReceipt,
@@ -24,6 +26,7 @@ use super::utils::*;
 async fn test_epoch_change_with_all_committee_nodes() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .build()
         .await
         .unwrap();
@@ -265,6 +268,7 @@ async fn test_change_epoch_reverts_insufficient_stake() {
 async fn test_epoch_change_reverts_epoch_already_changed() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .build()
         .await
         .unwrap();
@@ -279,7 +283,13 @@ async fn test_epoch_change_reverts_epoch_already_changed() {
 
     // Send epoch change transaction from a node for same epoch, and expect it to be reverted.
     let result = node_client
-        .execute_transaction_and_wait_for_receipt(UpdateMethod::ChangeEpoch { epoch }, None)
+        .execute_transaction_and_wait_for_receipt(
+            UpdateMethod::ChangeEpoch { epoch },
+            Some(ExecuteTransactionOptions {
+                retry: ExecuteTransactionRetry::Never,
+                ..Default::default()
+            }),
+        )
         .await;
     match result.unwrap_err() {
         ExecuteTransactionError::Reverted((_, TransactionReceipt { response, .. })) => {
@@ -362,6 +372,7 @@ async fn test_epoch_change_reverts_already_signaled() {
 async fn test_distribute_rewards() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .with_genesis_mutator(|genesis| {
             genesis.max_inflation = 10;
             genesis.node_share = 80;
@@ -528,6 +539,7 @@ async fn test_distribute_rewards() {
 async fn test_supply_across_epoch() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .with_genesis_mutator(|genesis| {
             genesis.epoch_time = 100;
             genesis.epochs_per_year = 3;

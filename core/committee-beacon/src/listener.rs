@@ -15,8 +15,9 @@ use types::{
     ExecuteTransactionError,
     ExecuteTransactionOptions,
     ExecuteTransactionRequest,
-    ExecuteTransactionResponse,
+    ExecuteTransactionRetry,
     ExecuteTransactionWait,
+    ExecutionError,
     Metadata,
     NodeIndex,
     TransactionReceipt,
@@ -304,15 +305,17 @@ impl<C: NodeComponents> CommitteeBeaconListener<C> {
                 method,
                 options: Some(ExecuteTransactionOptions {
                     wait: ExecuteTransactionWait::Receipt(None),
+                    retry: ExecuteTransactionRetry::OnlyWith((
+                        None,
+                        Some(vec![ExecutionError::InvalidNonce]),
+                    )),
                     ..Default::default()
                 }),
             })
             .await??;
 
-        match resp {
-            ExecuteTransactionResponse::Receipt((_, receipt)) => Ok(receipt),
-            _ => unreachable!("invalid response from signer"),
-        }
+        let (_, receipt) = resp.as_receipt();
+        Ok(receipt)
     }
 
     /// Generate random reveal value.

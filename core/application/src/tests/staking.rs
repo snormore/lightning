@@ -704,6 +704,7 @@ async fn test_withdraw_unstaked_reverts_no_locked_tokens() {
 async fn test_withdraw_unstaked_works_properly() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .build()
         .await
         .unwrap();

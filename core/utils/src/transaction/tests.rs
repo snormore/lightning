@@ -173,8 +173,6 @@ async fn test_execute_transaction_with_account_signer_wait_for_receipt_default_n
 
 #[tokio::test]
 async fn test_execute_transaction_with_node_signer_wait_for_receipt_default_no_retry() {
-    lightning_test_utils::e2e::init_tracing();
-
     // Build and start the node.
     let mut node = TestNode::<TestNodeComponents>::new().await;
     node.start().await;
@@ -266,8 +264,6 @@ async fn test_execute_transaction_with_account_signer_wait_for_receipt_retry_on_
 
 #[tokio::test]
 async fn test_execute_transaction_with_node_signer_wait_for_receipt_retry_on_revert() {
-    lightning_test_utils::e2e::init_tracing();
-
     // Build and start the node.
     let mut node = TestNode::<TestNodeComponents>::new().await;
     node.start().await;

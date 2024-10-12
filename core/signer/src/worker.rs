@@ -5,10 +5,7 @@ use lightning_interfaces::prelude::*;
 use lightning_interfaces::SignerError;
 use lightning_utils::transaction::TransactionClient;
 use tokio::sync::Mutex;
-use types::{ExecuteTransactionRequest, ExecuteTransactionResponse, ExecuteTransactionRetry};
-
-// Maximum number of times we will resend a transaction.
-const MAX_RETRIES: u8 = 3;
+use types::{ExecuteTransactionRequest, ExecuteTransactionResponse};
 
 #[derive(Clone)]
 pub struct SignerWorker<C: NodeComponents> {
@@ -45,13 +42,9 @@ impl<C: NodeComponents> AsyncWorker for SignerWorker<C> {
             return Err(SignerError::NotReady);
         };
 
-        // Always retry when sending from the signer.
-        let mut options = request.options.unwrap_or_default();
-        options.retry = ExecuteTransactionRetry::Always(Some(MAX_RETRIES));
-
         // Execute the transaction via the client.
         let resp = client
-            .execute_transaction(request.method, Some(options))
+            .execute_transaction(request.method, request.options)
             .await?;
 
         Ok(resp)

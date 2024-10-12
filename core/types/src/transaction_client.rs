@@ -54,6 +54,7 @@ pub enum ExecuteTransactionWait {
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub enum ExecuteTransactionRetry {
     #[default]
+    Default,
     Never,
     Always(Option<MaxRetries>),
     AlwaysExcept((Option<MaxRetries>, Option<Vec<ExecutionError>>)),
@@ -68,7 +69,7 @@ pub enum ExecuteTransactionError {
 
     /// The transaction execution timed out.
     #[error("Transaction timeout: {:?}", .0)]
-    Timeout(UpdateMethod),
+    Timeout((UpdateMethod, Option<TransactionRequest>)),
 
     /// The transaction was not submitted to the signer.
     #[error("Failed to submit transaction to signer: {:?}", .0)]

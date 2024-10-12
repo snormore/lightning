@@ -98,6 +98,7 @@ async fn test_submit_rep_measurements_too_many_times() {
 async fn test_rep_scores() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .with_genesis_mutator(|genesis| {
             genesis.node_info[0].reputation = Some(40);
             genesis.node_info[1].reputation = Some(80);

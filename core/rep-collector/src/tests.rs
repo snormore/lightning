@@ -273,6 +273,7 @@ async fn test_submit_measurements() {
 async fn test_reputation_calculation_and_query() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .with_genesis_mutator(|genesis| {
             genesis.epoch_start = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)

@@ -245,6 +245,7 @@ async fn test_missing_epoch_change_notification_no_supermajority() {
 async fn test_missing_epoch_change_notification_still_supermajority() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .build()
         .await
         .unwrap();
@@ -799,6 +800,7 @@ async fn test_attestations_with_inconsistent_state_roots_no_supermajority() {
 async fn test_attestations_with_inconsistent_state_roots_still_supermajority() {
     let network = TestNetwork::builder()
         .with_num_nodes(4)
+        .with_committee_size(4)
         .build()
         .await
         .unwrap();

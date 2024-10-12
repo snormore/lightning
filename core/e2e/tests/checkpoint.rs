@@ -17,6 +17,7 @@ async fn e2e_checkpoint() {
         .with_directory(temp_dir.path().to_path_buf().try_into().unwrap())
         .with_min_port(10000)
         .with_num_nodes(4)
+        .with_committee_size(4)
         // We need to include enough time in this epoch time for the nodes to start up, or else it
         // begins the epoch change immediately when they do. We can even get into a situation where
         // another epoch change starts quickly after that, causing our expectation of epoch = 1
