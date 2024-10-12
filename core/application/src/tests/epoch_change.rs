@@ -286,7 +286,10 @@ async fn test_epoch_change_reverts_epoch_already_changed() {
         .execute_transaction_and_wait_for_receipt(
             UpdateMethod::ChangeEpoch { epoch },
             Some(ExecuteTransactionOptions {
-                retry: ExecuteTransactionRetry::Never,
+                retry: ExecuteTransactionRetry::OnlyWith((
+                    None,
+                    Some(vec![ExecutionError::InvalidNonce]),
+                )),
                 ..Default::default()
             }),
         )
