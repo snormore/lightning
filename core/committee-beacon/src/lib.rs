@@ -8,6 +8,8 @@ mod rocks;
 mod timer;
 
 #[cfg(test)]
+mod mocks;
+#[cfg(test)]
 mod tests;
 
 pub use component::*;

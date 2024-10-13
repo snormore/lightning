@@ -2,7 +2,13 @@ use std::time::Duration;
 
 use lightning_interfaces::types::{Metadata, UpdateMethod};
 use lightning_interfaces::CommitteeBeaconQueryInterface;
-use lightning_test_utils::e2e::{NetworkQueryRunner, TestNetworkBuilder, TestNodeBuilder};
+use lightning_test_utils::e2e::{
+    NetworkQueryRunner,
+    TestNetwork,
+    TestNode,
+    TestNodeBuilder,
+    TestNodeComponents,
+};
 use lightning_utils::poll::{poll_until, PollUntilError};
 use tempfile::tempdir;
 
@@ -18,7 +24,7 @@ async fn test_start_shutdown() {
 
 #[tokio::test]
 async fn test_epoch_change_single_node() {
-    let network = TestNetworkBuilder::new()
+    let network = TestNetwork::builder()
         .with_num_nodes(1)
         .build()
         .await
@@ -86,7 +92,7 @@ async fn test_epoch_change_single_node() {
 
 #[tokio::test]
 async fn test_epoch_change_multiple_nodes() {
-    let network = TestNetworkBuilder::new()
+    let network = TestNetwork::builder()
         .with_num_nodes(3)
         .build()
         .await
@@ -154,7 +160,7 @@ async fn test_epoch_change_multiple_nodes() {
 
 #[tokio::test]
 async fn test_block_executed_in_waiting_phase_should_do_nothing() {
-    let network = TestNetworkBuilder::new()
+    let network = TestNetwork::builder()
         .with_num_nodes(2)
         .build()
         .await
@@ -192,6 +198,30 @@ async fn test_block_executed_in_waiting_phase_should_do_nothing() {
 #[tokio::test]
 async fn test_insufficient_participation_in_commit_phase() {
     // TODO(snormore): Implement this test.
+
+    // TODO(snormore): Clean up the with_num_nodes method when used in combination with with_node.
+    // Maybe it should default to 0 if with_node is used unless overridden afterwards.
+    let mut builder = TestNetwork::builder().with_num_nodes(0);
+
+    // TODO(snormore): Clean up this temp/home dir stuff. Ideally we don't need to specify it out
+    // here at all.
+    let node1 = TestNode::<TestNodeComponents>::builder(builder.temp_dir.path().join("node-1"))
+        .build()
+        .await
+        .unwrap();
+    builder = builder.with_node(node1);
+    let network = builder.build().await.unwrap();
+
+    // let network = TestNetwork::builder()
+    //     .with_node(TestNode::builder().build().await.unwrap())
+    //     .with_node(TestNode::builder().build().await.unwrap())
+    //     .with_node(TestNode::builder().build().await.unwrap())
+    //     .build()
+    //     .await
+    //     .unwrap();
+
+    // Shutdown the network.
+    network.shutdown().await;
 }
 
 #[tokio::test]

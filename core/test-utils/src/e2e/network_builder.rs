@@ -6,15 +6,16 @@ use anyhow::Result;
 use futures::future::join_all;
 use lightning_interfaces::types::Genesis;
 use lightning_utils::poll::{poll_until, PollUntilError};
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 
 use super::{BoxedNode, TestGenesisBuilder, TestNetwork, TestNodeBuilder, TestNodeComponents};
 use crate::consensus::{Config as MockConsensusConfig, MockConsensusGroup};
 
 pub type GenesisMutator = Arc<dyn Fn(&mut Genesis)>;
 
-#[derive(Clone)]
 pub struct TestNetworkBuilder {
+    pub temp_dir: TempDir,
+    pub nodes: Vec<BoxedNode>,
     pub num_nodes: u32,
     pub committee_size: u32,
     pub genesis_mutator: Option<GenesisMutator>,
@@ -24,6 +25,8 @@ pub struct TestNetworkBuilder {
 impl TestNetworkBuilder {
     pub fn new() -> Self {
         Self {
+            temp_dir: tempdir().unwrap(),
+            nodes: Default::default(),
             num_nodes: 3,
             committee_size: 3,
             genesis_mutator: None,
@@ -39,6 +42,11 @@ impl TestNetworkBuilder {
 
     pub fn with_num_nodes(mut self, num_nodes: u32) -> Self {
         self.num_nodes = num_nodes;
+        self
+    }
+
+    pub fn with_node(mut self, node: BoxedNode) -> Self {
+        self.nodes.push(node);
         self
     }
 
@@ -67,8 +75,6 @@ impl TestNetworkBuilder {
 
     /// Builds a new test network with the given number of nodes, and starts each of them.
     pub async fn build(self) -> Result<TestNetwork> {
-        let temp_dir = tempdir()?;
-
         // TODO(snormore): Remove this when finished debugging.
         let _ = crate::e2e::try_init_tracing();
 
@@ -89,7 +95,8 @@ impl TestNetworkBuilder {
 
         // Build and start the nodes.
         let mut nodes = join_all((0..self.num_nodes).map(|i| {
-            let mut builder = TestNodeBuilder::new(temp_dir.path().join(format!("node-{}", i)));
+            let mut builder =
+                TestNodeBuilder::new(self.temp_dir.path().join(format!("node-{}", i)));
             if let Some(consensus_group) = &consensus_group {
                 builder = builder.with_mock_consensus(Some(consensus_group.clone()));
             }
@@ -150,7 +157,7 @@ impl TestNetworkBuilder {
             consensus_group_start.notify_waiters();
         }
 
-        let network = TestNetwork::new(temp_dir, genesis, nodes).await?;
+        let network = TestNetwork::new(self.temp_dir, genesis, nodes).await?;
         Ok(network)
     }
 

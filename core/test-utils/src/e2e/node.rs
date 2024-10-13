@@ -36,6 +36,7 @@ use super::{
     NetworkTransactionClient,
     NodeTransactionClient,
     SyncBroadcaster,
+    TestNodeBuilder,
     TestQueryRunner,
 };
 use crate::consensus::MockForwarder;
@@ -209,6 +210,10 @@ impl<C: NodeComponents> NetworkNode for TestNode<C> {
 }
 
 impl<C: NodeComponents> TestNode<C> {
+    pub fn builder(home_dir: PathBuf) -> TestNodeBuilder {
+        TestNodeBuilder::new(home_dir)
+    }
+
     pub fn get_node_info(&self) -> Option<NodeInfo> {
         self.app_query.get_node_info(&self.index(), |n| n)
     }
