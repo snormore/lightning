@@ -16,8 +16,6 @@ async fn test_start_shutdown() {
     node.shutdown().await;
 }
 
-// TODO(snormore): Fill out this test coverage.
-
 #[tokio::test]
 async fn test_epoch_change_single_node() {
     let network = TestNetworkBuilder::new()
@@ -79,6 +77,8 @@ async fn test_epoch_change_single_node() {
     // committee selection phase anyway, and we don't rely on it for correctness.
     let beacons = node.committee_beacon_query().get_beacons();
     assert!(beacons.len() <= network.node_count());
+
+    // TODO(snormore): Check that the next commmittee was selected.
 
     // Shutdown the network.
     network.shutdown().await;
@@ -146,6 +146,8 @@ async fn test_epoch_change_multiple_nodes() {
     let beacons = node.committee_beacon_query().get_beacons();
     assert!(beacons.len() <= network.node_count());
 
+    // TODO(snormore): Check that the next commmittee was selected.
+
     // Shutdown the network.
     network.shutdown().await;
 }
@@ -187,7 +189,93 @@ async fn test_block_executed_in_waiting_phase_should_do_nothing() {
     network.shutdown().await;
 }
 
-/// Wait for committee selection beacon phase to be unset.
+#[tokio::test]
+async fn test_insufficient_participation_in_commit_phase() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_insufficient_participation_in_reveal_phase() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_node_fails_to_reveal_after_committing() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_node_attempts_reveal_without_committment() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_invalid_reveal_mismatch_with_commit() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_node_submits_commit_outside_of_commit_phase() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_node_submits_reveal_outside_of_reveal_phase() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_node_reuses_old_commitment() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_node_reuses_old_reveal() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_non_committee_node_participation() {
+    // TODO(snormore): Implement this test.
+
+    // TODO(snormore): Check that the next commmittee was selected.
+}
+
+#[tokio::test]
+async fn test_malformed_commit() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_malformed_reveal() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_non_revealing_node_attempts_to_commit_in_next_round() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_high_volume_participation() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_network_delays() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_node_attempts_to_submit_reveal_during_commit_phase() {
+    // TODO(snormore): Implement this test.
+}
+
+#[tokio::test]
+async fn test_multiple_non_revealing_nodes() {
+    // TODO(snormore): Implement this test.
+}
+
 pub async fn wait_for_committee_selection_beacon_phase_unset(
     query: &dyn NetworkQueryRunner,
 ) -> Result<(), PollUntilError> {
