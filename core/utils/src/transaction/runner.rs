@@ -190,10 +190,7 @@ impl<C: NodeComponents> TransactionRunner<C> {
                 notification = block_sub.recv() => {
                     let Some(notification) = notification else {
                         tracing::debug!("block subscription stream ended");
-                        // TODO(snormore): Handle this better.
-                        return Err(ExecuteTransactionError::Other(
-                            "block subscription stream ended".to_string(),
-                        ));
+                        return Err(ExecuteTransactionError::NotifierShuttingDown);
                     };
 
                     for receipt in notification.response.txn_receipts {

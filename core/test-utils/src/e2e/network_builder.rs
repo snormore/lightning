@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -168,18 +167,18 @@ impl TestNetworkBuilder {
                         .collect::<Result<Vec<_>, _>>()
                         .map_err(|_| PollUntilError::ConditionNotSatisfied)?;
 
+                tracing::debug!(
+                    "waiting for connected peers (nodes: {}): {:?}",
+                    nodes.len(),
+                    peers_by_node
+                        .iter()
+                        .map(|peers| peers.len())
+                        .collect::<Vec<_>>()
+                );
+
                 peers_by_node
                     .iter()
-                    .enumerate()
-                    .all(|(i, peers)| {
-                        tracing::debug!(
-                            "waiting for connected peers (node: {}, connected: {:?}, needed >= {})",
-                            i,
-                            peers,
-                            min(2, nodes.len() - 1)
-                        );
-                        peers.len() >= min(2, nodes.len() - 1)
-                    })
+                    .all(|peers| peers.len() == nodes.len() - 1)
                     .then_some(())
                     .ok_or(PollUntilError::ConditionNotSatisfied)
             },

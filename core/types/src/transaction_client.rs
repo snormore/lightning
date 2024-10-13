@@ -87,6 +87,10 @@ pub enum ExecuteTransactionError {
     #[error("Signer not ready")]
     SignerNotReady,
 
+    /// The notifier subscription has been closed, indicating that it's shutting down.
+    #[error("Notifier is shutting down")]
+    NotifierShuttingDown,
+
     /// Other generic error.
     #[error("Other: {:?}", .0)]
     Other(String),

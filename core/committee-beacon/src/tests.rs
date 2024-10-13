@@ -9,10 +9,11 @@ use tempfile::tempdir;
 #[tokio::test]
 async fn test_start_shutdown() {
     let temp_dir = tempdir().unwrap();
-    let _node = TestNodeBuilder::new(temp_dir.path().to_path_buf())
+    let node = TestNodeBuilder::new(temp_dir.path().to_path_buf())
         .build()
         .await
         .unwrap();
+    node.shutdown().await;
 }
 
 // TODO(snormore): Fill out this test coverage.
@@ -33,8 +34,19 @@ async fn test_epoch_change_single_node() {
     // Check that beacon phase is set.
     // We don't check for commit phase specifically because we can't be sure it hasn't transitioned
     // to the reveal phase before checking.
-    let phase = query.get_committee_selection_beacon_phase();
-    assert!(phase.is_some());
+    poll_until(
+        || async {
+            query
+                .get_committee_selection_beacon_phase()
+                .is_some()
+                .then_some(())
+                .ok_or(PollUntilError::ConditionNotSatisfied)
+        },
+        Duration::from_secs(5),
+        Duration::from_millis(100),
+    )
+    .await
+    .unwrap();
 
     // Check that beacons are in app state.
     // These difficult to catch this at the right time with queries, so we just check that the

@@ -1,8 +1,10 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use affair::AsyncWorker;
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::SignerError;
+use lightning_utils::poll::{poll_until, PollUntilError};
 use lightning_utils::transaction::TransactionClient;
 use tokio::sync::Mutex;
 use types::{ExecuteTransactionRequest, ExecuteTransactionResponse};
@@ -34,6 +36,23 @@ impl<C: NodeComponents> AsyncWorker for SignerWorker<C> {
 
     async fn handle(&mut self, request: Self::Request) -> Self::Response {
         tracing::debug!("handling signer request: {:?}", request);
+
+        // If the signer hasn't started yet, block the request for a short period, waiting for it to
+        // be ready. This should only ever happen during node startup if an internal node
+        // transaction is submitted before the signer starts up.
+        let _ = poll_until(
+            || async {
+                self.client
+                    .lock()
+                    .await
+                    .is_some()
+                    .then_some(())
+                    .ok_or(PollUntilError::ConditionNotSatisfied)
+            },
+            Duration::from_secs(10),
+            Duration::from_millis(100),
+        )
+        .await;
 
         // Check that the client is ready, and return an error if not.
         let client = self.client.lock().await;

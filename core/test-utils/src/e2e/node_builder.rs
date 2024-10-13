@@ -126,7 +126,7 @@ impl TestNodeBuilder {
         let node = ContainedNode::<TestNodeComponents>::new(provider, None);
 
         // Start the node.
-        node.spawn().await??;
+        tokio::time::timeout(Duration::from_secs(15), node.spawn()).await???;
 
         // Wait for the node to be ready.
         let shutdown = node.shutdown_waiter();

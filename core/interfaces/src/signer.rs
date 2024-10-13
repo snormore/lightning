@@ -36,6 +36,10 @@ pub enum SignerError {
     #[error("Signer not ready")]
     NotReady,
 
+    /// The signer is being shutdown.
+    #[error("Signer is shutting down")]
+    ShuttingDown,
+
     /// Other generic error.
     #[error("Other: {:?}", .0)]
     Other(String),
@@ -47,6 +51,7 @@ impl From<SignerError> for ExecuteTransactionError {
             SignerError::ExecuteTransaction(e) => e,
             SignerError::Other(e) => ExecuteTransactionError::Other(e),
             SignerError::NotReady => ExecuteTransactionError::SignerNotReady,
+            SignerError::ShuttingDown => ExecuteTransactionError::NotifierShuttingDown,
         }
     }
 }
