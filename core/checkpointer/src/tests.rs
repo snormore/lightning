@@ -10,13 +10,11 @@ use lightning_test_utils::e2e::{TestNetwork, TestNodeBuilder, TestNodeComponents
 use lightning_test_utils::keys::EphemeralKeystore;
 use lightning_utils::poll::PollUntilError;
 use pretty_assertions::assert_eq;
-use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_start_shutdown() {
-    let temp_dir = tempdir().unwrap();
-    let node = TestNodeBuilder::new(temp_dir.path().to_path_buf())
-        .build()
+    let node = TestNodeBuilder::new()
+        .build::<TestNodeComponents>()
         .await
         .unwrap();
     node.shutdown().await;

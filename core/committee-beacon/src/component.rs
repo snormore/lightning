@@ -37,7 +37,7 @@ impl<C: NodeComponents> CommitteeBeaconComponent<C> {
     /// This method is called once during node initialization and includes the dependant node
     /// components as arguments, along with the node configuration, which includes our committee
     /// beacon configuration.
-    fn init(config: &C::ConfigProviderInterface) -> Result<Self> {
+    pub fn init(config: &C::ConfigProviderInterface) -> Result<Self> {
         let config = config.get::<Self>();
         let db = RocksCommitteeBeaconDatabase::build(config.database);
         Ok(Self {
@@ -47,7 +47,7 @@ impl<C: NodeComponents> CommitteeBeaconComponent<C> {
     }
 
     /// Spawn and start the committee beacon listener, returning immediately without blocking.
-    fn start(
+    pub fn start(
         &self,
         signer: fdi::Ref<C::SignerInterface>,
         fdi::Cloned(keystore): fdi::Cloned<C::KeystoreInterface>,

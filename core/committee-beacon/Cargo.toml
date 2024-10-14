@@ -24,6 +24,7 @@ tracing.workspace = true
 
 [dev-dependencies]
 futures.workspace = true
+lightning-application.workspace = true
 lightning-test-utils.workspace = true
 tempfile.workspace = true
 tokio.workspace = true

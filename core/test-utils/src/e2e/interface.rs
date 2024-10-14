@@ -13,7 +13,6 @@ use fleek_crypto::{
 };
 use hp_fixed::unsigned::HpUfixed;
 use lightning_checkpointer::CheckpointerQuery;
-use lightning_committee_beacon::CommitteeBeaconQuery;
 use lightning_interfaces::types::{
     Blake3Hash,
     ChainId,
@@ -51,6 +50,7 @@ pub type BoxedNode = Box<dyn NetworkNode>;
 #[async_trait::async_trait]
 pub trait NetworkNode: Any {
     fn as_any(&self) -> &dyn Any;
+
     fn index(&self) -> NodeIndex;
 
     async fn shutdown(self: Box<Self>);
@@ -63,7 +63,6 @@ pub trait NetworkNode: Any {
 
     fn application_query(&self) -> Box<dyn NetworkQueryRunner>;
     fn checkpointer_query(&self) -> CheckpointerQuery;
-    fn committee_beacon_query(&self) -> CommitteeBeaconQuery;
 
     fn reputation_reporter(&self) -> MyReputationReporter;
 

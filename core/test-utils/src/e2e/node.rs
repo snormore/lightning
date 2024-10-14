@@ -15,7 +15,6 @@ use fleek_crypto::{
 };
 use lightning_application::Application;
 use lightning_checkpointer::{CheckpointBroadcastMessage, Checkpointer, CheckpointerQuery};
-use lightning_committee_beacon::{CommitteeBeaconComponent, CommitteeBeaconQuery};
 use lightning_interfaces::prelude::*;
 use lightning_interfaces::Events;
 use lightning_node::ContainedNode;
@@ -27,6 +26,7 @@ use lightning_utils::transaction::{TransactionClient, TransactionSigner};
 use merklize::StateRootHash;
 use ready::tokio::TokioReadyWaiter;
 use ready::ReadyWaiter;
+use tempfile::TempDir;
 use types::{CheckpointAttestation, Epoch, Genesis, NodeIndex, NodeInfo, Topic};
 
 use super::{
@@ -46,13 +46,13 @@ pub struct TestNode<C: NodeComponents> {
     pub inner: ContainedNode<C>,
     pub before_genesis_ready: TokioReadyWaiter<TestNodeBeforeGenesisReadyState>,
     pub after_genesis_ready: TokioReadyWaiter<()>,
+    pub temp_dir: Option<TempDir>,
     pub home_dir: PathBuf,
     pub owner_secret_key: AccountOwnerSecretKey,
     pub app: fdi::Ref<Application<C>>,
-    pub app_query: c!(C::ApplicationInterface::SyncExecutor),
+    pub app_query: fdi::Ref<c!(C::ApplicationInterface::SyncExecutor)>,
     pub broadcast: fdi::Ref<SyncBroadcaster<C>>,
     pub checkpointer: fdi::Ref<Checkpointer<C>>,
-    pub committee_beacon: fdi::Ref<CommitteeBeaconComponent<C>>,
     pub notifier: fdi::Ref<C::NotifierInterface>,
     pub forwarder: fdi::Ref<MockForwarder<C>>,
     pub keystore: fdi::Ref<EphemeralKeystore<C>>,
@@ -65,7 +65,7 @@ pub struct TestNode<C: NodeComponents> {
 #[async_trait::async_trait]
 impl<C: NodeComponents> NetworkNode for TestNode<C> {
     fn as_any(&self) -> &dyn Any {
-        self
+        &*self
     }
 
     fn index(&self) -> NodeIndex {
@@ -177,10 +177,6 @@ impl<C: NodeComponents> NetworkNode for TestNode<C> {
         self.checkpointer.query()
     }
 
-    fn committee_beacon_query(&self) -> CommitteeBeaconQuery {
-        self.committee_beacon.query()
-    }
-
     fn reputation_reporter(&self) -> MyReputationReporter {
         self.reputation_reporter.clone()
     }
@@ -210,8 +206,8 @@ impl<C: NodeComponents> NetworkNode for TestNode<C> {
 }
 
 impl<C: NodeComponents> TestNode<C> {
-    pub fn builder(home_dir: PathBuf) -> TestNodeBuilder {
-        TestNodeBuilder::new(home_dir)
+    pub fn builder() -> TestNodeBuilder {
+        TestNodeBuilder::new()
     }
 
     pub fn get_node_info(&self) -> Option<NodeInfo> {

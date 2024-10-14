@@ -4,18 +4,16 @@ use std::time::Duration;
 
 use anyhow::Result;
 use futures::future::join_all;
+use lightning_application::state::QueryRunner;
 use lightning_interfaces::types::Genesis;
 use lightning_utils::poll::{poll_until, PollUntilError};
-use tempfile::{tempdir, TempDir};
 
-use super::{BoxedNode, TestGenesisBuilder, TestNetwork, TestNodeBuilder, TestNodeComponents};
+use super::{BoxedNode, TestGenesisBuilder, TestNetwork, TestNode, TestNodeComponents};
 use crate::consensus::{Config as MockConsensusConfig, MockConsensusGroup};
 
 pub type GenesisMutator = Arc<dyn Fn(&mut Genesis)>;
 
 pub struct TestNetworkBuilder {
-    pub temp_dir: TempDir,
-    pub nodes: Vec<BoxedNode>,
     pub num_nodes: u32,
     pub committee_size: u32,
     pub genesis_mutator: Option<GenesisMutator>,
@@ -25,28 +23,15 @@ pub struct TestNetworkBuilder {
 impl TestNetworkBuilder {
     pub fn new() -> Self {
         Self {
-            temp_dir: tempdir().unwrap(),
-            nodes: Default::default(),
             num_nodes: 3,
             committee_size: 3,
             genesis_mutator: None,
-            mock_consensus_config: Some(MockConsensusConfig {
-                max_ordering_time: 1,
-                min_ordering_time: 0,
-                probability_txn_lost: 0.0,
-                new_block_interval: Duration::from_secs(0),
-                ..Default::default()
-            }),
+            mock_consensus_config: Some(Self::default_mock_consensus_config()),
         }
     }
 
     pub fn with_num_nodes(mut self, num_nodes: u32) -> Self {
         self.num_nodes = num_nodes;
-        self
-    }
-
-    pub fn with_node(mut self, node: BoxedNode) -> Self {
-        self.nodes.push(node);
         self
     }
 
@@ -73,38 +58,58 @@ impl TestNetworkBuilder {
         self
     }
 
-    /// Builds a new test network with the given number of nodes, and starts each of them.
-    pub async fn build(self) -> Result<TestNetwork> {
+    pub fn default_mock_consensus_config() -> MockConsensusConfig {
+        MockConsensusConfig {
+            max_ordering_time: 1,
+            min_ordering_time: 0,
+            probability_txn_lost: 0.0,
+            new_block_interval: Duration::from_secs(0),
+            ..Default::default()
+        }
+    }
+
+    pub fn new_mock_consensus_group(
+        config: Option<MockConsensusConfig>,
+    ) -> (MockConsensusGroup, Arc<tokio::sync::Notify>) {
+        let config = config.unwrap_or_else(Self::default_mock_consensus_config);
+        let notify = Arc::new(tokio::sync::Notify::new());
+        let consensus_group =
+            MockConsensusGroup::new::<QueryRunner>(config, None, Some(notify.clone()));
+        (consensus_group, notify)
+    }
+
+    pub async fn build(&self) -> Result<TestNetwork> {
         // TODO(snormore): Remove this when finished debugging.
         let _ = crate::e2e::try_init_tracing();
 
-        // Configure mock consensus if enabled.
+        // Build the mock consensus group.
         let (consensus_group, consensus_group_start) =
-            if let Some(config) = &self.mock_consensus_config {
-                // Build the shared mock consensus group.
-                let consensus_group_start = Arc::new(tokio::sync::Notify::new());
-                let consensus_group = MockConsensusGroup::new::<TestNodeComponents>(
-                    config.clone(),
-                    None,
-                    Some(consensus_group_start.clone()),
-                );
-                (Some(consensus_group), Some(consensus_group_start))
-            } else {
-                (None, None)
-            };
+            Self::new_mock_consensus_group(self.mock_consensus_config.clone());
 
-        // Build and start the nodes.
-        let mut nodes = join_all((0..self.num_nodes).map(|i| {
-            let mut builder =
-                TestNodeBuilder::new(self.temp_dir.path().join(format!("node-{}", i)));
-            if let Some(consensus_group) = &consensus_group {
-                builder = builder.with_mock_consensus(Some(consensus_group.clone()));
-            }
-            builder.build()
+        // Build and start the non-customized nodes.
+        let nodes = join_all((0..self.num_nodes).map(|_| {
+            TestNode::<TestNodeComponents>::builder()
+                .with_mock_consensus(Some(consensus_group.clone()))
+                .build::<TestNodeComponents>()
         }))
         .await
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?;
+
+        // Build the network with the nodes.
+        self.build_with_nodes(nodes, Some(consensus_group_start))
+            .await
+    }
+
+    /// Builds a new test network with the given number of nodes, and starts each of them.
+    pub async fn build_with_nodes(
+        &self,
+        nodes: Vec<BoxedNode>,
+        // TODO(snormore): Move this into BuildOptions or something.
+        consensus_group_start: Option<Arc<tokio::sync::Notify>>,
+    ) -> Result<TestNetwork> {
+        // TODO(snormore): Remove this when finished debugging.
+        let _ = crate::e2e::try_init_tracing();
 
         // Wait for ready before building genesis.
         join_all(
@@ -134,30 +139,20 @@ impl TestNetworkBuilder {
         };
 
         // Apply genesis on each node.
-        join_all(
-            nodes
-                .iter_mut()
-                .map(|node| node.apply_genesis(genesis.clone())),
-        )
-        .await;
+        join_all(nodes.iter().map(|node| node.apply_genesis(genesis.clone()))).await;
 
         // Wait for the pool to establish all of the node connections.
         self.wait_for_connected_peers(&nodes).await?;
 
         // Wait for ready after genesis.
-        join_all(
-            nodes
-                .iter_mut()
-                .map(|node| node.wait_for_after_genesis_ready()),
-        )
-        .await;
+        join_all(nodes.iter().map(|node| node.wait_for_after_genesis_ready())).await;
 
         // Notify the shared mock consensus group that it can start.
         if let Some(consensus_group_start) = &consensus_group_start {
             consensus_group_start.notify_waiters();
         }
 
-        let network = TestNetwork::new(self.temp_dir, genesis, nodes).await?;
+        let network = TestNetwork::new(genesis, nodes).await?;
         Ok(network)
     }
 

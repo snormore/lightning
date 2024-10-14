@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use anyhow::Result;
 use futures::future::join_all;
 use lightning_interfaces::types::{Genesis, NodeIndex};
-use tempfile::TempDir;
 
 use super::{BoxedNode, TestNetworkBuilder};
 
@@ -11,15 +10,13 @@ use super::{BoxedNode, TestNetworkBuilder};
 ///
 /// This encapsulates the management of nodes and provides methods to interact with them.
 pub struct TestNetwork {
-    _temp_dir: TempDir,
     pub genesis: Genesis,
     pub node_by_id: HashMap<NodeIndex, Option<BoxedNode>>,
 }
 
 impl TestNetwork {
-    pub async fn new(temp_dir: TempDir, genesis: Genesis, nodes: Vec<BoxedNode>) -> Result<Self> {
+    pub async fn new(genesis: Genesis, nodes: Vec<BoxedNode>) -> Result<Self> {
         Ok(Self {
-            _temp_dir: temp_dir,
             genesis,
             // We assume that at this point the genesis has been applied, otherwise this will panic.
             node_by_id: nodes

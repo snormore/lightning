@@ -22,30 +22,31 @@ use lightning_signer::Signer;
 use lightning_utils::config::TomlConfigProvider;
 use ready::tokio::TokioReadyWaiter;
 use ready::ReadyWaiter;
+use tempfile::tempdir;
 
-use super::{
-    BoxedNode,
-    SyncBroadcaster,
-    TestNode,
-    TestNodeBeforeGenesisReadyState,
-    TestNodeComponents,
-};
+use super::{BoxedNode, SyncBroadcaster, TestNode, TestNodeBeforeGenesisReadyState};
 use crate::consensus::{MockConsensus, MockConsensusGroup, MockForwarder};
 use crate::keys::EphemeralKeystore;
 
+#[derive(Clone)]
 pub struct TestNodeBuilder {
-    home_dir: PathBuf,
+    home_dir: Option<PathBuf>,
     use_mock_consensus: bool,
     mock_consensus_group: Option<MockConsensusGroup>,
 }
 
 impl TestNodeBuilder {
-    pub fn new(home_dir: PathBuf) -> Self {
+    pub fn new() -> Self {
         Self {
-            home_dir,
+            home_dir: None,
             use_mock_consensus: true,
             mock_consensus_group: None,
         }
+    }
+
+    pub fn with_home_dir(mut self, home_dir: PathBuf) -> Self {
+        self.home_dir = Some(home_dir);
+        self
     }
 
     pub fn with_mock_consensus(mut self, mock_consensus_group: Option<MockConsensusGroup>) -> Self {
@@ -60,38 +61,46 @@ impl TestNodeBuilder {
         self
     }
 
-    pub async fn build(self) -> Result<BoxedNode> {
-        let config = TomlConfigProvider::<TestNodeComponents>::new();
+    pub async fn build<C: NodeComponents>(self) -> Result<BoxedNode> {
+        let (temp_dir, home_dir) = if let Some(home_dir) = self.home_dir {
+            (None, home_dir)
+        } else {
+            let temp_dir = tempdir()?;
+            let home_dir = temp_dir.path().to_path_buf();
+            (Some(temp_dir), home_dir)
+        };
+
+        let config = TomlConfigProvider::<C>::new();
 
         // Configure application component.
-        config.inject::<Application<TestNodeComponents>>(ApplicationConfig {
+        config.inject::<Application<C>>(ApplicationConfig {
             genesis_path: None,
-            db_path: Some(self.home_dir.join("app").try_into().unwrap()),
+            db_path: Some(home_dir.join("app").try_into().unwrap()),
             ..Default::default()
         });
 
         // Configure blockstore component.
-        config.inject::<Blockstore<TestNodeComponents>>(BlockstoreConfig {
-            root: self.home_dir.join("blockstore").try_into().unwrap(),
+        config.inject::<Blockstore<C>>(BlockstoreConfig {
+            root: home_dir.join("blockstore").try_into().unwrap(),
         });
 
         // Configure checkpointer component.
-        config.inject::<Checkpointer<TestNodeComponents>>(CheckpointerConfig {
+        config.inject::<Checkpointer<C>>(CheckpointerConfig {
             database: CheckpointerDatabaseConfig {
-                path: self.home_dir.join("checkpointer").try_into().unwrap(),
+                path: home_dir.join("checkpointer").try_into().unwrap(),
             },
         });
 
         // Configure committee beacon component.
-        config.inject::<CommitteeBeaconComponent<TestNodeComponents>>(CommitteeBeaconConfig {
+        config.inject::<CommitteeBeaconComponent<C>>(CommitteeBeaconConfig {
             database: CommitteeBeaconDatabaseConfig {
-                path: self.home_dir.join("committee-beacon").try_into().unwrap(),
+                path: home_dir.join("committee-beacon").try_into().unwrap(),
             },
         });
 
         // Configure consensus component.
         if self.use_mock_consensus {
-            config.inject::<MockConsensus<TestNodeComponents>>(
+            config.inject::<MockConsensus<C>>(
                 self.mock_consensus_group
                     .as_ref()
                     .map(|group| group.config.clone())
@@ -100,30 +109,29 @@ impl TestNodeBuilder {
         }
 
         // Configure pool component.
-        config.inject::<PoolProvider<TestNodeComponents>>(PoolConfig {
+        config.inject::<PoolProvider<C>>(PoolConfig {
             // Specify port 0 to get a random available port.
             address: "0.0.0.0:0".parse().unwrap(),
             ..Default::default()
         });
 
         // Configure RPC component.
-        config.inject::<Rpc<TestNodeComponents>>(RpcConfig {
+        config.inject::<Rpc<C>>(RpcConfig {
             // Specify port 0 to get a random available port.
             addr: "0.0.0.0:0".parse().unwrap(),
-            hmac_secret_dir: Some(self.home_dir.clone()),
+            hmac_secret_dir: Some(home_dir.clone()),
             ..Default::default()
         });
 
         // Configure keystore component.
-        config.inject::<EphemeralKeystore<TestNodeComponents>>(Default::default());
+        config.inject::<EphemeralKeystore<C>>(Default::default());
 
         // Initialize the node.
-        let provider = fdi::MultiThreadedProvider::default();
-        provider.insert(config);
+        let provider = fdi::MultiThreadedProvider::default().with(config);
         if let Some(mock_consensus_group) = self.mock_consensus_group {
             provider.insert(mock_consensus_group);
         }
-        let node = ContainedNode::<TestNodeComponents>::new(provider, None);
+        let node = ContainedNode::<C>::new(provider, None);
 
         // Start the node.
         tokio::time::timeout(Duration::from_secs(15), node.spawn()).await???;
@@ -134,8 +142,8 @@ impl TestNodeBuilder {
         // Wait for components to be ready before building genesis.
         let before_genesis_ready = TokioReadyWaiter::new();
         {
-            let pool = node.provider().get::<PoolProvider<TestNodeComponents>>();
-            let rpc = node.provider().get::<Rpc<TestNodeComponents>>();
+            let pool = node.provider().get::<PoolProvider<C>>();
+            let rpc = node.provider().get::<Rpc<C>>();
             let before_genesis_ready = before_genesis_ready.clone();
             let shutdown = shutdown.clone();
             spawn!(
@@ -165,11 +173,8 @@ impl TestNodeBuilder {
         // Wait for components to be ready after genesis.
         let after_genesis_ready = TokioReadyWaiter::new();
         {
-            let app_query = node
-                .provider()
-                .get::<Application<TestNodeComponents>>()
-                .sync_query();
-            let checkpointer = node.provider().get::<Checkpointer<TestNodeComponents>>();
+            let app_query = node.provider().get::<Application<C>>().sync_query();
+            let checkpointer = node.provider().get::<Checkpointer<C>>();
             let after_genesis_ready = after_genesis_ready.clone();
             let shutdown = shutdown.clone();
             spawn!(
@@ -192,31 +197,29 @@ impl TestNodeBuilder {
             );
         }
 
-        let app = node.provider().get::<Application<TestNodeComponents>>();
+        let app = node.provider().get::<Application<C>>();
         Ok(Box::new(TestNode {
-            app_query: app.sync_query(),
-            app,
-            broadcast: node.provider().get::<SyncBroadcaster<TestNodeComponents>>(),
-            checkpointer: node.provider().get::<Checkpointer<TestNodeComponents>>(),
-            committee_beacon: node
+            app_query: node
                 .provider()
-                .get::<CommitteeBeaconComponent<TestNodeComponents>>(),
+                .get::<c!(C::ApplicationInterface::SyncExecutor)>(),
+            app,
+            broadcast: node.provider().get::<SyncBroadcaster<C>>(),
+            checkpointer: node.provider().get::<Checkpointer<C>>(),
             notifier: node
                 .provider()
-                .get::<<TestNodeComponents as NodeComponents>::NotifierInterface>(),
-            forwarder: node.provider().get::<MockForwarder<TestNodeComponents>>(),
-            keystore: node
-                .provider()
-                .get::<EphemeralKeystore<TestNodeComponents>>(),
-            pool: node.provider().get::<PoolProvider<TestNodeComponents>>(),
-            rpc: node.provider().get::<Rpc<TestNodeComponents>>(),
+                .get::<<C as NodeComponents>::NotifierInterface>(),
+            forwarder: node.provider().get::<MockForwarder<C>>(),
+            keystore: node.provider().get::<EphemeralKeystore<C>>(),
+            pool: node.provider().get::<PoolProvider<C>>(),
+            rpc: node.provider().get::<Rpc<C>>(),
             reputation_reporter: node.provider().get::<MyReputationReporter>(),
-            signer: node.provider().get::<Signer<TestNodeComponents>>(),
+            signer: node.provider().get::<Signer<C>>(),
 
             inner: node,
             before_genesis_ready,
             after_genesis_ready,
-            home_dir: self.home_dir.clone(),
+            temp_dir,
+            home_dir,
             owner_secret_key: AccountOwnerSecretKey::generate(),
         }))
     }
