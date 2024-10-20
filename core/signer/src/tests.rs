@@ -7,11 +7,7 @@ use lightning_application::{Application, ApplicationConfig};
 use lightning_interfaces::prelude::*;
 use lightning_node::Node;
 use lightning_notifier::Notifier;
-use lightning_test_utils::consensus::{
-    Config as MockConsensusConfig,
-    MockConsensus,
-    MockForwarder,
-};
+use lightning_test_utils::consensus::{MockConsensus, MockConsensusConfig, MockForwarder};
 use lightning_test_utils::json_config::JsonConfigProvider;
 use lightning_test_utils::keys::EphemeralKeystore;
 use lightning_utils::poll::{poll_until, PollUntilError};
@@ -441,6 +437,7 @@ impl<C: NodeComponents> TestNode<C> {
                         probability_txn_lost: 0.0,
                         transactions_to_lose: HashSet::new(),
                         new_block_interval: Duration::from_secs(0),
+                        block_buffering_interval: Duration::from_secs(0),
                     }),
             ),
         )

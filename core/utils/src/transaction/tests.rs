@@ -7,11 +7,7 @@ use lightning_application::{Application, ApplicationConfig};
 use lightning_interfaces::prelude::*;
 use lightning_node::Node;
 use lightning_notifier::Notifier;
-use lightning_test_utils::consensus::{
-    Config as MockConsensusConfig,
-    MockConsensus,
-    MockForwarder,
-};
+use lightning_test_utils::consensus::{MockConsensus, MockConsensusConfig, MockForwarder};
 use lightning_test_utils::e2e::try_init_tracing;
 use lightning_test_utils::json_config::JsonConfigProvider;
 use lightning_test_utils::keys::EphemeralKeystore;
@@ -391,6 +387,7 @@ async fn test_execute_transaction_wait_for_receipt_retry_on_timeout_avoids_resub
             // Lose the first transaction.
             transactions_to_lose: HashSet::from_iter(vec![1]),
             new_block_interval: Duration::from_secs(0),
+            block_buffering_interval: Duration::from_secs(0),
         })
         .with_genesis_mutator(move |genesis| {
             genesis.chain_id = 1337;
@@ -453,6 +450,7 @@ async fn test_execute_transaction_no_wait_for_receipt_retry_on_timeout_avoids_re
             // Lose the first transaction.
             transactions_to_lose: HashSet::from_iter(vec![1]),
             new_block_interval: Duration::from_secs(0),
+            block_buffering_interval: Duration::from_secs(0),
         })
         .with_genesis_mutator(move |genesis| {
             genesis.chain_id = 1337;
@@ -642,6 +640,7 @@ impl TestNodeBuilder {
                             probability_txn_lost: 0.0,
                             transactions_to_lose: HashSet::new(),
                             new_block_interval: Duration::from_secs(0),
+                            block_buffering_interval: Duration::from_secs(0),
                         },
                     )),
             ),
