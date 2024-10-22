@@ -12,18 +12,13 @@ use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error};
 
 use crate::execution::state::{Execution, FilteredConsensusOutput};
 use crate::validator::Validator;
 
 // Copyright 2022-2023 Fleek Network
 // SPDX-License-Identifier: Apache-2.0, MIT
-// use crate::keys::LoadOrCreate;
-// use crate::{config::ConsensusConfig, validator::Validator};
-
-/// Maximum number of times we retry to start the primary or the worker, before we panic.
-const MAX_RETRIES: u32 = 2;
 
 /// Manages running the narwhal and bullshark as a service.
 pub struct NarwhalService {
@@ -125,69 +120,34 @@ impl NarwhalService {
         let network_client =
             NetworkClient::new_from_keypair(&self.arguments.primary_network_keypair);
 
-        let mut running = false;
-        for i in 0..MAX_RETRIES {
-            debug!("Trying to start the Narwhal Primary...");
-            if i > 0 {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
+        let execution_state = Execution::new(consensus_output_tx.clone(), query_runner.clone());
+        self.primary
+            .start(
+                self.arguments.primary_keypair.copy(),
+                self.arguments.primary_network_keypair.copy(),
+                self.committee.clone(),
+                self.protocol_config.clone(),
+                self.worker_cache.clone(),
+                network_client.clone(),
+                &self.store,
+                execution_state,
+            )
+            .await
+            .unwrap();
 
-            let execution_state = Execution::new(consensus_output_tx.clone(), query_runner.clone());
-            if let Err(e) = self
-                .primary
-                .start(
-                    self.arguments.primary_keypair.copy(),
-                    self.arguments.primary_network_keypair.copy(),
-                    self.committee.clone(),
-                    self.protocol_config.clone(),
-                    self.worker_cache.clone(),
-                    network_client.clone(),
-                    &self.store,
-                    execution_state,
-                )
-                .await
-            {
-                warn!("Unable to start Narwhal Primary: {e:?}");
-            } else {
-                running = true;
-                break;
-            }
-        }
-        if !running {
-            panic!("Failed to start the Narwhal Primary after {MAX_RETRIES} tries",);
-        }
-
-        let mut running = false;
-        for i in 0..MAX_RETRIES {
-            debug!("Trying to start the Narwhal Worker...");
-            if i > 0 {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-
-            if let Err(e) = self
-                .worker_node
-                .start(
-                    name.clone(),
-                    self.arguments.worker_keypair.copy(),
-                    self.committee.clone(),
-                    self.worker_cache.clone(),
-                    network_client.clone(),
-                    &self.store,
-                    Validator::new(self.node_public_key, self.consensus_public_key),
-                    None,
-                )
-                .await
-            {
-                warn!("Unable to start Narwhal Worker: {e:?}");
-            } else {
-                running = true;
-                break;
-            }
-        }
-
-        if !running {
-            panic!("Failed to start the Narwhal Worker after {MAX_RETRIES} tries",);
-        }
+        self.worker_node
+            .start(
+                name.clone(),
+                self.arguments.worker_keypair.copy(),
+                self.committee.clone(),
+                self.worker_cache.clone(),
+                network_client.clone(),
+                &self.store,
+                Validator::new(self.node_public_key, self.consensus_public_key),
+                None,
+            )
+            .await
+            .unwrap();
 
         *status = Status::Running;
     }
@@ -202,12 +162,12 @@ impl NarwhalService {
 
         let now = Instant::now();
         let epoch = self.committee.epoch();
-        trace!("Shutting down Narwhal epoch {epoch:?}");
+        tracing::info!("Shutting down Narwhal epoch {epoch:?}");
 
         self.worker_node.shutdown().await;
         self.primary.shutdown().await;
 
-        debug!(
+        tracing::info!(
             "Narwhal shutdown for epoch {:?} is complete - took {} seconds",
             epoch,
             now.elapsed().as_secs_f64()
