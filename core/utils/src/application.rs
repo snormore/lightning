@@ -38,8 +38,10 @@ pub trait QueryRunnerExt: SyncQueryRunnerInterface {
     /// Returns the committee members of the current epoch by NodeIndex
     fn get_committee_members_by_index(&self) -> Vec<NodeIndex> {
         let epoch = self.get_current_epoch();
-        self.get_committee_info(&epoch, |c| c.members)
+        self.get_committee_info(&epoch, |c| c.members())
             .unwrap_or_default()
+            .into_iter()
+            .collect()
     }
 
     /// Get Current Epoch
@@ -59,7 +61,7 @@ pub trait QueryRunnerExt: SyncQueryRunnerInterface {
         let committee = self.get_committee_info(&epoch, |c| c).unwrap_or_default();
         EpochInfo {
             committee: committee
-                .members
+                .members()
                 .iter()
                 .filter_map(|member| self.get_node_info::<NodeInfo>(member, |n| n))
                 .collect(),
@@ -196,7 +198,7 @@ pub trait QueryRunnerExt: SyncQueryRunnerInterface {
     /// Get the active node indexes.
     fn get_active_node_set(&self) -> HashSet<NodeIndex> {
         let current_epoch = self.get_current_epoch();
-        self.get_committee_info(&current_epoch, |committee| committee.active_node_set)
+        self.get_committee_info(&current_epoch, |committee| committee.active_nodes())
             .unwrap_or_default()
             .into_iter()
             .collect()
