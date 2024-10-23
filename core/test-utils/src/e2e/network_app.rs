@@ -64,7 +64,7 @@ impl TestNetwork {
         let node = self.node(0);
         let epoch = node.app_query().get_current_epoch();
         node.app_query()
-            .get_committee_info(&epoch, |committee| committee.members)
+            .get_committee_info(&epoch, |committee| committee.members())
             .unwrap_or_default()
             .into_iter()
             .map(|index| self.node(index))
@@ -79,7 +79,7 @@ impl TestNetwork {
         let epoch = node.app_query().get_current_epoch();
         let committee_nodes = node
             .app_query()
-            .get_committee_info(&epoch, |committee| committee.members)
+            .get_committee_info(&epoch, |committee| committee.members())
             .unwrap_or_default();
         self.nodes()
             .filter(|node| !committee_nodes.contains(&node.index()))

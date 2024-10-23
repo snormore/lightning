@@ -65,7 +65,8 @@ impl<B: Backend> StateExecutor<B> {
         let mut current_committee = self.committee_info.get(&current_epoch).unwrap_or_default();
 
         // If sender is not on the current committee revert early, or if they have already signaled;
-        if !current_committee.members.contains(&index) {
+        let committee_members = current_committee.members();
+        if !committee_members.contains(&index) {
             return TransactionResponse::Revert(ExecutionError::NotCommitteeMember);
         } else if current_committee.ready_to_change.contains(&index) {
             return TransactionResponse::Revert(ExecutionError::AlreadySignaled);
@@ -80,8 +81,7 @@ impl<B: Backend> StateExecutor<B> {
         // process.
         // Note that we do NOT want to execute this code after 2/3+1 nodes have signaled, since
         // we only want to do it once to start the process.
-        if current_committee.ready_to_change.len() == (2 * current_committee.members.len() / 3) + 1
-        {
+        if current_committee.ready_to_change.len() == (2 * committee_members.len() / 3) + 1 {
             let start_block = self.get_block_number() + 1;
             let end_block = start_block + self.get_commit_phase_duration();
 
@@ -132,7 +132,7 @@ impl<B: Backend> StateExecutor<B> {
             .committee_info
             .get(&epoch)
             .unwrap_or_default()
-            .active_node_set;
+            .active_nodes();
         if !active_nodes.contains(&node_index) {
             return TransactionResponse::Revert(
                 ExecutionError::CommitteeSelectionBeaconNodeNotActive,
@@ -505,14 +505,25 @@ impl<B: Backend> StateExecutor<B> {
         let non_revealing_nodes = beacons
             .iter()
             .filter(|(_, (_, reveal))| reveal.is_none())
-            .map(|(node_index, _)| node_index)
+            .map(|(node_index, _)| *node_index)
             .collect::<Vec<_>>();
-        for node_index in non_revealing_nodes {
+        for node_index in &non_revealing_nodes {
             self.committee_selection_beacon_non_revealing_node
                 .set(*node_index, ());
         }
 
-        // TODO(snormore): Slash non-revealing nodes.
+        // Slash non-revealing nodes and remove from the committee and active set of nodes if they
+        // no longer have sufficient stake.
+        // TODO(snormore): Add protocol param for slash amount, as enum that can indicate slash full
+        // staked amount or specific amount.
+        let slash_amount = match self.parameters.get(&ProtocolParamKey::MinimumNodeStake) {
+            Some(ProtocolParamValue::MinimumNodeStake(v)) => v,
+            None => unreachable!("minimum node stake is missing"),
+            _ => unreachable!("invalid minimum node stake type"),
+        };
+        for node_index in &non_revealing_nodes {
+            self.slash_node_and_maybe_kick(node_index, &slash_amount.into());
+        }
 
         // Clear the beacon state.
         for digest in self.committee_selection_beacon.keys() {
@@ -711,6 +722,8 @@ impl<B: Backend> StateExecutor<B> {
             members: committee,
             epoch_end_timestamp,
             active_node_set: active_nodes,
+            removed_members: Default::default(),
+            removed_active_nodes: Default::default(),
         }
     }
 
@@ -1014,6 +1027,40 @@ impl<B: Backend> StateExecutor<B> {
         match self.parameters.get(&ProtocolParamKey::CommitteeSize) {
             Some(ProtocolParamValue::CommitteeSize(committee_size)) => committee_size,
             _ => unreachable!("invalid committee size in protocol parameters"),
+        }
+    }
+
+    /// Slash a node by removing the given amount from the node's staked balance.
+    ///
+    /// If the node no longer has sufficient stake, it's removed from the committee and active node
+    /// set.
+    pub fn slash_node_and_maybe_kick(&self, node_index: &NodeIndex, amount: &HpUfixed<18>) {
+        let node_index = *node_index;
+        let amount = amount.clone();
+
+        // Remove the given slash amount from the node's staked balance.
+        let mut node_info = self.node_info.get(&node_index).unwrap();
+        if node_info.stake.staked >= amount {
+            node_info.stake.staked -= amount;
+        } else {
+            node_info.stake.staked = HpUfixed::zero();
+        }
+        self.node_info.set(node_index, node_info);
+
+        // If the node no longer has sufficient stake, remove it from the committee and active node
+        // set.
+        if !self.is_valid_node(&node_index).unwrap_or(false) {
+            let epoch = self.get_epoch();
+            let block_number = self.get_block_number();
+            let mut committee = self.committee_info.get(&epoch).unwrap();
+            // TODO(snormore): Should we include a reason for removal?
+            committee
+                .removed_members
+                .insert(block_number, vec![node_index]);
+            committee
+                .removed_active_nodes
+                .insert(block_number, vec![node_index]);
+            self.committee_info.set(epoch, committee);
         }
     }
 }
