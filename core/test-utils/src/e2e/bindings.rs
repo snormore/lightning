@@ -1,7 +1,7 @@
 use lightning_application::Application;
 use lightning_blockstore::blockstore::Blockstore;
 use lightning_checkpointer::Checkpointer;
-use lightning_consensus::consensus::Consensus;
+use lightning_consensus::Consensus;
 use lightning_forwarder::Forwarder;
 use lightning_interfaces::partial_node_components;
 use lightning_notifier::Notifier;
