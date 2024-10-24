@@ -514,15 +514,9 @@ impl<B: Backend> StateExecutor<B> {
 
         // Slash non-revealing nodes and remove from the committee and active set of nodes if they
         // no longer have sufficient stake.
-        // TODO(snormore): Add protocol param for slash amount, as enum that can indicate slash full
-        // staked amount or specific amount.
-        let slash_amount = match self.parameters.get(&ProtocolParamKey::MinimumNodeStake) {
-            Some(ProtocolParamValue::MinimumNodeStake(v)) => v,
-            None => unreachable!("minimum node stake is missing"),
-            _ => unreachable!("invalid minimum node stake type"),
-        };
+        let slash_amount = self.get_committee_selection_beacon_non_reveal_slash_amount();
         for node_index in &non_revealing_nodes {
-            self.slash_node_and_maybe_kick(node_index, &slash_amount.into());
+            self.slash_node_and_maybe_kick(node_index, &slash_amount);
         }
 
         // Clear the beacon state.
@@ -1061,6 +1055,25 @@ impl<B: Backend> StateExecutor<B> {
                 .removed_active_nodes
                 .insert(block_number, vec![node_index]);
             self.committee_info.set(epoch, committee);
+        }
+    }
+
+    /// Get the slash amount for non-revealing nodes in the committee selection beacon process.
+    ///
+    /// Returns 0 if the slash amount is not set in the protocol parameters.
+    /// Panics if the slash amount is not the expected type.
+    fn get_committee_selection_beacon_non_reveal_slash_amount(&self) -> HpUfixed<18> {
+        match self
+            .parameters
+            .get(&ProtocolParamKey::CommitteeSelectionBeaconNonRevealSlashAmount)
+        {
+            Some(ProtocolParamValue::CommitteeSelectionBeaconNonRevealSlashAmount(amount)) => {
+                amount.into()
+            },
+            None => HpUfixed::<18>::zero(),
+            _ => unreachable!(
+                "invalid committee selection beacon non-reveal slash amount in protocol parameters"
+            ),
         }
     }
 }
