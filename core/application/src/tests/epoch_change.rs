@@ -261,8 +261,8 @@ async fn test_epoch_change_with_some_non_committee_nodes() {
     .await;
     assert_eq!(result.unwrap_err(), PollUntilError::Timeout);
 
-    // Check that the ready-to-change set in the committee info contains the nodes that sent an
-    // epoch change transaction.
+    // Check that the ready-to-change set in the committee info for the previous epoch contains the
+    // nodes that sent an epoch change transaction.
     for node in network.nodes() {
         assert_eq!(
             node.app_query()

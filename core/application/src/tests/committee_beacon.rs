@@ -297,7 +297,7 @@ async fn test_committee_beacon_transition_to_reveal_phase_early_with_full_partic
     // Check that the committee has changed.
     // We can rely on this being deterministic because we have fixed commits/reveals in this test,
     // which are combined and used as the seed for randomly choosing the new committee.
-    assert_eq!(query.get_committee_members_by_index(), vec![2, 1]);
+    assert_eq!(query.get_committee_members_by_index(), vec![1, 2]);
 }
 
 #[tokio::test]
@@ -817,7 +817,7 @@ async fn test_committee_beacon_non_revealing_node_fully_slashed() {
 
     // TODO(snormore): Check that the non-revealing node is no longer an active node in the network.
 
-    // TODO(snormore): Check that a new committee is selected.
+    // TODO(snormore): Check that the non-revealing node is no longer a committee member.
 
     // Execute commit transaction from the previously non-participating node, and check that it's
     // successful.

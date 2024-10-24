@@ -1030,16 +1030,16 @@ impl<B: Backend> StateExecutor<B> {
     /// set.
     pub fn slash_node_and_maybe_kick(&self, node_index: &NodeIndex, amount: &HpUfixed<18>) {
         let node_index = *node_index;
-        let amount = amount.clone();
 
         // Remove the given slash amount from the node's staked balance.
         let mut node_info = self.node_info.get(&node_index).unwrap();
-        if node_info.stake.staked >= amount {
-            node_info.stake.staked -= amount;
+        if node_info.stake.staked >= amount.clone() {
+            node_info.stake.staked -= amount.clone();
         } else {
             node_info.stake.staked = HpUfixed::zero();
         }
         self.node_info.set(node_index, node_info);
+        tracing::info!("slashing node {:?} by {:?}", node_index, amount);
 
         // If the node no longer has sufficient stake, remove it from the committee and active node
         // set.
@@ -1054,6 +1054,10 @@ impl<B: Backend> StateExecutor<B> {
             committee
                 .removed_active_nodes
                 .insert(block_number, vec![node_index]);
+            tracing::info!(
+                "removing node {:?} from committee and active node set after being slashed",
+                node_index
+            );
             self.committee_info.set(epoch, committee);
         }
     }
