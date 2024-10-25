@@ -82,7 +82,8 @@ impl ApplicationEnv {
                 let app = ApplicationState::executor(ctx);
                 let last_block_hash = app.get_block_hash();
 
-                let block_number = app.get_block_number() + 1;
+                let last_block_number = app.get_block_number();
+                let block_number = last_block_number + 1;
 
                 // Create block response
                 let mut response = BlockExecutionResponse {
@@ -90,11 +91,16 @@ impl ApplicationEnv {
                     parent_hash: last_block_hash,
                     change_epoch: false,
                     node_registry_delta: Vec::new(),
+                    active_node_set_changes: Vec::new(),
+                    committee_members_changes: Vec::new(),
                     txn_receipts: Vec::with_capacity(block.transactions.len()),
                     block_number,
                     previous_state_root: state_root.into(),
                     new_state_root: [0u8; 32],
                 };
+
+                // Get the current epoch before executing the block transactions.
+                let epoch = app.get_epoch();
 
                 // Execute each transaction and add the results to the block response
                 for (index, txn) in &mut block.transactions.iter_mut().enumerate() {
@@ -107,6 +113,28 @@ impl ApplicationEnv {
                     // response
                     if let TransactionResponse::Success(ExecutionData::EpochChange) = results {
                         response.change_epoch = true;
+                    }
+
+                    // If the active node set was changed in the last block, add to the block
+                    // response.
+                    let committee = app.get_committee(epoch);
+                    if let Some(changes) = committee.active_node_set_changes.get(&last_block_number)
+                    {
+                        response.active_node_set_changes.extend(changes.iter().map(
+                            |(node_index, change)| {
+                                (app.get_node_public_key(node_index), change.clone())
+                            },
+                        ));
+                    }
+
+                    // If the committee members were changed in the last block, add to the block
+                    // response.
+                    if let Some(changes) = committee.members_changes.get(&last_block_number) {
+                        response
+                            .committee_members_changes
+                            .extend(changes.iter().map(|(node_index, change)| {
+                                (app.get_node_public_key(node_index), change.clone())
+                            }));
                     }
 
                     let mut event = None;
@@ -384,7 +412,8 @@ impl ApplicationEnv {
                     epoch_end_timestamp: epoch_end,
                     // Todo(dont just use the committee members for first set)
                     active_node_set: active_nodes,
-                    removed_nodes: Default::default(),
+                    active_node_set_changes: Default::default(),
+                    members_changes: Default::default(),
                 },
             );
 

@@ -5,6 +5,8 @@ use fleek_crypto::TransactionSender;
 use hp_fixed::unsigned::HpUfixed;
 use lightning_interfaces::types::{
     Committee,
+    CommitteeMemberRemovalReason,
+    CommitteeMembersChange,
     CommitteeSelectionBeaconCommit,
     CommitteeSelectionBeaconPhase,
     CommitteeSelectionBeaconReveal,
@@ -12,9 +14,10 @@ use lightning_interfaces::types::{
     ExecutionData,
     ExecutionError,
     Metadata,
+    NodeActiveSetChange,
+    NodeActiveSetRemovalReason,
     NodeIndex,
     NodeInfo,
-    NodeRemovalReason,
     Participation,
     ProtocolParamKey,
     ProtocolParamValue,
@@ -517,11 +520,7 @@ impl<B: Backend> StateExecutor<B> {
         // no longer have sufficient stake.
         let slash_amount = self.get_committee_selection_beacon_non_reveal_slash_amount();
         for node_index in &non_revealing_nodes {
-            self.slash_node_and_maybe_kick(
-                node_index,
-                &slash_amount,
-                NodeRemovalReason::InsufficientStakeAfterCommitteeSelectionBeaconNonRevealSlash,
-            );
+            self.slash_node_after_non_reveal_and_maybe_kick(node_index, &slash_amount);
         }
 
         // Clear the beacon state.
@@ -721,7 +720,8 @@ impl<B: Backend> StateExecutor<B> {
             members: committee,
             epoch_end_timestamp,
             active_node_set: active_nodes,
-            removed_nodes: Default::default(),
+            active_node_set_changes: Default::default(),
+            members_changes: Default::default(),
         }
     }
 
@@ -1032,11 +1032,10 @@ impl<B: Backend> StateExecutor<B> {
     ///
     /// If the node no longer has sufficient stake, it's removed from the committee and active node
     /// set.
-    pub fn slash_node_and_maybe_kick(
+    pub fn slash_node_after_non_reveal_and_maybe_kick(
         &self,
         node_index: &NodeIndex,
         amount: &HpUfixed<18>,
-        reason: NodeRemovalReason,
     ) {
         let node_index = *node_index;
 
@@ -1050,15 +1049,40 @@ impl<B: Backend> StateExecutor<B> {
         self.node_info.set(node_index, node_info);
         tracing::info!("slashing node {:?} by {:?}", node_index, amount);
 
-        // If the node no longer has sufficient stake, remove it from the committee and active node
-        // set.
+        // If the node no longer has sufficient stake, remove it from the committee members and
+        // active nodes.
         if !self.is_valid_node(&node_index).unwrap_or(false) {
             let epoch = self.get_epoch();
-            let block_number = self.get_block_number();
             let mut committee = self.committee_info.get(&epoch).unwrap();
+            let block_number = self.get_block_number();
+
+            // Remove node from committee members and active node set.
+            committee.members.retain(|member| *member != node_index);
             committee
-                .removed_nodes
-                .insert(block_number, vec![(node_index, reason)]);
+                .active_node_set
+                .retain(|member| *member != node_index);
+
+            // Add change to active node set changes.
+            let change = NodeActiveSetChange::Removed(
+                NodeActiveSetRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash,
+            );
+            committee
+                .active_node_set_changes
+                .entry(block_number)
+                .or_default()
+                .push((node_index, change));
+
+            // Add change to members changes.
+            let change = CommitteeMembersChange::Removed(
+                CommitteeMemberRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash,
+            );
+            committee
+                .members_changes
+                .entry(block_number)
+                .or_default()
+                .push((node_index, change));
+
+            // Save the updated committee info.
             tracing::info!(
                 "removing node {:?} from committee and active node set after being slashed",
                 node_index

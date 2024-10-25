@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -15,6 +15,8 @@ use types::{
     Block,
     BlockExecutionResponse,
     ChainId,
+    CommitteeMemberRemovalReason,
+    CommitteeMembersChange,
     CommitteeSelectionBeaconCommit,
     CommitteeSelectionBeaconPhase,
     CommitteeSelectionBeaconReveal,
@@ -22,8 +24,9 @@ use types::{
     ExecutionData,
     ExecutionError,
     Genesis,
+    NodeActiveSetChange,
+    NodeActiveSetRemovalReason,
     NodeIndex,
-    NodeRemovalReason,
     Staking,
     TransactionRequest,
     TransactionResponse,
@@ -298,7 +301,7 @@ async fn test_committee_beacon_transition_to_reveal_phase_early_with_full_partic
     // Check that the committee has changed.
     // We can rely on this being deterministic because we have fixed commits/reveals in this test,
     // which are combined and used as the seed for randomly choosing the new committee.
-    assert_eq!(query.get_committee_members_by_index(), vec![1, 2]);
+    assert_eq!(query.get_committee_members_by_index(), vec![2, 1]);
 }
 
 #[tokio::test]
@@ -849,19 +852,54 @@ async fn test_committee_beacon_non_revealing_node_fully_slashed() {
     // the last block.
     assert_eq!(query.get_committee_members_by_index(), vec![0, 1, 3]);
     assert_eq!(query.get_active_node_set(), HashSet::from([0, 1, 3]));
-    let removed_nodes = query
-        .get_committee_info(&epoch, |c| c.removed_nodes)
+    let committee_members_changes = query
+        .get_committee_info(&epoch, |c| c.members_changes)
         .unwrap();
-    assert_eq!(removed_nodes.len(), 1);
+    assert_eq!(committee_members_changes.len(), 1);
     assert_eq!(
-        removed_nodes,
-        BTreeMap::from([(
-            8,
-            vec![(
-                2,
-                NodeRemovalReason::InsufficientStakeAfterCommitteeSelectionBeaconNonRevealSlash
-            )]
-        )])
+        committee_members_changes[&8],
+        vec![(
+            2,
+            CommitteeMembersChange::Removed(
+                CommitteeMemberRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash
+            ),
+        )]
+    );
+    let active_node_set_changes = query
+        .get_committee_info(&epoch, |c| c.active_node_set_changes)
+        .unwrap();
+    assert_eq!(active_node_set_changes.len(), 1);
+    assert_eq!(
+        active_node_set_changes[&8],
+        vec![(
+            2,
+            NodeActiveSetChange::Removed(
+                NodeActiveSetRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash
+            ),
+        )]
+    );
+
+    // Check that the active node set and committee members changes are included on the block
+    // response.
+    assert_eq!(resp.committee_members_changes.len(), 1);
+    assert_eq!(
+        resp.committee_members_changes,
+        vec![(
+            network.node(2).keystore.get_ed25519_pk(),
+            CommitteeMembersChange::Removed(
+                CommitteeMemberRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash
+            ),
+        )]
+    );
+    assert_eq!(resp.active_node_set_changes.len(), 1);
+    assert_eq!(
+        resp.active_node_set_changes,
+        vec![(
+            network.node(2).keystore.get_ed25519_pk(),
+            NodeActiveSetChange::Removed(
+                NodeActiveSetRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash
+            ),
+        )]
     );
 
     // Execute commit transaction from the previously non-participating node, and check that it's
@@ -1033,19 +1071,54 @@ async fn test_committee_beacon_non_revealing_node_partially_slashed_insufficient
     // the last block.
     assert_eq!(query.get_committee_members_by_index(), vec![0, 1, 3]);
     assert_eq!(query.get_active_node_set(), HashSet::from([0, 1, 3]));
-    let removed_nodes = query
-        .get_committee_info(&epoch, |c| c.removed_nodes)
+    let committee_members_changes = query
+        .get_committee_info(&epoch, |c| c.members_changes)
         .unwrap();
-    assert_eq!(removed_nodes.len(), 1);
+    assert_eq!(committee_members_changes.len(), 1);
     assert_eq!(
-        removed_nodes,
-        BTreeMap::from([(
-            8,
-            vec![(
-                2,
-                NodeRemovalReason::InsufficientStakeAfterCommitteeSelectionBeaconNonRevealSlash
-            )]
-        )])
+        committee_members_changes[&8],
+        vec![(
+            2,
+            CommitteeMembersChange::Removed(
+                CommitteeMemberRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash
+            ),
+        )]
+    );
+    let active_node_set_changes = query
+        .get_committee_info(&epoch, |c| c.active_node_set_changes)
+        .unwrap();
+    assert_eq!(active_node_set_changes.len(), 1);
+    assert_eq!(
+        active_node_set_changes[&8],
+        vec![(
+            2,
+            NodeActiveSetChange::Removed(
+                NodeActiveSetRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash
+            ),
+        )]
+    );
+
+    // Check that the active node set and committee members changes are included on the block
+    // response.
+    assert_eq!(resp.committee_members_changes.len(), 1);
+    assert_eq!(
+        resp.committee_members_changes,
+        vec![(
+            network.node(2).keystore.get_ed25519_pk(),
+            CommitteeMembersChange::Removed(
+                CommitteeMemberRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash
+            ),
+        )]
+    );
+    assert_eq!(resp.active_node_set_changes.len(), 1);
+    assert_eq!(
+        resp.active_node_set_changes,
+        vec![(
+            network.node(2).keystore.get_ed25519_pk(),
+            NodeActiveSetChange::Removed(
+                NodeActiveSetRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash
+            ),
+        )]
     );
 
     // Execute commit transaction from the previously non-participating node, and check that it's
@@ -1075,6 +1148,9 @@ async fn test_committee_beacon_non_revealing_node_partially_slashed_insufficient
         TransactionResponse::Revert(ExecutionError::InsufficientStake)
     );
 }
+
+// TODO(snormore): Add test that removes multiple committee members across multiple blocks in the
+// same epoch.
 
 #[tokio::test]
 async fn test_committee_beacon_non_revealing_node_partially_slashed_sufficient_stake() {
@@ -1218,10 +1294,20 @@ async fn test_committee_beacon_non_revealing_node_partially_slashed_sufficient_s
     assert_eq!(query.get_active_node_set(), HashSet::from([0, 1, 2, 3]));
     assert!(
         query
-            .get_committee_info(&epoch, |c| c.removed_nodes)
+            .get_committee_info(&epoch, |c| c.members_changes)
             .unwrap()
             .is_empty(),
     );
+    assert!(
+        query
+            .get_committee_info(&epoch, |c| c.active_node_set_changes)
+            .unwrap()
+            .is_empty(),
+    );
+
+    // Check that the active node set and committee members changes on the block response are empty.
+    assert!(resp.committee_members_changes.is_empty());
+    assert!(resp.active_node_set_changes.is_empty());
 
     // Execute commit transaction from the previously non-participating node, and check that it's
     // successful.

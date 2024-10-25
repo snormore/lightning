@@ -35,13 +35,11 @@ pub trait QueryRunnerExt: SyncQueryRunnerInterface {
             .collect()
     }
 
-    /// Returns the sorted committee members of the current epoch by NodeIndex
+    /// Returns the committee members of the current epoch by NodeIndex
     fn get_committee_members_by_index(&self) -> Vec<NodeIndex> {
         let epoch = self.get_current_epoch();
         self.get_committee_info(&epoch, |c| c.members)
             .unwrap_or_default()
-            .into_iter()
-            .collect()
     }
 
     /// Get Current Epoch

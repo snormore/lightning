@@ -104,6 +104,10 @@ pub struct BlockExecutionResponse {
     pub change_epoch: bool,
     /// The changes to the node registry.
     pub node_registry_delta: Vec<(NodePublicKey, NodeRegistryChange)>,
+    /// The changes to the active node set.
+    pub active_node_set_changes: Vec<(NodePublicKey, NodeActiveSetChange)>,
+    /// The changes to the committee members.
+    pub committee_members_changes: Vec<(NodePublicKey, CommitteeMembersChange)>,
     /// Receipts of all executed transactions
     pub txn_receipts: Vec<TransactionReceipt>,
     /// The previous state root.
@@ -166,6 +170,40 @@ impl From<BlockReceipt> for EthersBlock<H256> {
 pub enum NodeRegistryChange {
     New,
     Removed,
+}
+
+#[rustfmt::skip]
+#[derive(
+    Debug, Hash, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize, Clone, schemars::JsonSchema,
+)]
+pub enum NodeActiveSetChange {
+    New,
+    Removed(NodeActiveSetRemovalReason),
+}
+
+#[rustfmt::skip]
+#[derive(
+    Debug, Hash, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize, Clone, schemars::JsonSchema,
+)]
+pub enum NodeActiveSetRemovalReason {
+    InsufficientStakeAfterCommitteeBeaconNonRevealSlash,
+}
+
+#[rustfmt::skip]
+#[derive(
+    Debug, Hash, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize, Clone, schemars::JsonSchema,
+)]
+pub enum CommitteeMembersChange {
+    New,
+    Removed(CommitteeMemberRemovalReason),
+}
+
+#[rustfmt::skip]
+#[derive(
+    Debug, Hash, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize, Clone, schemars::JsonSchema,
+)]
+pub enum CommitteeMemberRemovalReason {
+    InsufficientStakeAfterCommitteeBeaconNonRevealSlash,
 }
 
 /// The account info stored per account on the blockchain

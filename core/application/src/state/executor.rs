@@ -1514,13 +1514,21 @@ impl<B: Backend> StateExecutor<B> {
         }
     }
 
-    fn get_epoch(&self) -> u64 {
+    pub fn get_epoch(&self) -> u64 {
         if let Some(Value::Epoch(epoch)) = self.metadata.get(&Metadata::Epoch) {
             epoch
         } else {
             // unreachable set at genesis
             0
         }
+    }
+
+    pub fn get_committee(&self, epoch: Epoch) -> Committee {
+        self.committee_info.get(&epoch).unwrap_or_default()
+    }
+
+    pub fn get_node_public_key(&self, node_index: &NodeIndex) -> NodePublicKey {
+        self.node_info.get(node_index).unwrap().public_key
     }
 
     fn clear_content_registry(&self, node_index: &NodeIndex) -> Result<(), ExecutionError> {

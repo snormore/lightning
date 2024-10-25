@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 
 use super::ReputationMeasurements;
+use crate::{CommitteeMembersChange, NodeActiveSetChange};
 
 /// The Id of a Service
 pub type ServiceId = u32;
@@ -546,28 +547,10 @@ pub struct Committee {
     pub ready_to_change: Vec<NodeIndex>,
     pub epoch_end_timestamp: u64,
     pub active_node_set: Vec<NodeIndex>,
-    // TODO(snormore): This can just be `HashMap<NodeIndex, (BlockNumber, NodeRemovalReason)>` when
-    // we include removed nodes on the block response and use that in consensus instead of this.
-    pub removed_nodes: BTreeMap<BlockNumber, Vec<(NodeIndex, NodeRemovalReason)>>,
-}
-
-#[derive(
-    Debug,
-    Hash,
-    PartialEq,
-    PartialOrd,
-    Ord,
-    Eq,
-    Serialize,
-    Deserialize,
-    Clone,
-    Default,
-    schemars::JsonSchema,
-)]
-pub enum NodeRemovalReason {
-    #[default]
-    None,
-    InsufficientStakeAfterCommitteeSelectionBeaconNonRevealSlash,
+    /// Changes to the node active set by block number.
+    pub active_node_set_changes: BTreeMap<BlockNumber, Vec<(NodeIndex, NodeActiveSetChange)>>,
+    /// Changes to the committee members by block number.
+    pub members_changes: BTreeMap<BlockNumber, Vec<(NodeIndex, CommitteeMembersChange)>>,
 }
 
 impl TranscriptBuilderInput for Service {

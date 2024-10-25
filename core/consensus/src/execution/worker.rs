@@ -293,11 +293,7 @@ async fn handle_consensus_output<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterfa
         // block. If so, reconfigure and restart the narwhal service.
         // If the epoch changed, we can rely on the epoch change logic above to reconfigure and
         // restart the narwhal service.
-        let committee = ctx
-            .query_runner
-            .get_committee_info(&current_epoch, |committee| committee)
-            .expect("committee not found");
-        if committee.removed_nodes.contains_key(&response.block_number) {
+        if !response.committee_members_changes.is_empty() {
             ctx.reconfigure_notify.notify_waiters();
         }
 
