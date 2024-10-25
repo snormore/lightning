@@ -1,6 +1,6 @@
 //! The data types used in the application state
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::net::IpAddr;
 use std::time::Duration;
@@ -546,39 +546,28 @@ pub struct Committee {
     pub ready_to_change: Vec<NodeIndex>,
     pub epoch_end_timestamp: u64,
     pub active_node_set: Vec<NodeIndex>,
-    // TODO(snormore): Should we include a reason for removal?
-    pub removed_members: BTreeMap<BlockNumber, Vec<NodeIndex>>,
-    pub removed_active_nodes: BTreeMap<BlockNumber, Vec<NodeIndex>>,
+    // TODO(snormore): This can just be `HashMap<NodeIndex, (BlockNumber, NodeRemovalReason)>` when
+    // we include removed nodes on the block response and use that in consensus instead of this.
+    pub removed_nodes: BTreeMap<BlockNumber, Vec<(NodeIndex, NodeRemovalReason)>>,
 }
 
-impl Committee {
-    /// Returns the members of the committee that have not been removed.
-    pub fn members(&self) -> HashSet<NodeIndex> {
-        let removed_members = self
-            .removed_members
-            .iter()
-            .flat_map(|(_, members)| members.iter())
-            .collect::<HashSet<_>>();
-        self.members
-            .iter()
-            .filter(|member| !removed_members.contains(member))
-            .cloned()
-            .collect()
-    }
-
-    /// Returns the active nodes of the committee that have not been removed.
-    pub fn active_nodes(&self) -> HashSet<NodeIndex> {
-        let removed_active_nodes = self
-            .removed_active_nodes
-            .iter()
-            .flat_map(|(_, nodes)| nodes.iter())
-            .collect::<HashSet<_>>();
-        self.active_node_set
-            .iter()
-            .filter(|node| !removed_active_nodes.contains(node))
-            .cloned()
-            .collect()
-    }
+#[derive(
+    Debug,
+    Hash,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    Default,
+    schemars::JsonSchema,
+)]
+pub enum NodeRemovalReason {
+    #[default]
+    None,
+    InsufficientStakeAfterCommitteeSelectionBeaconNonRevealSlash,
 }
 
 impl TranscriptBuilderInput for Service {

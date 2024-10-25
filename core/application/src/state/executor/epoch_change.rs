@@ -14,6 +14,7 @@ use lightning_interfaces::types::{
     Metadata,
     NodeIndex,
     NodeInfo,
+    NodeRemovalReason,
     Participation,
     ProtocolParamKey,
     ProtocolParamValue,
@@ -65,8 +66,7 @@ impl<B: Backend> StateExecutor<B> {
         let mut current_committee = self.committee_info.get(&current_epoch).unwrap_or_default();
 
         // If sender is not on the current committee revert early, or if they have already signaled;
-        let committee_members = current_committee.members();
-        if !committee_members.contains(&index) {
+        if !current_committee.members.contains(&index) {
             return TransactionResponse::Revert(ExecutionError::NotCommitteeMember);
         } else if current_committee.ready_to_change.contains(&index) {
             return TransactionResponse::Revert(ExecutionError::AlreadySignaled);
@@ -81,7 +81,8 @@ impl<B: Backend> StateExecutor<B> {
         // process.
         // Note that we do NOT want to execute this code after 2/3+1 nodes have signaled, since
         // we only want to do it once to start the process.
-        if current_committee.ready_to_change.len() == (2 * committee_members.len() / 3) + 1 {
+        if current_committee.ready_to_change.len() == (2 * current_committee.members.len() / 3) + 1
+        {
             let start_block = self.get_block_number() + 1;
             let end_block = start_block + self.get_commit_phase_duration();
 
@@ -132,7 +133,7 @@ impl<B: Backend> StateExecutor<B> {
             .committee_info
             .get(&epoch)
             .unwrap_or_default()
-            .active_nodes();
+            .active_node_set;
         if !active_nodes.contains(&node_index) {
             return TransactionResponse::Revert(
                 ExecutionError::CommitteeSelectionBeaconNodeNotActive,
@@ -516,7 +517,11 @@ impl<B: Backend> StateExecutor<B> {
         // no longer have sufficient stake.
         let slash_amount = self.get_committee_selection_beacon_non_reveal_slash_amount();
         for node_index in &non_revealing_nodes {
-            self.slash_node_and_maybe_kick(node_index, &slash_amount);
+            self.slash_node_and_maybe_kick(
+                node_index,
+                &slash_amount,
+                NodeRemovalReason::InsufficientStakeAfterCommitteeSelectionBeaconNonRevealSlash,
+            );
         }
 
         // Clear the beacon state.
@@ -716,8 +721,7 @@ impl<B: Backend> StateExecutor<B> {
             members: committee,
             epoch_end_timestamp,
             active_node_set: active_nodes,
-            removed_members: Default::default(),
-            removed_active_nodes: Default::default(),
+            removed_nodes: Default::default(),
         }
     }
 
@@ -1028,7 +1032,12 @@ impl<B: Backend> StateExecutor<B> {
     ///
     /// If the node no longer has sufficient stake, it's removed from the committee and active node
     /// set.
-    pub fn slash_node_and_maybe_kick(&self, node_index: &NodeIndex, amount: &HpUfixed<18>) {
+    pub fn slash_node_and_maybe_kick(
+        &self,
+        node_index: &NodeIndex,
+        amount: &HpUfixed<18>,
+        reason: NodeRemovalReason,
+    ) {
         let node_index = *node_index;
 
         // Remove the given slash amount from the node's staked balance.
@@ -1047,13 +1056,9 @@ impl<B: Backend> StateExecutor<B> {
             let epoch = self.get_epoch();
             let block_number = self.get_block_number();
             let mut committee = self.committee_info.get(&epoch).unwrap();
-            // TODO(snormore): Should we include a reason for removal?
             committee
-                .removed_members
-                .insert(block_number, vec![node_index]);
-            committee
-                .removed_active_nodes
-                .insert(block_number, vec![node_index]);
+                .removed_nodes
+                .insert(block_number, vec![(node_index, reason)]);
             tracing::info!(
                 "removing node {:?} from committee and active node set after being slashed",
                 node_index

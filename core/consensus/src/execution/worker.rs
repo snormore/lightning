@@ -297,10 +297,7 @@ async fn handle_consensus_output<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterfa
             .query_runner
             .get_committee_info(&current_epoch, |committee| committee)
             .expect("committee not found");
-        if committee
-            .removed_members
-            .contains_key(&response.block_number)
-        {
+        if committee.removed_nodes.contains_key(&response.block_number) {
             ctx.reconfigure_notify.notify_waiters();
         }
 

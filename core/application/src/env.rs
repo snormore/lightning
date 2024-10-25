@@ -384,8 +384,7 @@ impl ApplicationEnv {
                     epoch_end_timestamp: epoch_end,
                     // Todo(dont just use the committee members for first set)
                     active_node_set: active_nodes,
-                    removed_members: Default::default(),
-                    removed_active_nodes: Default::default(),
+                    removed_nodes: Default::default(),
                 },
             );
 

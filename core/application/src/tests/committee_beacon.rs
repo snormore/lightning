@@ -23,6 +23,7 @@ use types::{
     ExecutionError,
     Genesis,
     NodeIndex,
+    NodeRemovalReason,
     Staking,
     TransactionRequest,
     TransactionResponse,
@@ -844,22 +845,24 @@ async fn test_committee_beacon_non_revealing_node_fully_slashed() {
         }
     }
 
-    // Check that the non-revealing node has been removed from the committee in the last block.
+    // Check that the non-revealing node has been removed from the committee and active node set in
+    // the last block.
     assert_eq!(query.get_committee_members_by_index(), vec![0, 1, 3]);
-    let removed_members = query
-        .get_committee_info(&epoch, |c| c.removed_members)
-        .unwrap();
-    assert_eq!(removed_members.len(), 1);
-    assert_eq!(removed_members, BTreeMap::from([(8, vec![2])]));
-
-    // Check that the non-revealing node has been removed from the active node set in the last
-    // block.
     assert_eq!(query.get_active_node_set(), HashSet::from([0, 1, 3]));
-    let removed_active_nodes = query
-        .get_committee_info(&epoch, |c| c.removed_active_nodes)
+    let removed_nodes = query
+        .get_committee_info(&epoch, |c| c.removed_nodes)
         .unwrap();
-    assert_eq!(removed_active_nodes.len(), 1);
-    assert_eq!(removed_active_nodes, BTreeMap::from([(8, vec![2])]));
+    assert_eq!(removed_nodes.len(), 1);
+    assert_eq!(
+        removed_nodes,
+        BTreeMap::from([(
+            8,
+            vec![(
+                2,
+                NodeRemovalReason::InsufficientStakeAfterCommitteeSelectionBeaconNonRevealSlash
+            )]
+        )])
+    );
 
     // Execute commit transaction from the previously non-participating node, and check that it's
     // successful.
@@ -1026,22 +1029,24 @@ async fn test_committee_beacon_non_revealing_node_partially_slashed_insufficient
         }
     }
 
-    // Check that the non-revealing node has been removed from the committee in the last block.
+    // Check that the non-revealing node has been removed from the committee and active node set in
+    // the last block.
     assert_eq!(query.get_committee_members_by_index(), vec![0, 1, 3]);
-    let removed_members = query
-        .get_committee_info(&epoch, |c| c.removed_members)
-        .unwrap();
-    assert_eq!(removed_members.len(), 1);
-    assert_eq!(removed_members, BTreeMap::from([(8, vec![2])]));
-
-    // Check that the non-revealing node has been removed from the active node set in the last
-    // block.
     assert_eq!(query.get_active_node_set(), HashSet::from([0, 1, 3]));
-    let removed_active_nodes = query
-        .get_committee_info(&epoch, |c| c.removed_active_nodes)
+    let removed_nodes = query
+        .get_committee_info(&epoch, |c| c.removed_nodes)
         .unwrap();
-    assert_eq!(removed_active_nodes.len(), 1);
-    assert_eq!(removed_active_nodes, BTreeMap::from([(8, vec![2])]));
+    assert_eq!(removed_nodes.len(), 1);
+    assert_eq!(
+        removed_nodes,
+        BTreeMap::from([(
+            8,
+            vec![(
+                2,
+                NodeRemovalReason::InsufficientStakeAfterCommitteeSelectionBeaconNonRevealSlash
+            )]
+        )])
+    );
 
     // Execute commit transaction from the previously non-participating node, and check that it's
     // successful.
@@ -1208,20 +1213,12 @@ async fn test_committee_beacon_non_revealing_node_partially_slashed_sufficient_s
         }
     }
 
-    // Check that the non-revealing node has NOT been removed from the committee.
+    // Check that the non-revealing node has NOT been removed from the committee or active node set.
     assert_eq!(query.get_committee_members_by_index(), vec![0, 1, 2, 3]);
-    assert!(
-        query
-            .get_committee_info(&epoch, |c| c.removed_members)
-            .unwrap()
-            .is_empty(),
-    );
-
-    // Check that the non-revealing node has NOT been removed from the active node set.
     assert_eq!(query.get_active_node_set(), HashSet::from([0, 1, 2, 3]));
     assert!(
         query
-            .get_committee_info(&epoch, |c| c.removed_active_nodes)
+            .get_committee_info(&epoch, |c| c.removed_nodes)
             .unwrap()
             .is_empty(),
     );
