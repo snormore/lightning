@@ -14,6 +14,8 @@ use lightning_test_utils::consensus::MockConsensusConfig;
 use lightning_test_utils::e2e::{
     DowncastToTestFullNode,
     TestFullNodeComponentsWithMockConsensus,
+    TestFullNodeComponentsWithRealConsensus,
+    TestFullNodeComponentsWithRealConsensusWithoutCommitteeBeacon,
     TestFullNodeComponentsWithoutCommitteeBeacon,
     TestNetwork,
     TestNodeBuilder,
@@ -32,6 +34,7 @@ use types::{
     ExecutionError,
     NodeActiveSetChange,
     NodeActiveSetRemovalReason,
+    NodeIndex,
     TransactionReceipt,
     TransactionResponse,
 };
@@ -303,17 +306,30 @@ async fn test_insufficient_participation_in_commit_phase() {
 
 #[tokio::test]
 async fn test_single_revealing_node_fully_slashed() {
-    // TODO(snormore): Test this with real consensus.
-
     let mut network = build_network(BuildNetworkOptions {
-        committee_nodes: 1,
+        real_consensus: true,
+        committee_nodes: 4,
         committee_nodes_without_beacon: 1,
         // The node's initial stake is 1000, and it will be slashed 1000, leaving insufficient stake
         // for a node.
+        commit_phase_duration: 10,
+        reveal_phase_duration: 10,
         ..Default::default()
     })
     .await
     .unwrap();
+
+    // Check that all the nodes are in the initial committee and active node set.
+    for node in network.nodes() {
+        assert_eq!(
+            node.app_query().get_committee_members_by_index(),
+            vec![0, 1, 2, 3, 4]
+        );
+        assert_eq!(
+            node.app_query().get_active_node_set(),
+            HashSet::from([0, 1, 2, 3, 4])
+        );
+    }
 
     // Execute epoch change transactions from all nodes.
     let epoch = network.node(0).app_query().get_current_epoch();
@@ -327,8 +343,10 @@ async fn test_single_revealing_node_fully_slashed() {
         .unwrap();
 
     // Submit commit transaction from the node that will be non-revealing.
-    network
-        .node(1)
+    // We do this manually because the node does not have a committee beacon component running,
+    // where all other nodes do.
+    let non_revealing_node = network.node(4);
+    non_revealing_node
         .execute_transaction_from_node(
             UpdateMethod::CommitteeSelectionBeaconCommit {
                 commit: [0; 32].into(),
@@ -359,37 +377,41 @@ async fn test_single_revealing_node_fully_slashed() {
     .await
     .unwrap();
 
-    // Check that we are in a new round.
-    assert_eq!(
-        network
-            .node(0)
-            .app_query()
-            .get_committee_selection_beacon_round(),
-        Some(round + 1)
-    );
-
-    // Check that the epoch has not changed.
     for node in network.nodes() {
+        // Check that we are in a new round.
+        assert_eq!(
+            node.app_query().get_committee_selection_beacon_round(),
+            Some(round + 1)
+        );
+
+        // Check that the epoch has not changed.
         assert_eq!(node.app_query().get_current_epoch(), epoch);
-    }
 
-    for node in network.nodes() {
         // Check that the non-revealing node has been slashed, and the other has not.
-        assert_eq!(
-            node.app_query()
-                .get_node_info(&1, |n| n.stake.staked)
-                .unwrap(),
-            0u64.into()
-        );
-        assert_eq!(
-            node.app_query()
-                .get_node_info(&0, |n| n.stake.staked)
-                .unwrap(),
-            1000u64.into()
-        );
+        for i in 0..network.nodes().count() {
+            let node_index = i as NodeIndex;
+            if node_index == 4 {
+                assert_eq!(
+                    node.app_query()
+                        .get_node_info(&node_index, |n| n.stake.staked)
+                        .unwrap(),
+                    0u64.into()
+                );
+            } else {
+                assert_eq!(
+                    node.app_query()
+                        .get_node_info(&node_index, |n| n.stake.staked)
+                        .unwrap(),
+                    1000u64.into()
+                );
+            }
+        }
 
         // Check that the non-revealing node has been removed from the committee.
-        assert_eq!(node.app_query().get_committee_members_by_index(), vec![0]);
+        assert_eq!(
+            node.app_query().get_committee_members_by_index(),
+            vec![0, 1, 2, 3]
+        );
         let committee_members_changes = node
             .app_query()
             .get_committee_info(&epoch, |c| c.members_changes)
@@ -399,11 +421,14 @@ async fn test_single_revealing_node_fully_slashed() {
             CommitteeMemberRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash;
         assert_eq!(
             *committee_members_changes.iter().next().unwrap().1,
-            vec![(1, CommitteeMembersChange::Removed(reason),)]
+            vec![(4, CommitteeMembersChange::Removed(reason),)]
         );
 
         // Check that the non-revealing node has been removed from the active node set.
-        assert_eq!(node.app_query().get_active_node_set(), HashSet::from([0]));
+        assert_eq!(
+            node.app_query().get_active_node_set(),
+            HashSet::from([0, 1, 2, 3])
+        );
         let active_node_set_changes = node
             .app_query()
             .get_committee_info(&epoch, |c| c.active_node_set_changes)
@@ -413,31 +438,35 @@ async fn test_single_revealing_node_fully_slashed() {
             NodeActiveSetRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash;
         assert_eq!(
             *active_node_set_changes.iter().next().unwrap().1,
-            vec![(1, NodeActiveSetChange::Removed(reason),)]
+            vec![(4, NodeActiveSetChange::Removed(reason),)]
         );
     }
 
     // Submit commit transaction from the non-revealing node and check that it's reverted.
-    let result = network
-        .node(1)
+    let error = non_revealing_node
         .execute_transaction_from_node(
             UpdateMethod::CommitteeSelectionBeaconCommit {
                 commit: [0; 32].into(),
             },
             None,
         )
-        .await;
-    assert!(matches!(
-        result,
-        Err(ExecuteTransactionError::Reverted((
-            _,
-            TransactionReceipt {
-                response: TransactionResponse::Revert(ExecutionError::InsufficientStake),
-                ..
-            },
-            _
-        )))
-    ));
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            error,
+            ExecuteTransactionError::Reverted((
+                _,
+                TransactionReceipt {
+                    response: TransactionResponse::Revert(ExecutionError::InsufficientStake),
+                    ..
+                },
+                _
+            ))
+        ),
+        "{}",
+        error
+    );
 
     // TODO(snormore): Check that the pool component on each node has dropped the non-revealing node
     // as a peer.
@@ -873,6 +902,7 @@ pub struct BuildNetworkOptions {
     pub consensus_buffer_interval: Duration,
     pub min_stake: u64,
     pub non_reveal_slash_amount: u64,
+    pub real_consensus: bool,
 }
 
 impl Default for BuildNetworkOptions {
@@ -886,6 +916,7 @@ impl Default for BuildNetworkOptions {
             consensus_buffer_interval: Duration::from_millis(200),
             min_stake: 1000,
             non_reveal_slash_amount: 1000,
+            real_consensus: false,
         }
     }
 }
@@ -898,37 +929,65 @@ async fn build_network(options: BuildNetworkOptions) -> Result<TestNetwork> {
         ..Default::default()
     };
 
-    let mut builder = TestNetwork::builder()
-        .with_mock_consensus(MockConsensusConfig {
+    let mut builder = TestNetwork::builder();
+
+    if options.real_consensus {
+        builder = builder.with_real_consensus();
+    } else {
+        builder = builder.with_mock_consensus(MockConsensusConfig {
             max_ordering_time: 0,
             min_ordering_time: 0,
             probability_txn_lost: 0.0,
             new_block_interval: Duration::from_millis(0),
             transactions_to_lose: Default::default(),
             block_buffering_interval: options.consensus_buffer_interval,
-        })
-        .with_committee_beacon_config(committee_beacon_config.clone())
-        .with_committee_nodes::<TestFullNodeComponentsWithMockConsensus>(options.committee_nodes)
-        .await
-        .with_genesis_mutator(move |genesis| {
-            genesis.committee_selection_beacon_commit_phase_duration =
-                options.commit_phase_duration;
-            genesis.committee_selection_beacon_reveal_phase_duration =
-                options.reveal_phase_duration;
-            genesis.min_stake = options.min_stake;
-            genesis.committee_selection_beacon_non_reveal_slash_amount =
-                options.non_reveal_slash_amount;
         });
+    }
 
-    let consensus_group = builder.mock_consensus_group();
+    builder = builder.with_committee_beacon_config(committee_beacon_config.clone());
 
-    for _ in 0..options.committee_nodes_without_beacon {
-        builder = builder.with_node(
-            TestNodeBuilder::new()
-                .with_mock_consensus(consensus_group.clone())
-                .build::<TestFullNodeComponentsWithoutCommitteeBeacon>()
-                .await?,
-        );
+    if options.real_consensus {
+        builder = builder
+            .with_committee_nodes::<TestFullNodeComponentsWithRealConsensus>(
+                options.committee_nodes,
+            )
+            .await;
+    } else {
+        builder = builder
+            .with_committee_nodes::<TestFullNodeComponentsWithMockConsensus>(
+                options.committee_nodes,
+            )
+            .await;
+    }
+
+    builder = builder.with_genesis_mutator(move |genesis| {
+        genesis.committee_selection_beacon_commit_phase_duration = options.commit_phase_duration;
+        genesis.committee_selection_beacon_reveal_phase_duration = options.reveal_phase_duration;
+        genesis.min_stake = options.min_stake;
+        genesis.committee_selection_beacon_non_reveal_slash_amount =
+            options.non_reveal_slash_amount;
+    });
+
+    if options.real_consensus {
+        for _ in 0..options.committee_nodes_without_beacon {
+            builder = builder.with_node(
+                TestNodeBuilder::new()
+                    .with_real_consensus()
+                    .build::<TestFullNodeComponentsWithRealConsensusWithoutCommitteeBeacon>()
+                    .await?,
+            );
+        }
+    } else {
+        let consensus_group = builder.mock_consensus_group();
+
+        for _ in 0..options.committee_nodes_without_beacon {
+            builder = builder.with_node(
+                TestNodeBuilder::new()
+                    .with_mock_consensus(consensus_group.clone())
+                    .build::<TestFullNodeComponentsWithoutCommitteeBeacon>()
+                    .await?,
+            );
+        }
     }
 
     builder.build().await
