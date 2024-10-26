@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -22,12 +22,16 @@ use lightning_utils::application::QueryRunnerExt;
 use lightning_utils::poll::{poll_until, PollUntilError};
 use tokio::time::Instant;
 use types::{
+    CommitteeMemberRemovalReason,
+    CommitteeMembersChange,
     CommitteeSelectionBeaconCommit,
     CommitteeSelectionBeaconPhase,
     ExecuteTransactionError,
     ExecuteTransactionOptions,
     ExecuteTransactionRetry,
     ExecutionError,
+    NodeActiveSetChange,
+    NodeActiveSetRemovalReason,
     TransactionReceipt,
     TransactionResponse,
 };
@@ -299,9 +303,13 @@ async fn test_insufficient_participation_in_commit_phase() {
 
 #[tokio::test]
 async fn test_single_revealing_node_fully_slashed() {
+    // TODO(snormore): Test this with real consensus.
+
     let mut network = build_network(BuildNetworkOptions {
         committee_nodes: 1,
         committee_nodes_without_beacon: 1,
+        // The node's initial stake is 1000, and it will be slashed 1000, leaving insufficient stake
+        // for a node.
         ..Default::default()
     })
     .await
@@ -365,30 +373,392 @@ async fn test_single_revealing_node_fully_slashed() {
         assert_eq!(node.app_query().get_current_epoch(), epoch);
     }
 
-    // TODO(snormore): Check that the node was slashed.
+    for node in network.nodes() {
+        // Check that the non-revealing node has been slashed, and the other has not.
+        assert_eq!(
+            node.app_query()
+                .get_node_info(&1, |n| n.stake.staked)
+                .unwrap(),
+            0u64.into()
+        );
+        assert_eq!(
+            node.app_query()
+                .get_node_info(&0, |n| n.stake.staked)
+                .unwrap(),
+            1000u64.into()
+        );
 
-    // TODO(snormore): Check that if the node attempts to commit in the next round, it will be
-    // rejected.
+        // Check that the non-revealing node has been removed from the committee.
+        assert_eq!(node.app_query().get_committee_members_by_index(), vec![0]);
+        let committee_members_changes = node
+            .app_query()
+            .get_committee_info(&epoch, |c| c.members_changes)
+            .unwrap();
+        assert_eq!(committee_members_changes.len(), 1);
+        let reason =
+            CommitteeMemberRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash;
+        assert_eq!(
+            *committee_members_changes.iter().next().unwrap().1,
+            vec![(1, CommitteeMembersChange::Removed(reason),)]
+        );
 
-    // TODO(snormore): Check that the node is not included in sufficient participation for the next
-    // round.
+        // Check that the non-revealing node has been removed from the active node set.
+        assert_eq!(node.app_query().get_active_node_set(), HashSet::from([0]));
+        let active_node_set_changes = node
+            .app_query()
+            .get_committee_info(&epoch, |c| c.active_node_set_changes)
+            .unwrap();
+        assert_eq!(active_node_set_changes.len(), 1);
+        let reason =
+            NodeActiveSetRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash;
+        assert_eq!(
+            *active_node_set_changes.iter().next().unwrap().1,
+            vec![(1, NodeActiveSetChange::Removed(reason),)]
+        );
+    }
+
+    // Submit commit transaction from the non-revealing node and check that it's reverted.
+    let result = network
+        .node(1)
+        .execute_transaction_from_node(
+            UpdateMethod::CommitteeSelectionBeaconCommit {
+                commit: [0; 32].into(),
+            },
+            None,
+        )
+        .await;
+    assert!(matches!(
+        result,
+        Err(ExecuteTransactionError::Reverted((
+            _,
+            TransactionReceipt {
+                response: TransactionResponse::Revert(ExecutionError::InsufficientStake),
+                ..
+            },
+            _
+        )))
+    ));
 
     // TODO(snormore): Check that the pool component on each node has dropped the non-revealing node
     // as a peer.
+
+    // TODO(snormore): Check that the topology component has removed the non-revealing node as a
+    // peer, or whatever is expected within that component.
+
+    // TODO(snormore): Check that the narwhal service in consensus component was
+    // reconfigured/restarted.
 
     // Shutdown the nodes.
     network.shutdown().await;
 }
 
 #[tokio::test]
-async fn test_non_revealing_node_partially_slashed() {
+async fn test_non_revealing_node_partially_slashed_insufficient_stake() {
+    // TODO(snormore): Test this with real consensus.
+
+    let mut network = build_network(BuildNetworkOptions {
+        committee_nodes: 1,
+        committee_nodes_without_beacon: 1,
+        // The node's initial stake is 1000, and it will be slashed 500, leaving insufficient stake
+        // for a node.
+        min_stake: 1000,
+        non_reveal_slash_amount: 500,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    // Execute epoch change transactions from all nodes.
+    let epoch = network.node(0).app_query().get_current_epoch();
+    network.change_epoch().await.unwrap();
+
+    // Wait for the phase metadata to be set.
+    // This should not be necessary but it seems that the data is not always immediately available
+    // from the app state query runner after the block is executed.
+    wait_for_committee_selection_beacon_phase(&network, |phase| phase.is_some())
+        .await
+        .unwrap();
+
+    // Submit commit transaction from the node that will be non-revealing.
+    network
+        .node(1)
+        .execute_transaction_from_node(
+            UpdateMethod::CommitteeSelectionBeaconCommit {
+                commit: [0; 32].into(),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Get the current round.
+    let round = network
+        .node(0)
+        .app_query()
+        .get_committee_selection_beacon_round()
+        .unwrap();
+
+    // Wait to transition to the reveal phase.
+    wait_for_committee_selection_beacon_phase(&network, |phase| {
+        matches!(phase, Some(CommitteeSelectionBeaconPhase::Reveal(_)))
+    })
+    .await
+    .unwrap();
+
+    // Check that we transition to a new commit phase.
+    wait_for_committee_selection_beacon_phase(&network, |phase| {
+        matches!(phase, Some(CommitteeSelectionBeaconPhase::Commit(_)))
+    })
+    .await
+    .unwrap();
+
+    // Check that we are in a new round.
+    assert_eq!(
+        network
+            .node(0)
+            .app_query()
+            .get_committee_selection_beacon_round(),
+        Some(round + 1)
+    );
+
+    // Check that the epoch has not changed.
+    for node in network.nodes() {
+        assert_eq!(node.app_query().get_current_epoch(), epoch);
+    }
+
+    for node in network.nodes() {
+        // Check that the non-revealing node has been slashed, and the other has not.
+        assert_eq!(
+            node.app_query()
+                .get_node_info(&1, |n| n.stake.staked)
+                .unwrap(),
+            500u64.into()
+        );
+        assert_eq!(
+            node.app_query()
+                .get_node_info(&0, |n| n.stake.staked)
+                .unwrap(),
+            1000u64.into()
+        );
+
+        // Check that the non-revealing node has been removed from the committee.
+        assert_eq!(node.app_query().get_committee_members_by_index(), vec![0]);
+        let committee_members_changes = node
+            .app_query()
+            .get_committee_info(&epoch, |c| c.members_changes)
+            .unwrap();
+        assert_eq!(committee_members_changes.len(), 1);
+        let reason =
+            CommitteeMemberRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash;
+        assert_eq!(
+            *committee_members_changes.iter().next().unwrap().1,
+            vec![(1, CommitteeMembersChange::Removed(reason),)]
+        );
+
+        // Check that the non-revealing node has been removed from the active node set.
+        assert_eq!(node.app_query().get_active_node_set(), HashSet::from([0]));
+        let active_node_set_changes = node
+            .app_query()
+            .get_committee_info(&epoch, |c| c.active_node_set_changes)
+            .unwrap();
+        assert_eq!(active_node_set_changes.len(), 1);
+        let reason =
+            NodeActiveSetRemovalReason::InsufficientStakeAfterCommitteeBeaconNonRevealSlash;
+        assert_eq!(
+            *active_node_set_changes.iter().next().unwrap().1,
+            vec![(1, NodeActiveSetChange::Removed(reason),)]
+        );
+    }
+
+    // Submit commit transaction from the non-revealing node and check that it's reverted.
+    let result = network
+        .node(1)
+        .execute_transaction_from_node(
+            UpdateMethod::CommitteeSelectionBeaconCommit {
+                commit: [0; 32].into(),
+            },
+            None,
+        )
+        .await;
+    assert!(matches!(
+        result,
+        Err(ExecuteTransactionError::Reverted((
+            _,
+            TransactionReceipt {
+                response: TransactionResponse::Revert(ExecutionError::InsufficientStake),
+                ..
+            },
+            _
+        )))
+    ));
+
+    // TODO(snormore): Check that the pool component on each node has dropped the non-revealing node
+    // as a peer.
+
+    // TODO(snormore): Check that the topology component has removed the non-revealing node as a
+    // peer, or whatever is expected within that component.
+
+    // TODO(snormore): Check that the narwhal service in consensus component was
+    // reconfigured/restarted.
+
+    // Shutdown the nodes.
+    network.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_non_revealing_node_partially_slashed_sufficient_stake() {
+    // TODO(snormore): Test this with real consensus.
+
+    let mut network = build_network(BuildNetworkOptions {
+        committee_nodes: 1,
+        committee_nodes_without_beacon: 1,
+        // The node's initial stake is 1000, and it will be slashed 500, leaving sufficient stake
+        // for a node.
+        min_stake: 500,
+        non_reveal_slash_amount: 500,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    // Execute epoch change transactions from all nodes.
+    let epoch = network.node(0).app_query().get_current_epoch();
+    network.change_epoch().await.unwrap();
+
+    // Wait for the phase metadata to be set.
+    // This should not be necessary but it seems that the data is not always immediately available
+    // from the app state query runner after the block is executed.
+    wait_for_committee_selection_beacon_phase(&network, |phase| phase.is_some())
+        .await
+        .unwrap();
+
+    // Submit commit transaction from the node that will be non-revealing.
+    network
+        .node(1)
+        .execute_transaction_from_node(
+            UpdateMethod::CommitteeSelectionBeaconCommit {
+                commit: [0; 32].into(),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Get the current round.
+    let round = network
+        .node(0)
+        .app_query()
+        .get_committee_selection_beacon_round()
+        .unwrap();
+
+    // Wait to transition to the reveal phase.
+    wait_for_committee_selection_beacon_phase(&network, |phase| {
+        matches!(phase, Some(CommitteeSelectionBeaconPhase::Reveal(_)))
+    })
+    .await
+    .unwrap();
+
+    // Check that we transition to a new commit phase.
+    wait_for_committee_selection_beacon_phase(&network, |phase| {
+        matches!(phase, Some(CommitteeSelectionBeaconPhase::Commit(_)))
+    })
+    .await
+    .unwrap();
+
+    // Check that we are in a new round.
+    assert_eq!(
+        network
+            .node(0)
+            .app_query()
+            .get_committee_selection_beacon_round(),
+        Some(round + 1)
+    );
+
+    // Check that the epoch has not changed.
+    for node in network.nodes() {
+        assert_eq!(node.app_query().get_current_epoch(), epoch);
+    }
+
+    for node in network.nodes() {
+        // Check that the non-revealing node has been slashed, and the other has not.
+        assert_eq!(
+            node.app_query()
+                .get_node_info(&1, |n| n.stake.staked)
+                .unwrap(),
+            500u64.into()
+        );
+        assert_eq!(
+            node.app_query()
+                .get_node_info(&0, |n| n.stake.staked)
+                .unwrap(),
+            1000u64.into()
+        );
+
+        // Check that the non-revealing node has NOT been removed from the committee.
+        assert_eq!(
+            node.app_query().get_committee_members_by_index(),
+            vec![0, 1]
+        );
+        assert!(
+            node.app_query()
+                .get_committee_info(&epoch, |c| c.members_changes)
+                .unwrap()
+                .is_empty()
+        );
+
+        // Check that the non-revealing node has NOT been removed from the active node set.
+        assert_eq!(
+            node.app_query().get_active_node_set(),
+            HashSet::from([0, 1])
+        );
+        assert!(
+            node.app_query()
+                .get_committee_info(&epoch, |c| c.active_node_set_changes)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    // Submit commit transaction from the non-revealing node and check that it's reverted.
+    let result = network
+        .node(1)
+        .execute_transaction_from_node(
+            UpdateMethod::CommitteeSelectionBeaconCommit {
+                commit: [0; 32].into(),
+            },
+            None,
+        )
+        .await;
+    assert!(matches!(
+        result,
+        Err(ExecuteTransactionError::Reverted((
+            _,
+            TransactionReceipt {
+                response: TransactionResponse::Revert(
+                    ExecutionError::CommitteeSelectionBeaconNonRevealingNode
+                ),
+                ..
+            },
+            _
+        )))
+    ));
+
+    // TODO(snormore): Check that the pool component on each node has NOT dropped the non-revealing
+    // node as a peer.
+
+    // TODO(snormore): Check that the topology component has NOT removed the non-revealing node as a
+    // peer, or whatever is expected within that component.
+
+    // TODO(snormore): Check that the narwhal service in consensus component was NOT
+    // reconfigured/restarted.
+
+    // Shutdown the nodes.
+    network.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_multiple_non_revealing_nodes_fully_slashed() {
     // TODO(snormore): Implement this test.
-
-    // Check that the node was slashed.
-
-    // Check that if the node attempts to commit in the next round, it will be rejected.
-
-    // Check that the node is not included in sufficient participation for the next round.
 }
 
 #[tokio::test]
@@ -501,6 +871,8 @@ pub struct BuildNetworkOptions {
     pub reveal_phase_duration: u64,
     pub committee_beacon_timer_tick_delay: Duration,
     pub consensus_buffer_interval: Duration,
+    pub min_stake: u64,
+    pub non_reveal_slash_amount: u64,
 }
 
 impl Default for BuildNetworkOptions {
@@ -512,6 +884,8 @@ impl Default for BuildNetworkOptions {
             reveal_phase_duration: 3,
             committee_beacon_timer_tick_delay: Duration::from_millis(200),
             consensus_buffer_interval: Duration::from_millis(200),
+            min_stake: 1000,
+            non_reveal_slash_amount: 1000,
         }
     }
 }
@@ -541,6 +915,9 @@ async fn build_network(options: BuildNetworkOptions) -> Result<TestNetwork> {
                 options.commit_phase_duration;
             genesis.committee_selection_beacon_reveal_phase_duration =
                 options.reveal_phase_duration;
+            genesis.min_stake = options.min_stake;
+            genesis.committee_selection_beacon_non_reveal_slash_amount =
+                options.non_reveal_slash_amount;
         });
 
     let consensus_group = builder.mock_consensus_group();

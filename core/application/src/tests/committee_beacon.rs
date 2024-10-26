@@ -716,6 +716,8 @@ async fn test_committee_beacon_node_attempts_reveal_without_committment() {
 #[tokio::test]
 async fn test_committee_beacon_non_revealing_node_fully_slashed() {
     let network = TestNetwork::builder()
+        // The node's initial stake is 1000, and it will be slashed 500, leaving insufficient stake
+        // for a node.
         .with_committee_nodes(4)
         .build()
         .await
@@ -935,6 +937,8 @@ async fn test_committee_beacon_non_revealing_node_partially_slashed_insufficient
     let network = TestNetwork::builder()
         .with_non_reveal_slash_amount(500)
         .with_min_stake(1000)
+        // The node's initial stake is 1000, and it will be slashed 500, leaving insufficient stake
+        // for a node.
         .with_committee_nodes(4)
         .build()
         .await
@@ -1157,6 +1161,8 @@ async fn test_committee_beacon_non_revealing_node_partially_slashed_sufficient_s
     let network = TestNetwork::builder()
         .with_non_reveal_slash_amount(500)
         .with_min_stake(500)
+        // The node's initial stake is 1000, and it will be slashed 500, leaving sufficient stake
+        // for a node.
         .with_committee_nodes(4)
         .build()
         .await
