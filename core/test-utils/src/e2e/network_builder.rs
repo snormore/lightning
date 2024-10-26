@@ -65,6 +65,8 @@ impl TestNetworkBuilder {
             let mut builder = TestNodeBuilder::new().with_is_genesis_committee(true);
             if let Some(consensus_group) = &self.mock_consensus_group {
                 builder = builder.with_mock_consensus(consensus_group.clone());
+            } else {
+                builder = builder.with_real_consensus();
             }
             if let Some(committee_beacon_config) = &self.committee_beacon_config {
                 builder = builder.with_committee_beacon_config(committee_beacon_config.clone());
@@ -83,6 +85,8 @@ impl TestNetworkBuilder {
             let mut builder = TestNodeBuilder::new().with_is_genesis_committee(false);
             if let Some(consensus_group) = &self.mock_consensus_group {
                 builder = builder.with_mock_consensus(consensus_group.clone());
+            } else {
+                builder = builder.with_real_consensus();
             }
             if let Some(committee_beacon_config) = &self.committee_beacon_config {
                 builder = builder.with_committee_beacon_config(committee_beacon_config.clone());
@@ -129,6 +133,11 @@ impl TestNetworkBuilder {
         self.mock_consensus_group
             .clone()
             .expect("mock consensus group not set")
+    }
+
+    pub fn with_real_consensus(mut self) -> Self {
+        self.mock_consensus_group = None;
+        self
     }
 
     /// Builds a new test network with the given number of nodes, and starts each of them.
