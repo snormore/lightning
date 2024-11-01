@@ -66,29 +66,43 @@ impl<C: NodeComponents> Consensus<C> {
         let app_query = app_query.clone();
         spawn!(
             async move {
+                println!("DEBUG: Waiting for genesis");
                 app_query.wait_for_genesis().await;
+
+                println!("DEBUG: Spawning execution worker");
 
                 let execution_worker =
                     epoch_state.spawn_execution_worker(reconfigure_notify.clone());
+                println!("DEBUG: Starting current epoch");
                 epoch_state.start_current_epoch().await;
 
+                println!("DEBUG: Waiting for shutdown");
                 let shutdown_future = waiter.wait_for_shutdown();
                 pin!(shutdown_future);
 
+                println!("DEBUG: Entering main loop");
+
                 loop {
+                    println!("DEBUG: Waiting for reconfigure");
                     let reconfigure_future = reconfigure_notify.notified();
+                    println!("DEBUG: Reconfigure notified");
 
                     select! {
                         biased;
                         _ = &mut shutdown_future => {
+                            println!("DEBUG: Shutdown future triggered");
                             if let Some(consensus) = epoch_state.consensus.take() {
                                 consensus.shutdown().await;
                             }
+                            println!("DEBUG: Shutting down execution worker");
                             execution_worker.shutdown().await;
+                            println!("DEBUG: Shutting down epoch state");
                             epoch_state.shutdown();
+                            println!("DEBUG: Shutdown complete");
                             break
                         }
                         _ = reconfigure_future => {
+                            println!("DEBUG: Reconfigure triggered");
                             epoch_state.move_to_next_epoch().await;
                             continue
                         }
@@ -96,6 +110,7 @@ impl<C: NodeComponents> Consensus<C> {
                 }
 
                 // Notify the epoch state that it is time to shutdown.
+                println!("DEBUG: Notifying epoch state");
                 shutdown_notify_epoch_state.notify_waiters();
             },
             "CONSENSUS",

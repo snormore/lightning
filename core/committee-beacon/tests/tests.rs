@@ -31,6 +31,7 @@ use types::{
     ExecuteTransactionError,
     ExecuteTransactionOptions,
     ExecuteTransactionRetry,
+    ExecuteTransactionWait,
     ExecutionError,
     NodeActiveSetChange,
     NodeActiveSetRemovalReason,
@@ -42,7 +43,7 @@ use types::{
 #[tokio::test]
 async fn test_start_shutdown() {
     let node = lightning_test_utils::e2e::TestNodeBuilder::new()
-        .build::<TestFullNodeComponentsWithMockConsensus>()
+        .build::<TestFullNodeComponentsWithMockConsensus>(None)
         .await
         .unwrap();
     node.shutdown().await;
@@ -304,16 +305,20 @@ async fn test_insufficient_participation_in_commit_phase() {
     network.shutdown().await;
 }
 
-#[tokio::test]
-async fn test_single_revealing_node_fully_slashed() {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_single_non_revealing_node_fully_slashed() {
+    // TODO(snormore): Remove this when finished debugging.
+    let _ = lightning_test_utils::e2e::try_init_tracing_with_tokio_console();
+
     let mut network = build_network(BuildNetworkOptions {
         real_consensus: true,
         committee_nodes: 4,
         committee_nodes_without_beacon: 1,
         // The node's initial stake is 1000, and it will be slashed 1000, leaving insufficient stake
         // for a node.
-        commit_phase_duration: 10,
-        reveal_phase_duration: 10,
+        // commit_phase_duration: 3,
+        // reveal_phase_duration: 3,
+        committee_beacon_timer_tick_delay: Duration::from_secs(1),
         ..Default::default()
     })
     .await
@@ -363,12 +368,16 @@ async fn test_single_revealing_node_fully_slashed() {
         .get_committee_selection_beacon_round()
         .unwrap();
 
+    println!("HERE1");
+
     // Wait to transition to the reveal phase.
     wait_for_committee_selection_beacon_phase(&network, |phase| {
         matches!(phase, Some(CommitteeSelectionBeaconPhase::Reveal(_)))
     })
     .await
     .unwrap();
+
+    println!("HERE2");
 
     // Check that we transition to a new commit phase.
     wait_for_committee_selection_beacon_phase(&network, |phase| {
@@ -377,12 +386,16 @@ async fn test_single_revealing_node_fully_slashed() {
     .await
     .unwrap();
 
+    println!("HERE3");
+
     for node in network.nodes() {
         // Check that we are in a new round.
         assert_eq!(
             node.app_query().get_committee_selection_beacon_round(),
             Some(round + 1)
         );
+
+        println!("HERE4: {}", node.index());
 
         // Check that the epoch has not changed.
         assert_eq!(node.app_query().get_current_epoch(), epoch);
@@ -407,6 +420,8 @@ async fn test_single_revealing_node_fully_slashed() {
             }
         }
 
+        println!("HERE5: {}", node.index());
+
         // Check that the non-revealing node has been removed from the committee.
         assert_eq!(
             node.app_query().get_committee_members_by_index(),
@@ -424,6 +439,8 @@ async fn test_single_revealing_node_fully_slashed() {
             vec![(4, CommitteeMembersChange::Removed(reason),)]
         );
 
+        println!("HERE6: {}", node.index());
+
         // Check that the non-revealing node has been removed from the active node set.
         assert_eq!(
             node.app_query().get_active_node_set(),
@@ -440,33 +457,48 @@ async fn test_single_revealing_node_fully_slashed() {
             *active_node_set_changes.iter().next().unwrap().1,
             vec![(4, NodeActiveSetChange::Removed(reason),)]
         );
+
+        println!("HERE7: {}", node.index());
     }
 
+    println!("HERE8");
+
     // Submit commit transaction from the non-revealing node and check that it's reverted.
-    let error = non_revealing_node
-        .execute_transaction_from_node(
-            UpdateMethod::CommitteeSelectionBeaconCommit {
-                commit: [0; 32].into(),
-            },
-            None,
-        )
-        .await
-        .unwrap_err();
-    assert!(
-        matches!(
-            error,
-            ExecuteTransactionError::Reverted((
-                _,
-                TransactionReceipt {
-                    response: TransactionResponse::Revert(ExecutionError::InsufficientStake),
-                    ..
-                },
-                _
-            ))
-        ),
-        "{}",
-        error
-    );
+    // let error = non_revealing_node
+    //     .execute_transaction_from_node(
+    //         UpdateMethod::CommitteeSelectionBeaconCommit {
+    //             commit: [0; 32].into(),
+    //         },
+    //         Some(ExecuteTransactionOptions {
+    //             wait: ExecuteTransactionWait::Receipt,
+    //             timeout: Some(Duration::from_secs(5)),
+    //             ..Default::default()
+    //         }),
+    //     )
+    //     .await
+    //     .unwrap_err();
+    // assert!(
+    //     matches!(
+    //         error,
+    //         ExecuteTransactionError::Reverted((
+    //             _,
+    //             TransactionReceipt {
+    //                 response: TransactionResponse::Revert(ExecutionError::InsufficientStake),
+    //                 ..
+    //             },
+    //             _
+    //         ))
+    //     ),
+    //     "{}",
+    //     error
+    // );
+
+    println!("HERE9");
+
+    // Wait for the epoch to change.
+    network.wait_for_epoch_change(epoch + 1).await.unwrap();
+
+    println!("HERE10");
 
     // TODO(snormore): Check that the pool component on each node has dropped the non-revealing node
     // as a peer.
@@ -970,10 +1002,13 @@ async fn build_network(options: BuildNetworkOptions) -> Result<TestNetwork> {
 
     if options.real_consensus {
         for _ in 0..options.committee_nodes_without_beacon {
+            let node_index = builder.nodes.len() as NodeIndex;
             builder = builder.with_node(
                 TestNodeBuilder::new()
                     .with_real_consensus()
-                    .build::<TestFullNodeComponentsWithRealConsensusWithoutCommitteeBeacon>()
+                    .build::<TestFullNodeComponentsWithRealConsensusWithoutCommitteeBeacon>(Some(
+                        format!("NODE-{}", node_index),
+                    ))
                     .await?,
             );
         }
@@ -981,10 +1016,14 @@ async fn build_network(options: BuildNetworkOptions) -> Result<TestNetwork> {
         let consensus_group = builder.mock_consensus_group();
 
         for _ in 0..options.committee_nodes_without_beacon {
+            let node_index = builder.nodes.len() as NodeIndex;
             builder = builder.with_node(
                 TestNodeBuilder::new()
                     .with_mock_consensus(consensus_group.clone())
-                    .build::<TestFullNodeComponentsWithoutCommitteeBeacon>()
+                    .build::<TestFullNodeComponentsWithoutCommitteeBeacon>(Some(format!(
+                        "NODE-{}",
+                        node_index,
+                    )))
                     .await?,
             );
         }

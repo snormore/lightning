@@ -58,6 +58,8 @@ impl<C: NodeComponents> TransactionRunner<C> {
     ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError> {
         let mut retry = 0;
 
+        tracing::info!("executing transaction: {:?}", method);
+
         loop {
             // Get the next nonce for this transaction.
             let next_nonce = self.nonce_state.get_next_and_increment().await;

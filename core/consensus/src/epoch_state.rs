@@ -21,7 +21,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{oneshot, Notify};
 use tokio::{pin, task, time};
 use tracing::{error, info};
-use types::ExecuteTransactionRequest;
+use types::{ExecuteTransactionRequest, ProtocolParamKey, ProtocolParamValue};
 
 use crate::consensus::{ConsensusReadyWaiter, PubSubMsg};
 use crate::execution::state::FilteredConsensusOutput;
@@ -153,6 +153,16 @@ impl<Q: SyncQueryRunnerInterface, P: PubSub<PubSubMsg> + 'static, NE: Emitter>
 
         let mut committee_builder = CommitteeBuilder::new(epoch);
 
+        let min_stake = match self
+            .query_runner
+            .get_protocol_param(&ProtocolParamKey::MinimumNodeStake)
+        {
+            Some(ProtocolParamValue::MinimumNodeStake(v)) => v,
+            _ => unreachable!(),
+        };
+
+        println!("DEBUG: committee (len: {})", committee.len());
+
         for node in &committee {
             // TODO(dalton) This check should be done at application before adding it to state. So
             // it should never not be Ok so even an unwrap should be safe here
@@ -161,9 +171,23 @@ impl<Q: SyncQueryRunnerInterface, P: PubSub<PubSubMsg> + 'static, NE: Emitter>
                 PublicKey::from_bytes(&node.consensus_key.0),
                 NetworkPublicKey::from_bytes(&node.public_key.0),
             ) {
+                // TODO(snormore): Fix this unwrap.
+                let node_index = self.query_runner.pubkey_to_index(&node.public_key).unwrap();
+                let stake = if self
+                    .query_runner
+                    .get_node_info(&node_index, |node_info| {
+                        node_info.stake.staked >= min_stake.into()
+                    })
+                    .unwrap_or(false)
+                {
+                    1
+                } else {
+                    0
+                };
+                println!("DEBUG: node {} stake: {}", node_index, stake);
                 committee_builder = committee_builder.add_authority(
                     consensus_key,
-                    1,
+                    stake,
                     address,
                     public_key,
                     gethostname().to_string_lossy().into_owned(),
@@ -225,7 +249,7 @@ impl<Q: SyncQueryRunnerInterface, P: PubSub<PubSubMsg> + 'static, NE: Emitter>
                 tokio::select! {
                     biased;
                     _ = &mut shutdown_fut => {
-                        tracing::debug!("shutdown signal received, stopping");
+                        tracing::info!("shutdown signal received, stopping");
                         break;
                     }
                     _ = time_to_sleep => {
@@ -296,6 +320,7 @@ impl<Q: SyncQueryRunnerInterface, P: PubSub<PubSubMsg> + 'static, NE: Emitter>
 
     pub fn shutdown(&self) {
         self.executor.downgrade();
+        self.shutdown_notify.notify_waiters();
     }
 
     /// Creates or reopens a narwhal store specific to current epoch. Also garbage collects stores

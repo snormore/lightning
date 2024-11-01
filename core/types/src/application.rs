@@ -5,7 +5,7 @@ use fleek_crypto::{EthAddress, NodePublicKey};
 use hp_fixed::unsigned::HpUfixed;
 use serde::{Deserialize, Serialize};
 
-use crate::TransactionReceipt;
+use crate::{BlockNumber, Epoch, TransactionReceipt};
 
 /// Max number of updates allowed in a content registry update transaction.
 pub const MAX_UPDATES_CONTENT_REGISTRY: usize = 100;
@@ -230,4 +230,13 @@ pub struct AccountInfo {
     /// The nonce of the account. Added to each transaction before signed to prevent replays and
     /// enforce ordering
     pub nonce: u64,
+}
+
+/// A node removal notification message that is broadcasted to all nodes in the network on the
+/// node removal topic.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, schemars::JsonSchema)]
+pub struct NodeRemoval {
+    pub epoch: Epoch,
+    pub block_number: BlockNumber,
+    pub node_public_key: NodePublicKey,
 }

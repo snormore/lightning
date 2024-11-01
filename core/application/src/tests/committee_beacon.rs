@@ -2571,7 +2571,7 @@ impl TestNetworkBuilder {
     }
 
     async fn build(&self) -> Result<TestNetwork> {
-        let _ = try_init_tracing();
+        let _ = try_init_tracing(None);
 
         let config = JsonConfigProvider::default()
             .with::<Application<TestBinding>>(ApplicationConfig {

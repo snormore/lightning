@@ -80,7 +80,7 @@ impl TestNodeBuilder {
         self
     }
 
-    pub async fn build<C: NodeComponents>(self) -> Result<BoxedTestNode>
+    pub async fn build<C: NodeComponents>(self, node_name: Option<String>) -> Result<BoxedTestNode>
     where
         C::ApplicationInterface: ApplicationInterface<C, SyncExecutor = QueryRunner>,
     {
@@ -166,10 +166,11 @@ impl TestNodeBuilder {
         if let Some(mock_consensus_group) = self.mock_consensus_group {
             provider = provider.with(mock_consensus_group);
         }
-        let node = ContainedNode::<C>::new(provider, None);
+        let node = ContainedNode::<C>::new(provider, node_name.clone());
 
         Ok(Box::new(TestFullNode {
             inner: node,
+            name: node_name.unwrap_or_else(|| "NODE".to_string()),
             home_dir: self.home_dir.clone(),
             owner_secret_key: AccountOwnerSecretKey::generate(),
             is_genesis_committee: self.is_genesis_committee.unwrap_or(true),

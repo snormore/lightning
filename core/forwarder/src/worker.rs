@@ -60,6 +60,8 @@ impl<Q: SyncQueryRunnerInterface> Worker<Q> {
         // Grab the epoch
         let epoch = self.query_runner.get_current_epoch();
 
+        println!("DEBUG: handling forward (epoch: {})", epoch);
+
         // If the epoch is different then the last time we grabbed the committee refresh
         if epoch != self.epoch || epoch == 0 {
             self.refresh_epoch();
@@ -116,6 +118,12 @@ impl<Q: SyncQueryRunnerInterface> Worker<Q> {
             ..
         } = self.query_runner.get_epoch_info();
 
+        println!(
+            "DEBUG: refreshing epoch (epoch: {}, committee len: {})",
+            epoch,
+            committee.len()
+        );
+
         // If our node is on the committee, return a vec with just our node. Or return a vec of all
         // the committee members
         if let Some(item) = committee
@@ -149,11 +157,26 @@ impl<Q: SyncQueryRunnerInterface> Worker<Q> {
                 let mempool_port = &self.committee[self.cursor].ports.mempool;
                 let address = &self.committee[self.cursor].worker_domain;
 
-                if let Ok(client) =
-                    TransactionsClient::connect(format!("http://{address}:{mempool_port}")).await
+                println!("DEBUG: connecting to worker: {}", self.cursor);
+                println!("DEBUG: address: {}", address);
+                println!("DEBUG: mempool_port: {}", mempool_port);
+                println!("DEBUG: committee len: {}", self.committee.len());
+
+                match TransactionsClient::connect(format!("http://{address}:{mempool_port}")).await
                 {
-                    e.insert(client);
+                    Ok(client) => {
+                        e.insert(client);
+                    },
+                    Err(e) => {
+                        tracing::info!("Failed to connect to worker: {e}");
+                    },
                 }
+
+                // if let Ok(client) =
+                //     TransactionsClient::connect(format!("http://{address}:{mempool_port}")).await
+                // {
+                //     e.insert(client);
+                // }
             }
 
             // Increment cursor to modulo so we never try to access out of bounds index

@@ -1,26 +1,47 @@
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::util::TryInitError;
+use tracing_subscriber::EnvFilter;
 
-#[allow(unused)]
-pub fn try_init_tracing() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    tracing_subscriber::fmt::try_init()
+pub struct TracingOptions {
+    pub with_console: bool,
 }
 
 #[allow(unused)]
-pub fn init_tracing() {
-    try_init_tracing().expect("failed to initialize tracing");
+pub fn try_init_tracing(options: Option<TracingOptions>) -> Result<(), TryInitError> {
+    let env_filter = EnvFilter::builder()
+        .from_env()
+        .unwrap()
+        .add_directive("anemo=warn".parse().unwrap())
+        .add_directive("rustls=warn".parse().unwrap())
+        .add_directive("h2=warn".parse().unwrap())
+        .add_directive("tokio=warn".parse().unwrap())
+        .add_directive("runtime=warn".parse().unwrap());
+    let registry = tracing_subscriber::registry().with(
+        tracing_subscriber::fmt::layer()
+            .with_thread_names(true)
+            .with_filter(env_filter),
+    );
+    if let Some(options) = options {
+        if options.with_console {
+            let console_layer = console_subscriber::Builder::default()
+                .with_default_env()
+                .server_addr(([0, 0, 0, 0], 6669))
+                .spawn();
+            registry.with(console_layer).try_init()?;
+            return Ok(());
+        }
+    }
+    registry.try_init()
+}
+
+#[allow(unused)]
+pub fn init_tracing(options: Option<TracingOptions>) {
+    try_init_tracing(options).expect("failed to initialize tracing");
 }
 
 #[allow(unused)]
 pub fn try_init_tracing_with_tokio_console() -> Result<(), TryInitError> {
-    tracing_subscriber::registry()
-        .with(console_subscriber::spawn())
-        .with(tracing_subscriber::fmt::layer())
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "trace".into()),
-        )
-        .try_init()
+    try_init_tracing(Some(TracingOptions { with_console: true }))
 }
 
 #[allow(unused)]

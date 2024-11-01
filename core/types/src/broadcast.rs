@@ -21,6 +21,9 @@ pub enum Topic {
     TaskBroker,
     /// The gossip topic for checkpoints messages
     Checkpoint,
+    /// The gossip topic for nodes that are being removed from the committee or active set.
+    // TODO(snormore): Is there a better name for this?
+    NodeRemoval,
 }
 
 impl ink_quill::TranscriptBuilderInput for Topic {

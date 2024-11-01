@@ -42,20 +42,29 @@ impl TestNetworkBuilder {
             mock_consensus_group: None,
             committee_beacon_config: None,
         }
-        .with_mock_consensus(MockConsensusConfig {
-            max_ordering_time: 1,
-            min_ordering_time: 0,
-            probability_txn_lost: 0.0,
-            new_block_interval: Duration::from_secs(0),
-            transactions_to_lose: Default::default(),
-            block_buffering_interval: Duration::from_millis(0),
-        })
+        // .with_mock_consensus(MockConsensusConfig {
+        //     max_ordering_time: 1,
+        //     min_ordering_time: 0,
+        //     probability_txn_lost: 0.0,
+        //     new_block_interval: Duration::from_secs(0),
+        //     transactions_to_lose: Default::default(),
+        //     block_buffering_interval: Duration::from_millis(0),
+        // })
     }
 
     pub fn with_node(mut self, node: BoxedTestNode) -> Self {
         self.nodes.push(node);
         self
     }
+
+    // fn configure_consensus(mut self, builder: TestNodeBuilder) {
+    //     if let Some(consensus_group) = &self.mock_consensus_group {
+    //         builder = builder.with_mock_consensus(consensus_group.clone());
+    //     } else {
+    //         builder = builder.with_real_consensus();
+    //     }
+    //     self
+    // }
 
     pub async fn with_committee_nodes<C: NodeComponents>(mut self, num_nodes: usize) -> Self
     where
@@ -71,7 +80,10 @@ impl TestNetworkBuilder {
             if let Some(committee_beacon_config) = &self.committee_beacon_config {
                 builder = builder.with_committee_beacon_config(committee_beacon_config.clone());
             }
-            let node = builder.build::<C>().await.unwrap();
+            let node = builder
+                .build::<C>(Some(format!("NODE-{}", self.nodes.len())))
+                .await
+                .unwrap();
             self.nodes.push(node);
         }
         self
@@ -91,7 +103,10 @@ impl TestNetworkBuilder {
             if let Some(committee_beacon_config) = &self.committee_beacon_config {
                 builder = builder.with_committee_beacon_config(committee_beacon_config.clone());
             }
-            let node = builder.build::<C>().await.unwrap();
+            let node = builder
+                .build::<C>(Some(format!("NODE-{}", self.nodes.len())))
+                .await
+                .unwrap();
             self.nodes.push(node);
         }
         self
@@ -142,7 +157,7 @@ impl TestNetworkBuilder {
 
     /// Builds a new test network with the given number of nodes, and starts each of them.
     pub async fn build(mut self) -> Result<TestNetwork> {
-        let _ = try_init_tracing();
+        let _ = try_init_tracing(None);
 
         let temp_dir = tempdir()?;
 

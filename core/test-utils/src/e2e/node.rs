@@ -84,6 +84,7 @@ pub type BoxedTestNode = Box<dyn TestNetworkNode>;
 
 pub struct TestFullNode<C: NodeComponents> {
     pub inner: ContainedNode<C>,
+    pub name: String,
     pub home_dir: PathBuf,
     pub pool_listen_address: Option<SocketAddr>,
     pub rpc_listen_address: Option<SocketAddr>,
@@ -116,24 +117,43 @@ impl<C: NodeComponents> TestNetworkNode for TestFullNode<C> {
     }
 
     async fn apply_genesis(&self, genesis: Genesis) -> Result<()> {
-        self.app().apply_genesis(genesis).await?;
+        let app = self.app();
+        let app_query = self.app_query();
+        let checkpointer = self.checkpointer();
 
-        // Wait for components to be ready after genesis.
-        tokio::time::timeout(Duration::from_secs(30), async move {
-            // Wait for genesis to be applied.
-            self.app_query().wait_for_genesis().await;
+        tokio::task::Builder::new()
+            .name(&self.name)
+            .spawn(async move {
+                app.apply_genesis(genesis).await.unwrap();
 
-            // Wait for the checkpointer to be ready.
-            self.checkpointer().wait_for_ready().await;
-        })
-        .await
-        .unwrap();
+                // Wait for components to be ready after genesis.
+                tokio::time::timeout(Duration::from_secs(30), async move {
+                    // Wait for genesis to be applied.
+                    app_query.wait_for_genesis().await;
+
+                    // Wait for the checkpointer to be ready.
+                    checkpointer.wait_for_ready().await;
+                })
+                .await
+                .unwrap();
+            })
+            .unwrap()
+            .await
+            .unwrap();
 
         Ok(())
     }
 
     async fn shutdown(self: Box<Self>) {
-        self.inner.shutdown().await;
+        let node = self.inner;
+        tokio::task::Builder::new()
+            .name(&self.name)
+            .spawn(async move {
+                node.shutdown().await;
+            })
+            .unwrap()
+            .await
+            .unwrap();
     }
 
     async fn get_node_ports(&self) -> Result<NodePorts> {

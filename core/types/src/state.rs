@@ -549,6 +549,8 @@ pub struct Committee {
     pub active_node_set: Vec<NodeIndex>,
     /// Changes to the node active set by block number.
     pub active_node_set_changes: BTreeMap<BlockNumber, Vec<(NodeIndex, NodeActiveSetChange)>>,
+    // TODO(snormore): Remove the ability to add members to the committee within an epoch, since it
+    // may not be supported by narwhal/bullshark. Just support removal.
     /// Changes to the committee members by block number.
     pub members_changes: BTreeMap<BlockNumber, Vec<(NodeIndex, CommitteeMembersChange)>>,
 }

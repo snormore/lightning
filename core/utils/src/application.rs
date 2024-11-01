@@ -16,7 +16,7 @@ use lightning_interfaces::types::{
     Value,
 };
 use lightning_interfaces::PagingParams;
-use types::CommitteeSelectionBeaconPhase;
+use types::{CommitteeMembersChange, CommitteeSelectionBeaconPhase};
 
 pub trait QueryRunnerExt: SyncQueryRunnerInterface {
     /// Returns the chain id
@@ -57,12 +57,34 @@ pub trait QueryRunnerExt: SyncQueryRunnerInterface {
         let epoch = self.get_current_epoch();
         // look up current committee
         let committee = self.get_committee_info(&epoch, |c| c).unwrap_or_default();
+        let active_members = committee
+            .members
+            .iter()
+            .filter_map(|member| self.get_node_info::<NodeInfo>(member, |n| n))
+            .collect::<Vec<_>>();
+        let inactive_members = committee
+            .members_changes
+            .iter()
+            .map(|(_, changes)| {
+                changes
+                    .iter()
+                    .filter_map(|(node_index, change)| match change {
+                        CommitteeMembersChange::Removed(_) => Some(*node_index),
+                        _ => None,
+                    })
+            })
+            .flatten()
+            .filter_map(|node_index| self.get_node_info::<NodeInfo>(&node_index, |n| n))
+            .collect::<Vec<_>>();
+        println!("DEBUG: epoch: {}", epoch);
+        println!("DEBUG: active_members (len: {})", active_members.len());
+        println!("DEBUG: inactive_members (len: {})", inactive_members.len());
+        let members = active_members
+            .into_iter()
+            .chain(inactive_members.into_iter())
+            .collect();
         EpochInfo {
-            committee: committee
-                .members
-                .iter()
-                .filter_map(|member| self.get_node_info::<NodeInfo>(member, |n| n))
-                .collect(),
+            committee: members,
             epoch,
             epoch_end: committee.epoch_end_timestamp,
         }
