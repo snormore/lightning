@@ -15,6 +15,8 @@ use lightning_interfaces::types::{
     Metadata,
     NodeIndex,
     NodeInfo,
+    NodeRegistryChange,
+    NodeRegistryChangeDeactivateReason,
     Participation,
     ProtocolParamKey,
     ProtocolParamValue,
@@ -291,7 +293,6 @@ impl<B: Backend> StateExecutor<B> {
             .set(node_index, (existing_commit, Some(reveal)));
 
         // If all nodes that committed have revealed, execute the epoch change.
-        let committee = self.committee_info.get(&epoch).unwrap_or_default();
         let beacons = self.committee_selection_beacon.as_map();
         if beacons.iter().all(|(_, (_, reveal))| reveal.is_some()) {
             tracing::info!(
@@ -312,7 +313,7 @@ impl<B: Backend> StateExecutor<B> {
             self.clear_committee_selection_beacons();
 
             // Execute the epoch change.
-            self.execute_epoch_change(epoch, committee, beacons);
+            self.execute_epoch_change(epoch, beacons);
 
             // Return success.
             return TransactionResponse::Success(ExecutionData::EpochChange);
@@ -600,7 +601,6 @@ impl<B: Backend> StateExecutor<B> {
     fn execute_epoch_change(
         &self,
         epoch: Epoch,
-        current_committee: Committee,
         beacons: FxHashMap<
             NodeIndex,
             (
@@ -626,7 +626,6 @@ impl<B: Backend> StateExecutor<B> {
         // Clear executed digests.
         self.executed_digests.clear();
 
-        self.committee_info.set(epoch, current_committee);
         // Get new committee
         let new_committee = self.choose_new_committee(beacons);
 
@@ -657,8 +656,12 @@ impl<B: Backend> StateExecutor<B> {
         let node_registry: Vec<(NodeIndex, NodeInfo)> = self
             .get_node_registry()
             .into_iter()
-            .filter(|index| index.1.participation == Participation::True)
+            .filter(|(_, node)| node.participation == Participation::True)
+            // .filter(|(_, node)| node.stake.staked >= min_stake)
             .collect();
+
+        // TODO(snormore): Exclude nodes that don't have sufficient stake.
+
         let mut active_nodes: Vec<NodeIndex> = self
             .settle_auction(node_registry)
             .iter()
@@ -710,6 +713,7 @@ impl<B: Backend> StateExecutor<B> {
             members: committee,
             epoch_end_timestamp,
             active_node_set: active_nodes,
+            node_registry_changes: Default::default(),
         }
     }
 
@@ -917,8 +921,17 @@ impl<B: Backend> StateExecutor<B> {
                 if uptime < MINIMUM_UPTIME {
                     tracing::debug!("node {:?} has uptime lower than minimum uptime", node);
                     if let Some(mut node_info) = self.node_info.get(&node) {
+                        let node_public_key = node_info.public_key;
                         node_info.participation = Participation::False;
                         self.node_info.set(node, node_info);
+
+                        // Record the node registry change.
+                        self.record_node_registry_change(
+                            node_public_key,
+                            NodeRegistryChange::Deactivate(
+                                NodeRegistryChangeDeactivateReason::InsufficientUptime,
+                            ),
+                        );
                     }
                 }
             }

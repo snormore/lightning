@@ -3,7 +3,15 @@ use std::time::Duration;
 
 use fleek_crypto::{AccountOwnerSecretKey, NodeSecretKey, SecretKey};
 use hp_fixed::unsigned::HpUfixed;
-use lightning_interfaces::types::{ExecutionData, ExecutionError, Participation, UpdateMethod};
+use lightning_interfaces::types::{
+    ExecutionData,
+    ExecutionError,
+    NodeRegistryChange,
+    NodeRegistryChangeActivateReason,
+    NodeRegistryChangeDeactivateReason,
+    Participation,
+    UpdateMethod,
+};
 use lightning_interfaces::SyncQueryRunnerInterface;
 use lightning_test_utils::e2e::{TestFullNodeComponentsWithMockConsensus, TestNetwork};
 use lightning_utils::application::QueryRunnerExt;
@@ -146,6 +154,21 @@ async fn test_uptime_participation() {
         .unwrap_or_default();
     assert_eq!(providers.len(), 1);
 
+    // Check that the node registry changes were recorded.
+    let node_registry_changes = node
+        .app_query()
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    let expected_changes = vec![(
+        peer1.get_node_public_key(),
+        NodeRegistryChange::Deactivate(NodeRegistryChangeDeactivateReason::InsufficientUptime),
+    )];
+    assert_eq!(
+        node_registry_changes.iter().last().unwrap().1,
+        &expected_changes,
+    );
+
     // Shutdown the network.
     network.shutdown().await;
 }
@@ -157,13 +180,24 @@ async fn test_opt_in_reverts_account_key() {
     // Create a genesis committee and seed the application state with it.
     let committee_size = 4;
     let (committee, _keystore) = create_genesis_committee(committee_size);
-    let (update_socket, _query_runner) = test_init_app(&temp_dir, committee);
+    let (update_socket, query_runner) = test_init_app(&temp_dir, committee);
 
     // Account Secret Key
     let secret_key = AccountOwnerSecretKey::generate();
     let opt_in = UpdateMethod::OptIn {};
     let update = prepare_update_request_account(opt_in, &secret_key, 1);
-    expect_tx_revert(update, &update_socket, ExecutionError::OnlyNode).await;
+    let resp = expect_tx_revert(update, &update_socket, ExecutionError::OnlyNode).await;
+
+    // Check that no new node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 1);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert!(resp.node_registry_changes.is_empty());
 }
 
 #[tokio::test]
@@ -173,13 +207,24 @@ async fn test_opt_in_reverts_node_does_not_exist() {
     // Create a genesis committee and seed the application state with it.
     let committee_size = 4;
     let (committee, _keystore) = create_genesis_committee(committee_size);
-    let (update_socket, _query_runner) = test_init_app(&temp_dir, committee);
+    let (update_socket, query_runner) = test_init_app(&temp_dir, committee);
 
     // Unknown Node Key (without Stake)
     let node_secret_key = NodeSecretKey::generate();
     let opt_in = UpdateMethod::OptIn {};
     let update = prepare_update_request_node(opt_in, &node_secret_key, 1);
-    expect_tx_revert(update, &update_socket, ExecutionError::NodeDoesNotExist).await;
+    let resp = expect_tx_revert(update, &update_socket, ExecutionError::NodeDoesNotExist).await;
+
+    // Check that no new node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 1);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert!(resp.node_registry_changes.is_empty());
 }
 
 #[tokio::test]
@@ -211,11 +256,22 @@ async fn test_opt_in_reverts_insufficient_stake() {
 
     let opt_in = UpdateMethod::OptIn {};
     let update = prepare_update_request_node(opt_in, &node_secret_key, 1);
-    expect_tx_revert(update, &update_socket, ExecutionError::InsufficientStake).await;
+    let resp = expect_tx_revert(update, &update_socket, ExecutionError::InsufficientStake).await;
     assert_ne!(
         get_node_participation(&query_runner, &node_secret_key.to_pk()),
         Participation::OptedIn
     );
+
+    // Check that no new node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert!(resp.node_registry_changes.is_empty());
 }
 
 #[tokio::test]
@@ -234,7 +290,7 @@ async fn test_opt_in_works() {
 
     // Stake less than the minimum required amount.
     let minimum_stake_amount: HpUfixed<18> = query_runner.get_staking_amount().into();
-    deposit_and_stake(
+    let resp = deposit_and_stake(
         &update_socket,
         &owner_secret_key,
         1,
@@ -249,14 +305,59 @@ async fn test_opt_in_works() {
         Participation::OptedIn
     );
 
+    // Check that node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    let expected_changes = vec![
+        (node_pub_key, NodeRegistryChange::New),
+        (
+            node_pub_key,
+            NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked),
+        ),
+    ];
+    assert_eq!(node_registry_changes.get(&2).unwrap(), &expected_changes);
+    assert_eq!(resp.node_registry_changes, expected_changes);
+
     let opt_in = UpdateMethod::OptIn {};
     let update = prepare_update_request_node(opt_in, &node_secret_key, 1);
-    expect_tx_success(update, &update_socket, ExecutionData::None).await;
+    let resp = expect_tx_success(update, &update_socket, ExecutionData::None).await;
 
     assert_eq!(
         get_node_participation(&query_runner, &node_pub_key),
         Participation::OptedIn
     );
+
+    // Check that node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 3);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert_eq!(
+        node_registry_changes.get(&2).unwrap(),
+        &vec![
+            (node_pub_key, NodeRegistryChange::New),
+            (
+                node_pub_key,
+                NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked),
+            ),
+        ]
+    );
+    let expected_changes = vec![(
+        node_pub_key,
+        NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::OptedIn),
+    )];
+    assert_eq!(node_registry_changes.get(&3).unwrap(), &expected_changes);
+    assert_eq!(resp.node_registry_changes, expected_changes);
 }
 
 #[tokio::test]
@@ -266,13 +367,24 @@ async fn test_opt_out_reverts_account_key() {
     // Create a genesis committee and seed the application state with it.
     let committee_size = 4;
     let (committee, _keystore) = create_genesis_committee(committee_size);
-    let (update_socket, _query_runner) = test_init_app(&temp_dir, committee);
+    let (update_socket, query_runner) = test_init_app(&temp_dir, committee);
 
     // Account Secret Key
     let secret_key = AccountOwnerSecretKey::generate();
     let opt_out = UpdateMethod::OptOut {};
     let update = prepare_update_request_account(opt_out, &secret_key, 1);
-    expect_tx_revert(update, &update_socket, ExecutionError::OnlyNode).await;
+    let resp = expect_tx_revert(update, &update_socket, ExecutionError::OnlyNode).await;
+
+    // Check that no new node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 1);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert!(resp.node_registry_changes.is_empty());
 }
 
 #[tokio::test]
@@ -282,13 +394,24 @@ async fn test_opt_out_reverts_node_does_not_exist() {
     // Create a genesis committee and seed the application state with it.
     let committee_size = 4;
     let (committee, _keystore) = create_genesis_committee(committee_size);
-    let (update_socket, _query_runner) = test_init_app(&temp_dir, committee);
+    let (update_socket, query_runner) = test_init_app(&temp_dir, committee);
 
     // Unknown Node Key (without Stake)
     let node_secret_key = NodeSecretKey::generate();
     let opt_out = UpdateMethod::OptOut {};
     let update = prepare_update_request_node(opt_out, &node_secret_key, 1);
-    expect_tx_revert(update, &update_socket, ExecutionError::NodeDoesNotExist).await;
+    let resp = expect_tx_revert(update, &update_socket, ExecutionError::NodeDoesNotExist).await;
+
+    // Check that no new node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 1);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert!(resp.node_registry_changes.is_empty());
 }
 
 #[tokio::test]
@@ -320,11 +443,22 @@ async fn test_opt_out_reverts_insufficient_stake() {
 
     let opt_out = UpdateMethod::OptOut {};
     let update = prepare_update_request_node(opt_out, &node_secret_key, 1);
-    expect_tx_revert(update, &update_socket, ExecutionError::InsufficientStake).await;
+    let resp = expect_tx_revert(update, &update_socket, ExecutionError::InsufficientStake).await;
     assert_ne!(
         get_node_participation(&query_runner, &node_secret_key.to_pk()),
         Participation::OptedOut
     );
+
+    // Check that no new node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert!(resp.node_registry_changes.is_empty());
 }
 
 #[tokio::test]
@@ -343,7 +477,7 @@ async fn test_opt_out_works() {
 
     // Stake less than the minimum required amount.
     let minimum_stake_amount: HpUfixed<18> = query_runner.get_staking_amount().into();
-    deposit_and_stake(
+    let resp = deposit_and_stake(
         &update_socket,
         &owner_secret_key,
         1,
@@ -358,12 +492,57 @@ async fn test_opt_out_works() {
         Participation::OptedOut
     );
 
+    // Check that node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    let expected_changes = vec![
+        (node_pub_key, NodeRegistryChange::New),
+        (
+            node_pub_key,
+            NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked),
+        ),
+    ];
+    assert_eq!(node_registry_changes.get(&2).unwrap(), &expected_changes);
+    assert_eq!(resp.node_registry_changes, expected_changes);
+
     let opt_out = UpdateMethod::OptOut {};
     let update = prepare_update_request_node(opt_out, &node_secret_key, 1);
-    expect_tx_success(update, &update_socket, ExecutionData::None).await;
+    let resp = expect_tx_success(update, &update_socket, ExecutionData::None).await;
 
     assert_eq!(
         get_node_participation(&query_runner, &node_pub_key),
         Participation::OptedOut
     );
+
+    // Check that node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 3);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert_eq!(
+        node_registry_changes.get(&2).unwrap(),
+        &vec![
+            (node_pub_key, NodeRegistryChange::New),
+            (
+                node_pub_key,
+                NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked),
+            ),
+        ]
+    );
+    let expected_changes = vec![(
+        node_pub_key,
+        NodeRegistryChange::Deactivate(NodeRegistryChangeDeactivateReason::OptedOut),
+    )];
+    assert_eq!(node_registry_changes.get(&3).unwrap(), &expected_changes);
+    assert_eq!(resp.node_registry_changes, expected_changes);
 }
