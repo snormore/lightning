@@ -163,6 +163,7 @@ impl<Q: SyncQueryRunnerInterface, P: PubSub<PubSubMsg> + 'static, NE: Emitter>
             ) {
                 committee_builder = committee_builder.add_authority(
                     consensus_key,
+                    // TODO(snormore): If the node doesn't have sufficient stake, this should be 0.
                     1,
                     address,
                     public_key,

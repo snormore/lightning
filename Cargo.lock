@@ -7602,6 +7602,7 @@ dependencies = [
  "futures-util",
  "fxhash",
  "gethostname",
+ "hp-fixed",
  "lightning-interfaces",
  "lightning-metrics",
  "lightning-test-utils",

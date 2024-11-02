@@ -24,6 +24,8 @@ pub struct TestGenesisBuilder {
     nodes: Vec<GenesisNode>,
     accounts: Vec<GenesisAccount>,
     epoch_time: u64,
+    committee_size: Option<u64>,
+    node_count: Option<u64>,
     mutator: Option<GenesisMutator>,
 }
 
@@ -41,6 +43,8 @@ impl TestGenesisBuilder {
             protocol_address: AccountOwnerSecretKey::generate().to_pk().into(),
             accounts: Vec::new(),
             epoch_time: 120000,
+            committee_size: None,
+            node_count: None,
             mutator: None,
         }
     }
@@ -93,8 +97,13 @@ impl TestGenesisBuilder {
                 .as_millis() as u64,
             epoch_time: self.epoch_time,
             epochs_per_year: 365,
-            committee_size: 10,
-            node_count: 10,
+            committee_size: self.committee_size.unwrap_or_else(|| {
+                self.nodes
+                    .iter()
+                    .filter(|node| node.genesis_committee)
+                    .count() as u64
+            }),
+            node_count: self.node_count.unwrap_or(self.nodes.len() as u64),
             min_stake: 1000,
             eligibility_time: 1,
             lock_time: 5,
