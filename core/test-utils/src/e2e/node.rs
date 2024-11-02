@@ -43,7 +43,6 @@ use types::{
 
 use super::ports::get_available_port;
 use super::SyncBroadcaster;
-use crate::consensus::MockForwarder;
 use crate::keys::EphemeralKeystore;
 
 #[async_trait::async_trait]
@@ -264,8 +263,8 @@ impl<C: NodeComponents> TestFullNode<C> {
         self.provider().get::<Notifier<C>>()
     }
 
-    pub fn forwarder(&self) -> fdi::Ref<MockForwarder<C>> {
-        self.provider().get::<MockForwarder<C>>()
+    pub fn forwarder(&self) -> fdi::Ref<C::ForwarderInterface> {
+        self.provider().get::<C::ForwarderInterface>()
     }
 
     pub fn signer(&self) -> fdi::Ref<Signer<C>> {

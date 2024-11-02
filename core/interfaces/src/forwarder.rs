@@ -15,7 +15,9 @@ use crate::components::NodeComponents;
 pub type MempoolSocket = Socket<TransactionRequest, ()>;
 
 #[interfaces_proc::blank]
-pub trait ForwarderInterface<C: NodeComponents>: BuildGraph + Sized + Send + 'static {
+pub trait ForwarderInterface<C: NodeComponents>:
+    BuildGraph + Sized + Send + Sync + 'static
+{
     /// Get the socket for forwarding new transaction requests to the mempool.
     #[socket]
     fn mempool_socket(&self) -> MempoolSocket;

@@ -744,10 +744,13 @@ async fn test_withdraw_unstaked_works_properly() {
         .unwrap();
 
     // Execute withdraw unstaked transaction.
-    node.execute_transaction_from_owner(UpdateMethod::WithdrawUnstaked {
-        node: node.get_node_public_key(),
-        recipient: Some(node.get_owner_address()),
-    })
+    node.execute_transaction_from_owner(
+        UpdateMethod::WithdrawUnstaked {
+            node: node.get_node_public_key(),
+            recipient: Some(node.get_owner_address()),
+        },
+        None,
+    )
     .await
     .unwrap();
 

@@ -5,11 +5,11 @@ use lightning_application::state::QueryRunner;
 use lightning_interfaces::types::{
     Epoch,
     ExecuteTransactionError,
+    ExecuteTransactionOptions,
+    ExecuteTransactionResponse,
     Metadata,
     ProofOfConsensus,
     Tokens,
-    TransactionReceipt,
-    TransactionRequest,
     UpdateMethod,
     Value,
 };
@@ -180,12 +180,13 @@ where
     pub async fn execute_transaction_from_owner(
         &self,
         method: UpdateMethod,
-    ) -> Result<(TransactionRequest, TransactionReceipt), ExecuteTransactionError> {
+        options: Option<ExecuteTransactionOptions>,
+    ) -> Result<ExecuteTransactionResponse, ExecuteTransactionError> {
         let client = self.transaction_client(self.get_owner_signer()).await;
         let resp = client
-            .execute_transaction_and_wait_for_receipt(method, None)
+            .execute_transaction_and_wait_for_receipt(method, options)
             .await?;
 
-        Ok(resp.as_receipt())
+        Ok(resp)
     }
 }
