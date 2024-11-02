@@ -14,6 +14,9 @@ use lightning_interfaces::types::{
     ExecutionError,
     HandshakePorts,
     NodePorts,
+    NodeRegistryChange,
+    NodeRegistryChangeActivateReason,
+    NodeRegistryChangeDeactivateReason,
     UpdateMethod,
 };
 use lightning_interfaces::SyncQueryRunnerInterface;
@@ -76,16 +79,36 @@ async fn test_stake() {
         4,
     );
 
-    expect_tx_success(update, &update_socket, ExecutionData::None).await;
+    let resp = expect_tx_success(update, &update_socket, ExecutionData::None).await;
 
     // Query the new node and make sure he has the proper stake
     assert_eq!(get_staked(&query_runner, &peer_pub_key), stake_amount);
+
+    // Check that the node registry changes are recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        // For each committee node, there should be 2 changes: New and Activate.
+        2 * committee_size
+    );
+    let expected_changes = vec![
+        (peer_pub_key, NodeRegistryChange::New),
+        (
+            peer_pub_key,
+            NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked),
+        ),
+    ];
+    assert_eq!(node_registry_changes.get(&3).unwrap(), &expected_changes);
+    assert_eq!(resp.node_registry_changes, expected_changes);
 
     // Stake 1000 more but since it is not a new node we should be able to leave the optional
     // parameters out without a revert
     let update = prepare_regular_stake_update(&stake_amount, &peer_pub_key, &owner_secret_key, 5);
 
-    expect_tx_success(update, &update_socket, ExecutionData::None).await;
+    let resp = expect_tx_success(update, &update_socket, ExecutionData::None).await;
 
     // Node should now have 2_000 stake
     assert_eq!(
@@ -93,13 +116,55 @@ async fn test_stake() {
         (HpUfixed::<18>::from(2u16) * stake_amount.clone())
     );
 
+    // Check that there are no new node registry changes.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert_eq!(
+        node_registry_changes.get(&3).unwrap(),
+        &vec![
+            (peer_pub_key, NodeRegistryChange::New),
+            (
+                peer_pub_key,
+                NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked)
+            )
+        ]
+    );
+    assert!(resp.node_registry_changes.is_empty());
+
     // Now test unstake and make sure it moves the tokens to locked status
     let update = prepare_unstake_update(&stake_amount, &peer_pub_key, &owner_secret_key, 6);
-    run_update(update, &update_socket).await;
+    let resp = run_update(update, &update_socket).await;
 
     // Check that his locked is 1000 and his remaining stake is 1000
     assert_eq!(get_staked(&query_runner, &peer_pub_key), stake_amount);
     assert_eq!(get_locked(&query_runner, &peer_pub_key), stake_amount);
+
+    // Check that there are no new node registry changes.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert_eq!(
+        node_registry_changes.get(&3).unwrap(),
+        &vec![
+            (peer_pub_key, NodeRegistryChange::New),
+            (
+                peer_pub_key,
+                NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked)
+            )
+        ]
+    );
+    assert!(resp.node_registry_changes.is_empty());
 
     // Since this test starts at epoch 0 locked_until will be == lock_time
     assert_eq!(
@@ -109,8 +174,41 @@ async fn test_stake() {
 
     // Try to withdraw the locked tokens and it should revert
     let update = prepare_withdraw_unstaked_update(&peer_pub_key, None, &owner_secret_key, 7);
-
     expect_tx_revert(update, &update_socket, ExecutionError::TokensLocked).await;
+
+    // Unstake the remaining stake.
+    let resp = expect_tx_success(
+        prepare_unstake_update(&stake_amount, &peer_pub_key, &owner_secret_key, 8),
+        &update_socket,
+        ExecutionData::None,
+    )
+    .await;
+
+    // Check that the node registry changes are recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 3);
+    assert_eq!(
+        node_registry_changes.get(&0).unwrap().len(),
+        2 * committee_size
+    );
+    assert_eq!(
+        node_registry_changes.get(&3).unwrap(),
+        &vec![
+            (peer_pub_key, NodeRegistryChange::New),
+            (
+                peer_pub_key,
+                NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked)
+            )
+        ]
+    );
+    let expected_changes = vec![(
+        peer_pub_key,
+        NodeRegistryChange::Deactivate(NodeRegistryChangeDeactivateReason::Unstaked),
+    )];
+    assert_eq!(node_registry_changes.get(&7).unwrap(), &expected_changes);
+    assert_eq!(resp.node_registry_changes, expected_changes);
 }
 
 #[tokio::test]
@@ -138,20 +236,56 @@ async fn test_stake_lock() {
     let locked_for = 365;
     let stake_lock_req = prepare_stake_lock_update(&node_pub_key, locked_for, &owner_secret_key, 3);
 
-    expect_tx_success(stake_lock_req, &update_socket, ExecutionData::None).await;
+    let resp = expect_tx_success(stake_lock_req, &update_socket, ExecutionData::None).await;
 
     assert_eq!(
         get_stake_locked_until(&query_runner, &node_pub_key),
         locked_for
     );
 
+    // Check that no new node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(node_registry_changes.get(&0).unwrap().len(), 8);
+    assert_eq!(
+        node_registry_changes.get(&2).unwrap(),
+        &vec![
+            (node_pub_key, NodeRegistryChange::New),
+            (
+                node_pub_key,
+                NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked),
+            ),
+        ]
+    );
+    assert!(resp.node_registry_changes.is_empty());
+
     let unstake_req = prepare_unstake_update(&amount, &node_pub_key, &owner_secret_key, 4);
-    expect_tx_revert(
+    let resp = expect_tx_revert(
         unstake_req,
         &update_socket,
         ExecutionError::LockedTokensUnstakeForbidden,
     )
     .await;
+
+    // Check that no new node registry changes were recorded.
+    let node_registry_changes = query_runner
+        .get_committee_info(&0, |c| c.node_registry_changes)
+        .unwrap();
+    assert_eq!(node_registry_changes.len(), 2);
+    assert_eq!(node_registry_changes.get(&0).unwrap().len(), 8);
+    assert_eq!(
+        node_registry_changes.get(&2).unwrap(),
+        &vec![
+            (node_pub_key, NodeRegistryChange::New),
+            (
+                node_pub_key,
+                NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked)
+            )
+        ]
+    );
+    assert!(resp.node_registry_changes.is_empty());
 }
 
 #[tokio::test]

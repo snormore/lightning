@@ -12,6 +12,8 @@ use lightning_interfaces::types::{
     Metadata,
     NodeIndex,
     NodeInfo,
+    NodeRegistryChange,
+    NodeRegistryChangeDeactivateReason,
     Participation,
     ProtocolParamKey,
     ProtocolParamValue,
@@ -92,7 +94,6 @@ impl<B: Backend> StateExecutor<B> {
             // Clear executed digests.
             self.executed_digests.clear();
 
-            self.committee_info.set(current_epoch, current_committee);
             // Get new committee
             let new_committee = self.choose_new_committee();
             // increment epoch
@@ -118,8 +119,11 @@ impl<B: Backend> StateExecutor<B> {
         let node_registry: Vec<(NodeIndex, NodeInfo)> = self
             .get_node_registry()
             .into_iter()
-            .filter(|index| index.1.participation == Participation::True)
+            .filter(|(_, node)| node.participation == Participation::True)
+            // .filter(|(_, node)| node.stake.staked >= min_stake)
             .collect();
+
+        // TODO(snormore): Exclude nodes that don't have sufficient stake.
 
         let committee_size = match self.parameters.get(&ProtocolParamKey::CommitteeSize) {
             Some(ProtocolParamValue::CommitteeSize(v)) => v,
@@ -180,6 +184,7 @@ impl<B: Backend> StateExecutor<B> {
             members: committee,
             epoch_end_timestamp,
             active_node_set: active_nodes,
+            node_registry_changes: Default::default(),
         }
     }
 
@@ -386,8 +391,17 @@ impl<B: Backend> StateExecutor<B> {
                 self.uptime.set(node, uptime);
                 if uptime < MINIMUM_UPTIME {
                     if let Some(mut node_info) = self.node_info.get(&node) {
+                        let node_public_key = node_info.public_key;
                         node_info.participation = Participation::False;
                         self.node_info.set(node, node_info);
+
+                        // Record the node registry change.
+                        self.record_node_registry_change(
+                            node_public_key,
+                            NodeRegistryChange::Deactivate(
+                                NodeRegistryChangeDeactivateReason::InsufficientUptime,
+                            ),
+                        );
                     }
                 }
             }

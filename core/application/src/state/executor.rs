@@ -29,6 +29,9 @@ use lightning_interfaces::types::{
     NodeIndex,
     NodeInfo,
     NodePorts,
+    NodeRegistryChange,
+    NodeRegistryChangeActivateReason,
+    NodeRegistryChangeDeactivateReason,
     NodeServed,
     Participation,
     ProofOfConsensus,
@@ -554,7 +557,11 @@ impl<B: Backend> StateExecutor<B> {
             }
         }
 
-        match node_index {
+        // Get the node's current validity.
+        let was_valid =
+            node_index.map_or(false, |index| self.is_valid_node(&index).unwrap_or(false));
+
+        let (node_index, node) = match node_index {
             Some(index) => {
                 let mut node = match self.node_info.get(&index) {
                     Some(node) => node,
@@ -578,7 +585,9 @@ impl<B: Backend> StateExecutor<B> {
 
                 // Increase the nodes stake by the amount being staked
                 node.stake.staked += amount.clone();
-                self.node_info.set(index, node);
+                self.node_info.set(index, node.clone());
+
+                (index, node)
             },
             None => {
                 // If the node doesn't Exist, create it. But check if they provided all the required
@@ -612,11 +621,25 @@ impl<B: Backend> StateExecutor<B> {
                         participation: Participation::False,
                         nonce: 0,
                     };
-                    self.create_node(node);
+                    let (node_index, node) = self.create_node(node).expect("failed to create node");
+
+                    // Record the new node in the node registry changes for this block.
+                    self.record_node_registry_change(node.public_key, NodeRegistryChange::New);
+
+                    (node_index, node)
                 } else {
                     return TransactionResponse::Revert(ExecutionError::InsufficientNodeDetails);
                 }
             },
+        };
+
+        // If the node was not already activated but is now, record it in the node registry changes
+        // for this block.
+        if !was_valid && self.is_valid_node(&node_index).unwrap_or(false) {
+            self.record_node_registry_change(
+                node.public_key,
+                NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::Staked),
+            );
         }
 
         // decrement the owners balance
@@ -694,6 +717,7 @@ impl<B: Backend> StateExecutor<B> {
             Some(node) => node,
             None => return TransactionResponse::Revert(ExecutionError::NodeDoesNotExist),
         };
+        let node_public_key = node.public_key;
 
         // Make sure the caller is the owner of the node
         if sender != node.owner {
@@ -704,6 +728,9 @@ impl<B: Backend> StateExecutor<B> {
             Some(Value::Epoch(epoch)) => epoch,
             _ => 0,
         };
+
+        // Get initial node validity.
+        let was_valid = self.is_valid_node(&index).unwrap_or(false);
 
         // Make sure the stakes are not locked
         if node.stake.stake_locked_until > current_epoch {
@@ -727,8 +754,19 @@ impl<B: Backend> StateExecutor<B> {
         node.stake.locked += amount;
         node.stake.locked_until = current_epoch + lock_time;
 
-        // Save the changed node state and return success
+        // Save the changed node state.
         self.node_info.set(index, node);
+
+        // If the node no longer has sufficient stake, and was previously active, record it as
+        // deactivated in the node registry changes for this block.
+        if was_valid && !self.is_valid_node(&index).unwrap_or(false) {
+            self.record_node_registry_change(
+                node_public_key,
+                NodeRegistryChange::Deactivate(NodeRegistryChangeDeactivateReason::Unstaked),
+            );
+        }
+
+        // Return success.
         TransactionResponse::Success(ExecutionData::None)
     }
 
@@ -818,8 +856,16 @@ impl<B: Backend> StateExecutor<B> {
         };
         match self.node_info.get(&index) {
             Some(mut node_info) => {
+                let node_public_key = node_info.public_key;
                 node_info.participation = Participation::OptedIn;
                 self.node_info.set(index, node_info);
+
+                // Record the node as activated in the node registry changes for this block.
+                self.record_node_registry_change(
+                    node_public_key,
+                    NodeRegistryChange::Activate(NodeRegistryChangeActivateReason::OptedIn),
+                );
+
                 TransactionResponse::Success(ExecutionData::None)
             },
             None => TransactionResponse::Revert(ExecutionError::NodeDoesNotExist),
@@ -833,8 +879,16 @@ impl<B: Backend> StateExecutor<B> {
         };
         match self.node_info.get(&index) {
             Some(mut node_info) => {
+                let node_public_key = node_info.public_key;
                 node_info.participation = Participation::OptedOut;
                 self.node_info.set(index, node_info);
+
+                // Record the node as deactivated in the node registry changes for this block.
+                self.record_node_registry_change(
+                    node_public_key,
+                    NodeRegistryChange::Deactivate(NodeRegistryChangeDeactivateReason::OptedOut),
+                );
+
                 TransactionResponse::Success(ExecutionData::None)
             },
             None => TransactionResponse::Revert(ExecutionError::NodeDoesNotExist),
@@ -1290,7 +1344,7 @@ impl<B: Backend> StateExecutor<B> {
     }
 
     /// Creates a new node. A new node should only be created through this function.
-    fn create_node(&self, node: NodeInfo) -> bool {
+    fn create_node(&self, node: NodeInfo) -> Option<(NodeIndex, NodeInfo)> {
         // If this public key or network key is already indexed to no create it
         if self.pub_key_to_index.get(&node.public_key).is_some()
             || self
@@ -1298,7 +1352,7 @@ impl<B: Backend> StateExecutor<B> {
                 .get(&node.consensus_key)
                 .is_some()
         {
-            return false;
+            return None;
         }
         let node_index = match self.metadata.get(&Metadata::NextNodeIndex) {
             Some(Value::NextNodeIndex(index)) => index,
@@ -1308,12 +1362,12 @@ impl<B: Backend> StateExecutor<B> {
         self.consensus_key_to_index
             .set(node.consensus_key, node_index);
 
-        self.node_info.set(node_index, node);
+        self.node_info.set(node_index, node.clone());
         self.metadata.set(
             Metadata::NextNodeIndex,
             Value::NextNodeIndex(node_index + 1),
         );
-        true
+        Some((node_index, node))
     }
 
     /// Remove a node. A node should only be removed through this function.
@@ -1485,7 +1539,7 @@ impl<B: Backend> StateExecutor<B> {
         }
     }
 
-    fn _get_epoch(&self) -> u64 {
+    pub fn get_epoch(&self) -> u64 {
         if let Some(Value::Epoch(epoch)) = self.metadata.get(&Metadata::Epoch) {
             epoch
         } else {
@@ -1527,5 +1581,27 @@ impl<B: Backend> StateExecutor<B> {
                 let _ = self.clear_content_registry(&index);
             }
         }
+    }
+
+    /// Records a node registry change for the current epoch and block number.
+    fn record_node_registry_change(
+        &self,
+        node_public_key: NodePublicKey,
+        change: NodeRegistryChange,
+    ) {
+        let current_epoch = self.get_epoch();
+        let current_block_number = self.get_block_number() + 1;
+        let mut committee = self.committee_info.get(&current_epoch).unwrap();
+        committee
+            .node_registry_changes
+            .entry(current_block_number)
+            .or_insert_with(Vec::new)
+            .push((node_public_key, change));
+        self.committee_info.set(current_epoch, committee);
+    }
+
+    /// Returns the current committee.
+    pub fn get_current_committee(&self) -> Option<Committee> {
+        self.committee_info.get(&self.get_epoch())
     }
 }
