@@ -14,6 +14,8 @@ use types::{
     ExecuteTransactionError,
     ExecuteTransactionOptions,
     ExecutionData,
+    NodeRegistryChange,
+    NodeRegistryChangeDeactivateReason,
     TransactionResponse,
     UpdateMethod,
 };
@@ -368,6 +370,63 @@ async fn test_node_has_insufficient_stake_to_participate_after_unstake_transacti
             vec![0, 1, 2, 3]
         );
     }
+
+    // Check that the node registry changes have been recorded.
+    for node in network.nodes() {
+        let node_registry_changes = node
+            .app_query()
+            .get_committee_info(&0, |committee| committee.node_registry_changes)
+            .unwrap();
+        assert_eq!(node_registry_changes.len(), 2);
+        assert_eq!(node_registry_changes.get(&0).unwrap().len(), 8);
+        assert_eq!(
+            node_registry_changes
+                .get(node_registry_changes.keys().last().unwrap())
+                .unwrap(),
+            &vec![(
+                network.node(0).get_node_public_key(),
+                NodeRegistryChange::Deactivate(NodeRegistryChangeDeactivateReason::Unstaked),
+            )]
+        );
+    }
+
+    // tokio::time::sleep(Duration::from_secs(10)).await;
+
+    // Execute an increment nonce transaction from all the nodes.
+    network
+        .node(1)
+        .execute_transaction_from_node(
+            UpdateMethod::IncrementNonce {},
+            Some(ExecuteTransactionOptions {
+                wait: types::ExecuteTransactionWait::Receipt,
+                retry: types::ExecuteTransactionRetry::Always(Some(10)),
+                timeout: Some(Duration::from_secs(2)),
+            }),
+        )
+        .await
+        .unwrap();
+
+    // TODO(snormore): Why can't we execute from the removed/deactivated node?
+
+    // TODO(snormore): The restart + execute seems to sometimes fail with
+    // TransactionExecutedButReceiptNotAvailable.
+
+    // join_all(network.nodes().map(|node| {
+    //     node.execute_transaction_from_node(
+    //         UpdateMethod::IncrementNonce {},
+    //         Some(ExecuteTransactionOptions {
+    //             // Transactions that are submitted immediately after narwhal service startup will
+    //             // sometimes timeout and need to be retried.
+    //             wait: types::ExecuteTransactionWait::Receipt,
+    //             retry: types::ExecuteTransactionRetry::Always(Some(10)),
+    //             timeout: Some(Duration::from_secs(2)),
+    //         }),
+    //     )
+    // }))
+    // .await
+    // .into_iter()
+    // .collect::<Result<Vec<_>, _>>()
+    // .unwrap();
 
     // // Execute change epoch transactions to trigger epoch change.
     // join_all(

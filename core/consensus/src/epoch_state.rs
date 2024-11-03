@@ -163,8 +163,7 @@ impl<Q: SyncQueryRunnerInterface, P: PubSub<PubSubMsg> + 'static, NE: Emitter>
             ) {
                 committee_builder = committee_builder.add_authority(
                     consensus_key,
-                    // TODO(snormore): If the node doesn't have sufficient stake, this should be 0.
-                    1,
+                    self.query_runner.is_valid_node(&node.public_key) as u64,
                     address,
                     public_key,
                     gethostname().to_string_lossy().into_owned(),

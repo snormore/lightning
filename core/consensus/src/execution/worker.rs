@@ -15,6 +15,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::{mpsc, oneshot, Notify};
 use tokio::task::JoinHandle;
 use tracing::{error, info};
+use types::{BlockExecutionResponse, NodeRegistryChange};
 
 use super::parcel::{AuthenticStampedParcel, CommitteeAttestation, Digest};
 use super::state::FilteredConsensusOutput;
@@ -249,7 +250,7 @@ async fn handle_consensus_output<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterfa
         sub_dag_round: consensus_output.sub_dag_round,
     };
 
-    let epoch_changed = submit_batch(
+    let response = submit_batch(
         ctx,
         consensus_output.transactions,
         parcel.to_digest(),
@@ -273,7 +274,8 @@ async fn handle_consensus_output<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterfa
         .store_parcel(parcel, ctx.our_index, msg_digest.ok());
     // No need to store the attestation we have already executed it
 
-    if epoch_changed {
+    if response.change_epoch {
+        tracing::info!("reconfiguring after epoch change");
         ctx.reconfigure_notify.notify_waiters();
 
         ctx.committee = ctx.query_runner.get_committee_members_by_index();
@@ -287,6 +289,32 @@ async fn handle_consensus_output<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterfa
         ctx.on_committee = ctx.committee.contains(&ctx.our_index);
 
         ctx.txn_store.change_epoch(&ctx.committee);
+    } else {
+        // If the epoch did not change, check if any members were removed from the committee in this
+        // block. If so, reconfigure and restart the narwhal service.
+        // If the epoch changed, we can rely on the epoch change logic above to reconfigure and
+        // restart the narwhal service.
+        let committee_members = ctx
+            .query_runner
+            .get_committee_members()
+            .into_iter()
+            .collect::<HashSet<_>>();
+        if response
+            .node_registry_changes
+            .iter()
+            .any(|(node_public_key, change)| {
+                matches!(
+                    change,
+                    NodeRegistryChange::Deactivate(_) | NodeRegistryChange::Removed
+                ) && committee_members.contains(node_public_key)
+            })
+        {
+            tracing::info!("reconfiguring after node registry changes");
+            ctx.reconfigure_notify.notify_waiters();
+        }
+
+        // TODO(snormore): Emit notifier or broadcast event to let this node's components and all
+        // other nodes know about the changes, even if they haven't executed the block yet.
     }
 }
 
@@ -298,7 +326,7 @@ async fn submit_batch<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterface, NE: Emi
     digest: Digest,
     sub_dag_index: u64,
     sub_dag_round: u64,
-) -> bool {
+) -> BlockExecutionResponse {
     let transactions = payload
         .into_iter()
         .filter_map(|txn| {
@@ -339,7 +367,7 @@ async fn submit_batch<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterface, NE: Emi
     let change_epoch = response.change_epoch;
     let previous_state_root = response.previous_state_root.into();
     let new_state_root = response.new_state_root.into();
-    ctx.notifier.new_block(archive_block, response);
+    ctx.notifier.new_block(archive_block, response.clone());
 
     if change_epoch {
         let epoch_number = ctx.query_runner.get_current_epoch();
@@ -358,7 +386,7 @@ async fn submit_batch<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterface, NE: Emi
         );
     }
 
-    change_epoch
+    response
 }
 
 // This function is called when the current node receives a consensus event via broadcast.
@@ -654,7 +682,8 @@ async fn try_execute_chain<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterface, NE
 
             // We connected the chain now execute all the transactions
             for (batch, sub_dag_index, sub_dag_round, digest) in txn_chain {
-                if submit_batch(ctx, batch, digest, sub_dag_index, sub_dag_round).await {
+                let response = submit_batch(ctx, batch, digest, sub_dag_index, sub_dag_round).await;
+                if response.change_epoch {
                     epoch_changed = true;
                 }
             }
