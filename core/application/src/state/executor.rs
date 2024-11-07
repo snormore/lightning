@@ -713,7 +713,7 @@ impl<B: Backend> StateExecutor<B> {
             Err(e) => return e,
         };
 
-        let (index, mut node) = match self.get_node_info(node_public_key.into()) {
+        let (node_index, mut node) = match self.get_node_info(node_public_key.into()) {
             Some(node) => node,
             None => return TransactionResponse::Revert(ExecutionError::NodeDoesNotExist),
         };
@@ -730,7 +730,7 @@ impl<B: Backend> StateExecutor<B> {
         };
 
         // Get initial node validity.
-        let was_valid = self.is_valid_node(&index).unwrap_or(false);
+        let was_valid = self.is_valid_node(&node_index).unwrap_or(false);
 
         // Make sure the stakes are not locked
         if node.stake.stake_locked_until > current_epoch {
@@ -755,11 +755,29 @@ impl<B: Backend> StateExecutor<B> {
         node.stake.locked_until = current_epoch + lock_time;
 
         // Save the changed node state.
-        self.node_info.set(index, node);
+        self.node_info.set(node_index, node);
 
         // If the node no longer has sufficient stake, and was previously active, record it as
         // deactivated in the node registry changes for this block.
-        if was_valid && !self.is_valid_node(&index).unwrap_or(false) {
+        if was_valid && !self.is_valid_node(&node_index).unwrap_or(false) {
+            if let Some(mut committee) = self.get_current_committee() {
+                // Remove node from the current committee.
+                if committee.members.contains(&node_index) {
+                    committee.members.retain(|member| *member != node_index);
+                }
+
+                // Remove node from the current active node set.
+                if committee.active_node_set.contains(&node_index) {
+                    committee
+                        .active_node_set
+                        .retain(|member| *member != node_index);
+                }
+
+                // Save the updated committee.
+                self.committee_info.set(current_epoch, committee);
+            }
+
+            // Record the node as deactivated in the node registry changes for this block.
             self.record_node_registry_change(
                 node_public_key,
                 NodeRegistryChange::Deactivate(NodeRegistryChangeDeactivateReason::Unstaked),
@@ -1603,5 +1621,21 @@ impl<B: Backend> StateExecutor<B> {
     /// Returns the current committee.
     pub fn get_current_committee(&self) -> Option<Committee> {
         self.committee_info.get(&self.get_epoch())
+    }
+
+    pub fn get_node_index(&self, node_public_key: &NodePublicKey) -> Option<NodeIndex> {
+        self.pub_key_to_index.get(node_public_key)
+    }
+
+    pub fn get_epoch_era(&self) -> u64 {
+        if let Some(Value::EpochEra(era)) = self.metadata.get(&Metadata::EpochEra) {
+            era
+        } else {
+            0
+        }
+    }
+
+    pub fn set_epoch_era(&self, era: u64) {
+        self.metadata.set(Metadata::EpochEra, Value::EpochEra(era));
     }
 }

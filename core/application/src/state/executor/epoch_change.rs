@@ -104,6 +104,11 @@ impl<B: Backend> StateExecutor<B> {
 
             self.metadata
                 .set(Metadata::Epoch, Value::Epoch(current_epoch));
+
+            // Reset the epoch era.
+            self.metadata.set(Metadata::EpochEra, Value::EpochEra(0));
+
+            // Return epoch change success.
             TransactionResponse::Success(ExecutionData::EpochChange)
         } else {
             TransactionResponse::Success(ExecutionData::None)

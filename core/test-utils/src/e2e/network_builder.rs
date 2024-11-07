@@ -65,7 +65,10 @@ impl TestNetworkBuilder {
             } else {
                 builder = builder.with_real_consensus();
             }
-            let node = builder.build::<C>().await.unwrap();
+            let node = builder
+                .build::<C>(Some(format!("node-{}", self.nodes.len())))
+                .await
+                .unwrap();
             self.nodes.push(node);
         }
         self
@@ -82,7 +85,10 @@ impl TestNetworkBuilder {
             } else {
                 builder = builder.with_real_consensus();
             }
-            let node = builder.build::<C>().await.unwrap();
+            let node = builder
+                .build::<C>(Some(format!("node-{}", self.nodes.len())))
+                .await
+                .unwrap();
             self.nodes.push(node);
         }
         self

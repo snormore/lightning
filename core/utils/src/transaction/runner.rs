@@ -62,6 +62,13 @@ impl<C: NodeComponents> TransactionRunner<C> {
             // Get the next nonce for this transaction.
             let next_nonce = self.nonce_state.get_next_and_increment().await;
 
+            tracing::info!(
+                "executing transaction (nonce: {}, attempt: {}): {:?}",
+                next_nonce,
+                retry + 1,
+                method
+            );
+
             // Build and sign the transaction.
             let tx: TransactionRequest = TransactionBuilder::from_update(
                 method.clone(),
@@ -75,6 +82,12 @@ impl<C: NodeComponents> TransactionRunner<C> {
             let block_sub = self.notifier.subscribe_block_executed();
 
             // Send transaction to the mempool.
+            tracing::info!(
+                "sending transaction to mempool (nonce: {}, attempt: {}): {:?}",
+                next_nonce,
+                retry + 1,
+                tx
+            );
             match self.mempool.enqueue(tx.clone()).await {
                 Ok(()) => {},
                 Err(e) => {
@@ -87,13 +100,19 @@ impl<C: NodeComponents> TransactionRunner<C> {
 
             // Wait for the transaction to be executed and get the receipt.
             let timeout = options.timeout.unwrap_or(DEFAULT_TIMEOUT);
+            tracing::info!(
+                "waiting for transaction receipt (nonce: {}, attempt: {}): {:?}",
+                next_nonce,
+                retry + 1,
+                tx
+            );
             let result = self
                 .wait_for_receipt(method.clone(), &tx, block_sub, timeout)
                 .await;
             match result {
                 Ok(receipt) => match &receipt.response {
                     TransactionResponse::Success(_) => {
-                        tracing::debug!("transaction executed: {:?}", receipt);
+                        tracing::info!("transaction executed: {:?}", receipt);
                         return Ok(ExecuteTransactionResponse::Receipt((tx, receipt)));
                     },
                     TransactionResponse::Revert(error) => {

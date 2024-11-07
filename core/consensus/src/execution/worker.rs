@@ -274,8 +274,29 @@ async fn handle_consensus_output<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterfa
         .store_parcel(parcel, ctx.our_index, msg_digest.ok());
     // No need to store the attestation we have already executed it
 
-    if response.change_epoch {
-        tracing::info!("reconfiguring after epoch change");
+    let committee_members = ctx
+        .query_runner
+        .get_committee_members()
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let is_committee_changed =
+        response
+            .node_registry_changes
+            .iter()
+            .any(|(node_public_key, change)| {
+                matches!(
+                    change,
+                    NodeRegistryChange::Deactivate(_) | NodeRegistryChange::Removed
+                ) && committee_members.contains(node_public_key)
+            });
+
+    if response.change_epoch || is_committee_changed {
+        if response.change_epoch {
+            tracing::info!("reconfiguring after epoch change");
+        }
+        if is_committee_changed {
+            tracing::info!("reconfiguring after committee change");
+        }
         ctx.reconfigure_notify.notify_waiters();
 
         ctx.committee = ctx.query_runner.get_committee_members_by_index();
@@ -288,33 +309,7 @@ async fn handle_consensus_output<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterfa
             .unwrap_or(u32::MAX);
         ctx.on_committee = ctx.committee.contains(&ctx.our_index);
 
-        ctx.txn_store.change_epoch(&ctx.committee);
-    } else {
-        // If the epoch did not change, check if any members were removed from the committee in this
-        // block. If so, reconfigure and restart the narwhal service.
-        // If the epoch changed, we can rely on the epoch change logic above to reconfigure and
-        // restart the narwhal service.
-        let committee_members = ctx
-            .query_runner
-            .get_committee_members()
-            .into_iter()
-            .collect::<HashSet<_>>();
-        if response
-            .node_registry_changes
-            .iter()
-            .any(|(node_public_key, change)| {
-                matches!(
-                    change,
-                    NodeRegistryChange::Deactivate(_) | NodeRegistryChange::Removed
-                ) && committee_members.contains(node_public_key)
-            })
-        {
-            tracing::info!("reconfiguring after node registry changes");
-            ctx.reconfigure_notify.notify_waiters();
-        }
-
-        // TODO(snormore): Emit notifier or broadcast event to let this node's components and all
-        // other nodes know about the changes, even if they haven't executed the block yet.
+        ctx.txn_store.change_committee(&ctx.committee);
     }
 }
 
@@ -562,7 +557,7 @@ async fn execute_digest<P: PubSub<PubSubMsg>, Q: SyncQueryRunnerInterface, NE: E
                     .unwrap_or(u32::MAX);
                 ctx.on_committee = ctx.committee.contains(&ctx.our_index);
                 ctx.reconfigure_notify.notify_waiters();
-                ctx.txn_store.change_epoch(&ctx.committee);
+                ctx.txn_store.change_committee(&ctx.committee);
             }
         },
         Err(not_executed) => {

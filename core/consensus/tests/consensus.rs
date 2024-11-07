@@ -79,7 +79,7 @@ async fn test_execute_transaction_as_committee_node() {
                 // timeout and need to be retried.
                 wait: types::ExecuteTransactionWait::Receipt,
                 retry: types::ExecuteTransactionRetry::Always(Some(10)),
-                timeout: Some(Duration::from_secs(2)),
+                timeout: Some(Duration::from_secs(5)),
             }),
         )
         .await
@@ -141,7 +141,7 @@ async fn test_execute_transaction_as_non_committee_node() {
                 // timeout and need to be retried.
                 wait: types::ExecuteTransactionWait::Receipt,
                 retry: types::ExecuteTransactionRetry::Always(Some(10)),
-                timeout: Some(Duration::from_secs(2)),
+                timeout: Some(Duration::from_secs(5)),
             }),
         )
         .await
@@ -322,7 +322,7 @@ async fn test_node_has_insufficient_stake_to_participate_after_unstake_transacti
                 // timeout and need to be retried.
                 wait: types::ExecuteTransactionWait::Receipt,
                 retry: types::ExecuteTransactionRetry::Always(Some(10)),
-                timeout: Some(Duration::from_secs(2)),
+                timeout: Some(Duration::from_secs(5)),
             }),
         )
         .await
@@ -354,25 +354,24 @@ async fn test_node_has_insufficient_stake_to_participate_after_unstake_transacti
     .await
     .unwrap();
 
-    // Check that the committee members and active node set has NOT changed yet.
     for node in network.nodes() {
         let query = node.app_query();
+
+        // Check that the committee members and active node set has changed.
         assert_eq!(
             query
                 .get_committee_info(&0, |committee| committee.members)
                 .unwrap(),
-            vec![0, 1, 2, 3]
+            vec![1, 2, 3]
         );
         assert_eq!(
             query
                 .get_committee_info(&0, |committee| committee.active_node_set)
                 .unwrap(),
-            vec![0, 1, 2, 3]
+            vec![1, 2, 3]
         );
-    }
 
-    // Check that the node registry changes have been recorded.
-    for node in network.nodes() {
+        // Check that the node registry changes have been recorded.
         let node_registry_changes = node
             .app_query()
             .get_committee_info(&0, |committee| committee.node_registry_changes)
@@ -388,74 +387,62 @@ async fn test_node_has_insufficient_stake_to_participate_after_unstake_transacti
                 NodeRegistryChange::Deactivate(NodeRegistryChangeDeactivateReason::Unstaked),
             )]
         );
+
+        // Check that the epoch era has been incremented.
+        assert_eq!(node.app_query().get_epoch_era(), 1);
     }
 
-    // tokio::time::sleep(Duration::from_secs(10)).await;
-
-    // Execute an increment nonce transaction from all the nodes.
-    network
-        .node(1)
-        .execute_transaction_from_node(
+    // Execute a nonce increment transaction from all nodes.
+    join_all(network.nodes().map(|node| {
+        node.execute_transaction_from_node(
             UpdateMethod::IncrementNonce {},
             Some(ExecuteTransactionOptions {
+                // Transactions that are submitted immediately after narwhal service startup will
+                // sometimes timeout and need to be retried.
                 wait: types::ExecuteTransactionWait::Receipt,
                 retry: types::ExecuteTransactionRetry::Always(Some(10)),
                 timeout: Some(Duration::from_secs(2)),
             }),
         )
-        .await
-        .unwrap();
+    }))
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()
+    .unwrap();
 
-    // TODO(snormore): Why can't we execute from the removed/deactivated node?
+    // Execute change epoch transactions to trigger epoch change.
+    join_all(
+        network
+            .nodes()
+            .filter(|node| node.index() != 0)
+            .map(|node| {
+                node.execute_transaction_from_node(UpdateMethod::ChangeEpoch { epoch: 0 }, None)
+            }),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()
+    .unwrap();
 
-    // TODO(snormore): The restart + execute seems to sometimes fail with
-    // TransactionExecutedButReceiptNotAvailable.
+    // Wait for epoch change to propagate across the network.
+    poll_until(
+        || async {
+            network
+                .nodes()
+                .all(|node| node.app_query().get_current_epoch() == 1)
+                .then_some(())
+                .ok_or(PollUntilError::ConditionNotSatisfied)
+        },
+        Duration::from_secs(3),
+        Duration::from_millis(100),
+    )
+    .await
+    .unwrap();
 
-    // join_all(network.nodes().map(|node| {
-    //     node.execute_transaction_from_node(
-    //         UpdateMethod::IncrementNonce {},
-    //         Some(ExecuteTransactionOptions {
-    //             // Transactions that are submitted immediately after narwhal service startup will
-    //             // sometimes timeout and need to be retried.
-    //             wait: types::ExecuteTransactionWait::Receipt,
-    //             retry: types::ExecuteTransactionRetry::Always(Some(10)),
-    //             timeout: Some(Duration::from_secs(2)),
-    //         }),
-    //     )
-    // }))
-    // .await
-    // .into_iter()
-    // .collect::<Result<Vec<_>, _>>()
-    // .unwrap();
-
-    // // Execute change epoch transactions to trigger epoch change.
-    // join_all(
-    //     network
-    //         .nodes()
-    //         .filter(|node| node.index() != 0)
-    //         .map(|node| {
-    //             node.execute_transaction_from_node(UpdateMethod::ChangeEpoch { epoch: 0 }, None)
-    //         }),
-    // )
-    // .await
-    // .into_iter()
-    // .collect::<Result<Vec<_>, _>>()
-    // .unwrap();
-
-    // // Wait for epoch change to propagate across the network.
-    // poll_until(
-    //     || async {
-    //         network
-    //             .nodes()
-    //             .all(|node| node.app_query().get_current_epoch() == 1)
-    //             .then_some(())
-    //             .ok_or(PollUntilError::ConditionNotSatisfied)
-    //     },
-    //     Duration::from_secs(3),
-    //     Duration::from_millis(100),
-    // )
-    // .await
-    // .unwrap();
+    // Check that the epoch era has been reset.
+    for node in network.nodes() {
+        assert_eq!(node.app_query().get_epoch_era(), 0);
+    }
 
     // // Check that the node with insufficient stake has been removed from the committee and active
     // // node set.

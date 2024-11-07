@@ -97,7 +97,9 @@ impl<T: BroadcastEventInterface<PubSubMsg>> TransactionStore<T> {
     // the parcels from the previous epoch.
     // The parcels from the previous epoch are garbage collected, and the parcels from
     // the next epoch become the parcels from the current epoch (after validating them).
-    pub fn change_epoch(&mut self, committee: &[NodeIndex]) {
+    // TODO(snormore): Fix this comment and all the epoch references in this file. We should use
+    // something like "round" since we can have many of these changes within an epoch.
+    pub fn change_committee(&mut self, committee: &[NodeIndex]) {
         // Verify that the parcels/attestations from the next epoch were send by committee members.
         // Remove invalid parcels/attestations from the hash map.
         let next_pointer = self.next_pointer();
