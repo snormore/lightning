@@ -175,8 +175,18 @@ pub type BlockNodeRegistryChanges = Vec<(NodePublicKey, NodeRegistryChange)>;
 pub enum NodeRegistryChange {
     New,
     Removed,
+    Exiting(NodeRegistryChangeExitingReason),
     Activate(NodeRegistryChangeActivateReason),
     Deactivate(NodeRegistryChangeDeactivateReason),
+}
+
+#[rustfmt::skip]
+#[derive(
+    Debug, PartialEq, PartialOrd, Hash, Eq, Ord, Serialize, Deserialize, Clone, schemars::JsonSchema,
+)]
+pub enum NodeRegistryChangeExitingReason {
+    Unstaked,
+    OptedOut,
 }
 
 #[rustfmt::skip]
